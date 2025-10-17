@@ -1,294 +1,363 @@
-# ==========================================================
-# LSTM + GNN for multi-step zone prediction (modular)
-# ==========================================================
-import torch, torch.nn as nn, torch.optim as optim
-import pandas as pd, numpy as np, random
+import torch
+import torch.nn as nn
+import torch.optim as optim
+import pandas as pd
+import numpy as np
+import random
 from collections import defaultdict
 from torch_geometric.nn import GCNConv
+from sklearn.metrics import accuracy_score, confusion_matrix, classification_report
 
 # -----------------------------
-# Config
+# Configuration
 # -----------------------------
-data_csv = "traffic_dataset.csv"
-X = 10      # number of past timesteps as input
-Y = 5       # number of future timesteps to predict
-epochs = 30
-batch_size = 128
-num_classes = 5
-train_start_time = 400
-train_end_time = 1000
-device = "cuda" if torch.cuda.is_available() else "cpu"
-HEX_DIRECTIONS = [(+1,0),(+1,-1),(0,-1),(-1,0),(-1,+1),(0,+1)]
+DATA_CSV = "traffic_dataset.csv"
+X = 10
+Y = 5
+EPOCHS = 30
+BATCH_SIZE = 128
+NUM_CLASSES = 5
+
+TRAIN_START_TIME = 300
+TRAIN_END_TIME = 1000
+TEST_START_TIME = 1001
+
+DEVICE = "cuda" if torch.cuda.is_available() else "cpu"
+HEX_DIRECTIONS = [(+1, 0), (+1, -1), (0, -1), (-1, 0), (-1, +1), (0, +1)]
 
 # -----------------------------
-# Build hex graph
+# 1. Build Hexagonal Graph
 # -----------------------------
 def build_hex_graph(df):
-    unique = sorted({tuple(map(int,h.split("_"))) for h in df["hex_id"].unique()})
-    node_to_idx = {h:i for i,h in enumerate(unique)}
-    edges=[]
-    for (q,r) in unique:
-        i = node_to_idx[(q,r)]
-        for dq,dr in HEX_DIRECTIONS:
-            nh = (q+dq,r+dr)
-            if nh in node_to_idx:
-                edges.append((i, node_to_idx[nh]))
+    unique_hex_coords = sorted({tuple(map(int, h.split("_"))) for h in df["hex_id"].unique()})
+    node_to_idx = {h: i for i, h in enumerate(unique_hex_coords)}
+    edges = []
+    for (q, r) in unique_hex_coords:
+        i = node_to_idx[(q, r)]
+        for dq, dr in HEX_DIRECTIONS:
+            neighbor_hex = (q + dq, r + dr)
+            if neighbor_hex in node_to_idx:
+                edges.append((i, node_to_idx[neighbor_hex]))
     edge_index = torch.tensor(edges, dtype=torch.long).t().contiguous()
-    return node_to_idx, edge_index, unique
+    return node_to_idx, edge_index, unique_hex_coords
 
 # -----------------------------
-# Normalize features
+# 2. Normalize Features
 # -----------------------------
-def compute_norm_stats(df, train_end):
-    train = df[df["time"]<=train_end]
+def compute_norm_stats(df, start_time, end_time):
+    train_df = df[(df["time"] >= start_time) & (df["time"] <= end_time)]
     stats = {}
-    for col in ["num_vehicles","avg_speed","avg_sin","avg_cos"]:
-        stats[col] = (train[col].min(), train[col].max())
+    feature_cols = ["num_vehicles", "avg_speed", "avg_sin", "avg_cos"]
+    for col in feature_cols:
+        stats[col] = (train_df[col].min(), train_df[col].max())
     return stats
 
 def normalize_df(df, stats):
-    df = df.copy()
-    for col in ["num_vehicles","avg_speed","avg_sin","avg_cos"]:
-        mn,mx = stats[col]
-        df[col] = (df[col]-mn)/(mx-mn+1e-9)
-    return df
+    df_norm = df.copy()
+    feature_cols = ["num_vehicles", "avg_speed", "avg_sin", "avg_cos"]
+    for col in feature_cols:
+        min_val, max_val = stats[col]
+        df_norm[col] = (df_norm[col] - min_val) / (max_val - min_val + 1e-9)
+    return df_norm
 
 # -----------------------------
-# Build training samples
+# 3. Build Training/Testing Samples
 # -----------------------------
-def build_samples(df, node_to_idx, X, Y, min_time, max_time):
+def build_samples(df, node_to_idx, X, Y, start_time, end_time):
     samples = []
-    for hex_id, grp in df.groupby("hex_id"):
-        grp = grp.sort_values("time").reset_index(drop=True)
-        feats = grp[["num_vehicles","avg_speed","avg_sin","avg_cos"]].values.astype(np.float32)
-        labels = grp["label"].values
-        times = grp["time"].values
-        node_idx = node_to_idx.get(tuple(map(int,hex_id.split("_"))))
+    feature_cols = ["num_vehicles", "avg_speed", "avg_sin", "avg_cos"]
+    for hex_id, group in df.groupby("hex_id"):
+        group = group.sort_values("time").reset_index(drop=True)
+        features = group[feature_cols].values.astype(np.float32)
+        labels = group["label"].values
+        times = group["time"].values
+        node_idx = node_to_idx.get(tuple(map(int, hex_id.split("_"))))
         if node_idx is None: continue
-        for i in range(len(feats)-X-Y+1):
-            t_last = int(times[i+X-1])
-            # Filter samples based on min_time and max_time
-            if t_last < min_time or t_last > max_time: continue
 
-            seq = feats[i:i+X]
-            target = labels[i+X:i+X+Y]
-            if len(target)<Y: continue
+        for i in range(len(features) - X - Y + 1):
+            last_input_time = int(times[i + X - 1])
+            if last_input_time < start_time or last_input_time > end_time:
+                continue
+            input_seq = features[i:i + X]
+            target_seq = labels[i + X:i + X + Y]
             samples.append({
-                "seq": torch.tensor(seq),
+                "seq": torch.tensor(input_seq, dtype=torch.float32),
                 "node_idx": node_idx,
-                "t_last": t_last,
-                "targets": torch.tensor(target-1)  # 0..num_classes-1
+                "t_last": last_input_time,
+                "targets": torch.tensor(target_seq, dtype=torch.long)
             })
     return samples
 
 # -----------------------------
-# Build snapshot tensors
+# 4. Build Temporal Snapshots for GNN
 # -----------------------------
 def build_snapshots(df, node_list, node_to_idx):
-    feat_cols = ["num_vehicles","avg_speed","avg_sin","avg_cos"]
-    snaps = {}
+    feature_cols = ["num_vehicles", "avg_speed", "avg_sin", "avg_cos"]
+    snapshots = {}
     for t in sorted(df["time"].unique()):
-        X_snap = np.zeros((len(node_list), len(feat_cols)), dtype=np.float32)
-        sub = df[df["time"]==t]
-        for _, r in sub.iterrows():
-            q,r2 = map(int, r.hex_id.split("_"))
-            idx = node_to_idx.get((q,r2))
+        snapshot_features = np.zeros((len(node_list), len(feature_cols)), dtype=np.float32)
+        sub_df = df[df["time"] == t]
+        for _, row in sub_df.iterrows():
+            q, r = map(int, row.hex_id.split("_"))
+            idx = node_to_idx.get((q, r))
             if idx is not None:
-                X_snap[idx] = r[feat_cols].values
-        snaps[t] = torch.tensor(X_snap, dtype=torch.float32)
-    return snaps
+                snapshot_features[idx] = row[feature_cols].values
+        snapshots[t] = torch.tensor(snapshot_features, dtype=torch.float32)
+    return snapshots
 
 # -----------------------------
-# Model definitions
+# 5. Model Definitions
 # -----------------------------
-class LSTMEnc(nn.Module):
-    def __init__(self,in_dim=4,hid=64,out=32):
+class LSTMEncoder(nn.Module):
+    def __init__(self, in_dim=4, hidden_dim=64, out_dim=32):
         super().__init__()
-        self.lstm = nn.LSTM(in_dim,hid,batch_first=True)
-        self.fc = nn.Linear(hid,out)
+        self.lstm = nn.LSTM(in_dim, hidden_dim, batch_first=True)
+        self.fc = nn.Linear(hidden_dim, out_dim)
         self.act = nn.ReLU()
-    def forward(self,x):
-        out,_ = self.lstm(x)
-        return self.act(self.fc(out[:,-1,:]))
+    def forward(self, x):
+        _, (h_n, _) = self.lstm(x)
+        return self.act(self.fc(h_n.squeeze(0)))
 
-class GNNEnc(nn.Module):
-    def __init__(self,in_dim=4,h1=64,h2=32,out=32):
+class GNNEncoder(nn.Module):
+    def __init__(self, in_dim=4, h1=64, h2=32, out_dim=32):
         super().__init__()
-        self.conv1 = GCNConv(in_dim,h1)
-        self.conv2 = GCNConv(h1,h2)
-        self.fc = nn.Linear(h2,out)
+        self.conv1 = GCNConv(in_dim, h1)
+        self.conv2 = GCNConv(h1, h2)
+        self.fc = nn.Linear(h2, out_dim)
         self.act = nn.ReLU()
-    def forward(self,x,edge_index):
-        x = self.act(self.conv1(x,edge_index))
-        x = self.act(self.conv2(x,edge_index))
+    def forward(self, x, edge_index):
+        x = self.act(self.conv1(x, edge_index))
+        x = self.act(self.conv2(x, edge_index))
         return self.act(self.fc(x))
 
 class Decoder(nn.Module):
-    def __init__(self,lstm_dim=32,gnn_dim=32,Y=5,hid=128,classes=5):
+    def __init__(self, lstm_dim=32, gnn_dim=32, Y=5, hidden_dim=128, classes=3):
         super().__init__()
-        self.fc1 = nn.Linear(lstm_dim+gnn_dim,hid)
-        self.fc2 = nn.Linear(hid,Y*classes)
+        self.fc1 = nn.Linear(lstm_dim + gnn_dim, hidden_dim)
+        self.fc2 = nn.Linear(hidden_dim, Y * classes)
         self.act = nn.ReLU()
         self.Y = Y
         self.classes = classes
-    def forward(self,l,g):
-        x = torch.cat([l,g],1)
+    def forward(self, lstm_emb, gnn_emb):
+        x = torch.cat([lstm_emb, gnn_emb], dim=1)
         x = self.act(self.fc1(x))
         x = self.fc2(x)
         return x.view(x.size(0), self.Y, self.classes)
 
-# ==========================================================
-# Training function
-# ==========================================================
-def train_model(samples, snaps, node_list, edge_index, lstm, gnn, dec,
-                epochs, device, batch_size=128):
+# -----------------------------
+# 6. Training Function
+# -----------------------------
+def train_model(samples, snapshots, edge_index, lstm, gnn, dec, epochs, device, batch_size):
     lstm.to(device); gnn.to(device); dec.to(device)
     edge_index = edge_index.to(device)
-    optimizer = optim.Adam(list(lstm.parameters())+list(gnn.parameters())+list(dec.parameters()), lr=1e-3)
+    optimizer = optim.Adam(list(lstm.parameters()) + list(gnn.parameters()) + list(dec.parameters()), lr=1e-3)
     loss_fn = nn.CrossEntropyLoss()
     ids = list(range(len(samples)))
-    for ep in range(1,epochs+1):
+    for ep in range(1, epochs + 1):
         random.shuffle(ids)
-        tot = 0; cnt = 0
-        for b in range(0,len(ids), batch_size):
-            idxs = ids[b:b+batch_size]
-            batch = [samples[i] for i in idxs]
+        total_loss = 0
+        for b_start in range(0, len(ids), batch_size):
+            b_end = b_start + batch_size
+            batch_indices = ids[b_start:b_end]
+            batch = [samples[i] for i in batch_indices]
             seqs = torch.stack([s["seq"] for s in batch]).to(device)
             lstm_emb = lstm(seqs)
-
-            # GNN embeddings per t_last
-            tlasts = defaultdict(list)
-            for s in batch: tlasts[s["t_last"]].append(s)
-            g_cache = {}
-            for t in tlasts:
-                x = snaps[t].to(device)
-                g_cache[t] = gnn(x, edge_index)
-
-            g_nodes = []
-            tgts = []
+            gnn_cache = {}
             for s in batch:
-                g_nodes.append(g_cache[s["t_last"]][s["node_idx"]])
-                tgts.append(s["targets"])
-            g_nodes = torch.stack(g_nodes).to(device)
-            tgts = torch.stack(tgts).to(device)
-
-            logits = dec(lstm_emb, g_nodes)
-            loss = sum(nn.CrossEntropyLoss()(logits[:,k,:], tgts[:,k]) for k in range(dec.Y))/dec.Y
-
+                t = s["t_last"]
+                if t not in gnn_cache:
+                    x_snap = snapshots[t].to(device)
+                    gnn_cache[t] = gnn(x_snap, edge_index)
+            gnn_nodes = []
+            targets = []
+            for s in batch:
+                gnn_nodes.append(gnn_cache[s["t_last"]][s["node_idx"]])
+                targets.append(s["targets"])
+            gnn_emb = torch.stack(gnn_nodes).to(device)
+            targets = torch.stack(targets).to(device)
+            logits = dec(lstm_emb, gnn_emb)
+            loss = sum(loss_fn(logits[:, k, :], targets[:, k]) for k in range(dec.Y)) / dec.Y
             optimizer.zero_grad()
             loss.backward()
             optimizer.step()
-            tot += loss.item()*seqs.size(0)
-            cnt += seqs.size(0)
-        print(f"Epoch {ep}/{epochs}  loss={tot/cnt:.4f}")
+            total_loss += loss.item() * len(batch)
+        avg_loss = total_loss / len(samples)
+        print(f"Epoch {ep}/{epochs}  |  Average Loss: {avg_loss:.5f}")
     return lstm, gnn, dec
 
-# ==========================================================
-# Prediction function
-# ==========================================================
-def predict_future(df, snaps, node_list, node_to_idx, edge_index,
-                   lstm, gnn, dec, X, Y, device, stats):
-    lstm.to(device); gnn.to(device); dec.to(device)
+# -----------------------------
+# 7. Evaluation Function
+# -----------------------------
+def evaluate_model(lstm, gnn, dec, test_samples, snapshots, edge_index, device, Y, num_classes):
+    lstm.to(device).eval(); gnn.to(device).eval(); dec.to(device).eval()
     edge_index = edge_index.to(device)
-    lstm.eval(); gnn.eval(); dec.eval()
+    all_preds, all_targets = [], []
+    with torch.no_grad():
+        for s in test_samples:
+            seq = s["seq"].unsqueeze(0).to(device)
+            t_last = s["t_last"]
+            node_idx = s["node_idx"]
+            lstm_emb = lstm(seq)
+            x_snap = snapshots[t_last].to(device)
+            gnn_emb_all = gnn(x_snap, edge_index)
+            gnn_emb = gnn_emb_all[node_idx].unsqueeze(0)
+            logits = dec(lstm_emb, gnn_emb)
+            preds = torch.argmax(logits, dim=2).cpu().numpy().flatten()
+            all_preds.append(preds)
+            all_targets.append(s["targets"].numpy())
+    if not all_targets:
+        print("No test samples found to evaluate.")
+        return
+    all_preds = np.array(all_preds)
+    all_targets = np.array(all_targets)
+    print("\n--- Model Evaluation Results ---")
+    for i in range(Y):
+        print(f"\n>>> Metrics for Prediction Timestep t+{i+1}")
+        accuracy = accuracy_score(all_targets[:, i], all_preds[:, i])
+        print(f"Accuracy: {accuracy:.4f}")
+        report = classification_report(
+            all_targets[:, i], all_preds[:, i], labels=range(num_classes),
+            target_names=[f"Class {j}" for j in range(num_classes)], zero_division=0
+        )
+        print("Classification Report:")
+        print(report)
 
-    seqs = []
+# -----------------------------
+# 8. NEW: Prediction Comparison Function
+# -----------------------------
+def predict_and_compare(start_time, df, df_norm, snapshots, node_list, node_to_idx, edge_index,
+                        lstm, gnn, dec, X, Y, device):
+    """Makes a prediction for a specific start time and compares it to the real labels."""
+    print(f"\n--- Comparing Prediction for Timestep {start_time} ---")
+    lstm.to(device).eval(); gnn.to(device).eval(); dec.to(device).eval()
+    edge_index = edge_index.to(device)
+
+    # 1. Prepare the input data for the model
+    input_start_time = start_time - X
+    input_end_time = start_time - 1
+
+    sequences = []
+    feature_cols = ["num_vehicles", "avg_speed", "avg_sin", "avg_cos"]
     for node in node_list:
         hex_id = f"{node[0]}_{node[1]}"
-        node_df = df[df["hex_id"]==hex_id].sort_values("time")
-        last_seq = node_df.iloc[-X:][["num_vehicles","avg_speed","avg_sin","avg_cos"]].values.astype(np.float32)
-        # Manually normalize the sequence for prediction
-        for i,col in enumerate(["num_vehicles","avg_speed","avg_sin","avg_cos"]):
-            mn,mx = stats[col]
-            last_seq[:,i] = (last_seq[:,i]-mn)/(mx-mn+1e-9)
-        seqs.append(torch.tensor(last_seq,dtype=torch.float32))
+        # Get the normalized data for the input window
+        node_df_norm = df_norm[(df_norm["hex_id"] == hex_id) &
+                               (df_norm["time"] >= input_start_time) &
+                               (df_norm["time"] <= input_end_time)]
+        node_df_norm = node_df_norm.sort_values("time")
+        
+        # Handle cases where a node might not have data for all X timesteps
+        seq_data = node_df_norm[feature_cols].values
+        if len(seq_data) < X:
+            # Pad with zeros if data is missing
+            padding = np.zeros((X - len(seq_data), len(feature_cols)))
+            seq_data = np.vstack([padding, seq_data])
+        sequences.append(torch.tensor(seq_data, dtype=torch.float32))
 
-    seqs = torch.stack(seqs).to(device)
+    sequences = torch.stack(sequences).to(device)
+    
+    # 2. Make the prediction
     with torch.no_grad():
-        lstm_emb = lstm(seqs)
-        Tmax = max(snaps.keys())
-        xT = snaps[Tmax].to(device)
-        g_out = gnn(xT, edge_index)
-        logits = dec(lstm_emb, g_out)
-        preds = torch.argmax(logits, 2).cpu().numpy() + 1  # 1..num_classes
-    return Tmax, preds
+        lstm_emb = lstm(sequences)
+        snapshot_time = input_end_time
+        x_snap = snapshots[snapshot_time].to(device)
+        gnn_emb = gnn(x_snap, edge_index)
+        logits = dec(lstm_emb, gnn_emb)
+        predicted_labels = torch.argmax(logits, dim=2).cpu().numpy()
+
+    # 3. Get the real labels from the original dataframe
+    real_labels = []
+    for node in node_list:
+        hex_id = f"{node[0]}_{node[1]}"
+        real_df = df[(df["hex_id"] == hex_id) &
+                     (df["time"] >= start_time) &
+                     (df["time"] < start_time + Y)]
+        real_df = real_df.sort_values("time")
+        
+        node_real_labels = real_df["label"].values
+        # Pad with a placeholder (e.g., -1) if real data is missing
+        if len(node_real_labels) < Y:
+            padding = np.full(Y - len(node_real_labels), -1)
+            node_real_labels = np.concatenate([node_real_labels, padding])
+        real_labels.append(node_real_labels)
+    
+    real_labels = np.array(real_labels)
+
+    # 4. Display the comparison
+    comparison_dfs = []
+    for i in range(Y):
+        df_t = pd.DataFrame({
+            'hex_id': [f"{q}_{r}" for q, r in node_list],
+            f'Predicted_t+{i+1}': predicted_labels[:, i],
+            f'Real_t+{i+1}': real_labels[:, i]
+        })
+        comparison_dfs.append(df_t.set_index('hex_id'))
+        
+    final_comparison_df = pd.concat(comparison_dfs, axis=1)
+    print("Side-by-side comparison (first 15 zones):")
+    print(final_comparison_df.head(15))
+
 
 # ==========================================================
-# Main execution
+# Main Execution Block
 # ==========================================================
 def main():
-    """Main function to run the data processing, training, and prediction pipeline."""
-    # 1. Load data
-    print(f"Loading data from {data_csv}...")
+    print(f"Loading data from {DATA_CSV}...")
     try:
-        df = pd.read_csv(data_csv)
+        df = pd.read_csv(DATA_CSV)
+        if df['label'].min() == 1:
+            df['label'] = df['label'] - 1
     except FileNotFoundError:
-        print(f"Error: {data_csv} not found. Please make sure the dataset is in the correct path.")
+        print(f"Error: '{DATA_CSV}' not found. Please update the DATA_CSV variable.")
         return
 
-    # 2. Build graph structure from hex coordinates
     print("Building hexagonal graph...")
     node_to_idx, edge_index, node_list = build_hex_graph(df)
     print(f"Graph built with {len(node_list)} nodes and {edge_index.shape[1]} edges.")
 
-    # 3. Normalize features
-    # Compute stats only on the training time window to avoid data leakage
-    print(f"Normalizing features based on data up to time={train_end_time}...")
-    stats = compute_norm_stats(df, train_end_time)
+    print(f"Normalizing features based on data from time {TRAIN_START_TIME} to {TRAIN_END_TIME}...")
+    stats = compute_norm_stats(df, TRAIN_START_TIME, TRAIN_END_TIME)
     df_norm = normalize_df(df, stats)
 
-    # 4. Build training samples
-    # This is where train_start_time and train_end_time are used to filter the samples
-    print(f"Building training samples from time {train_start_time} to {train_end_time}...")
-    train_samples = build_samples(df_norm, node_to_idx, X, Y, train_start_time, train_end_time)
+    print(f"Building training samples from time {TRAIN_START_TIME} to {TRAIN_END_TIME}...")
+    train_samples = build_samples(df_norm, node_to_idx, X, Y, TRAIN_START_TIME, TRAIN_END_TIME)
     print(f"Created {len(train_samples)} training samples.")
     if not train_samples:
-        print("No training samples were generated. Check your time ranges and data.")
+        print("No training samples were generated.")
         return
 
-    # 5. Build snapshots for GNN
     print("Building temporal snapshots for GNN...")
-    snaps = build_snapshots(df_norm, node_list, node_to_idx)
+    snapshots = build_snapshots(df_norm, node_list, node_to_idx)
 
-    # 6. Initialize models
-    print("Initializing models (LSTM, GNN, Decoder)...")
-    lstm = LSTMEnc()
-    gnn = GNNEnc()
-    dec = Decoder(Y=Y, classes=num_classes)
+    print("Initializing models...")
+    lstm = LSTMEncoder()
+    gnn = GNNEncoder()
+    dec = Decoder(Y=Y, classes=NUM_CLASSES)
 
-    # 7. Train the model
-    print(f"Starting training for {epochs} epochs on device: {device}...")
-    lstm, gnn, dec = train_model(
-        train_samples, snaps, node_list, edge_index,
-        lstm, gnn, dec,
-        epochs=epochs, device=device, batch_size=batch_size
+    print(f"Starting training for {EPOCHS} epochs on device: {DEVICE}...")
+    lstm, ggn, dec = train_model(
+        train_samples, snapshots, edge_index, lstm, gnn, dec,
+        epochs=EPOCHS, device=DEVICE, batch_size=BATCH_SIZE
     )
     print("Training complete.")
 
-    # 8. Predict future
-    print("\nPredicting future traffic levels...")
-    Tmax, preds = predict_future(
-        df, snaps, node_list, node_to_idx, edge_index,
-        lstm, gnn, dec, X, Y, device, stats
-    )
-    print(f"Prediction made based on final timestamp T={Tmax}.")
-    print("Shape of predictions (Nodes, Future Timesteps):", preds.shape)
-    
-    # Create a DataFrame for better readability of predictions
-    pred_df = pd.DataFrame(preds, 
-                           index=[f"{q}_{r}" for q,r in node_list],
-                           columns=[f"t+{t}" for t in range(1, Y + 1)])
-    print("Example predictions for the first 5 nodes:")
-    print(pred_df.head())
+    print(f"\nBuilding test samples from time {TEST_START_TIME} onwards...")
+    max_time = df['time'].max()
+    test_samples = build_samples(df_norm, node_to_idx, X, Y, TEST_START_TIME, max_time)
+    print(f"Created {len(test_samples)} test samples.")
 
+    evaluate_model(lstm, gnn, dec, test_samples, snapshots, edge_index, DEVICE, Y, NUM_CLASSES)
+
+    # Use the new function to check a specific prediction
+    # You can change the timestep here (e.g., 1001, 1010, etc.)
+    predict_and_compare(start_time=TEST_START_TIME, df=df, df_norm=df_norm, snapshots=snapshots,
+                        node_list=node_list, node_to_idx=node_to_idx, edge_index=edge_index,
+                        lstm=lstm, gnn=gnn, dec=dec, X=X, Y=Y, device=DEVICE)
 
 if __name__ == "__main__":
-    # Set seed for reproducibility
     random.seed(42)
     np.random.seed(42)
     torch.manual_seed(42)
     if torch.cuda.is_available():
         torch.cuda.manual_seed_all(42)
-
     main()
-
