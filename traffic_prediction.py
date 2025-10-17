@@ -7,6 +7,8 @@ import random
 from collections import defaultdict
 from torch_geometric.nn import GCNConv
 from sklearn.metrics import accuracy_score, confusion_matrix, classification_report
+import os
+import joblib
 
 # -----------------------------
 # Configuration
@@ -24,6 +26,8 @@ TEST_START_TIME = 1001
 
 DEVICE = "cuda" if torch.cuda.is_available() else "cpu"
 HEX_DIRECTIONS = [(+1, 0), (+1, -1), (0, -1), (-1, 0), (-1, +1), (0, +1)]
+
+MODEL_SAVE_PATH = "saved_model"
 
 # -----------------------------
 # 1. Build Hexagonal Graph
@@ -300,8 +304,71 @@ def predict_and_compare(start_time, df, df_norm, snapshots, node_list, node_to_i
 
 # ==========================================================
 # Main Execution Block
-# ==========================================================
-def main():
+# # ==========================================================
+# def main():
+#     print(f"Loading data from {DATA_CSV}...")
+#     try:
+#         df = pd.read_csv(DATA_CSV)
+#         if df['label'].min() == 1:
+#             df['label'] = df['label'] - 1
+#     except FileNotFoundError:
+#         print(f"Error: '{DATA_CSV}' not found. Please update the DATA_CSV variable.")
+#         return
+
+#     print("Building hexagonal graph...")
+#     node_to_idx, edge_index, node_list = build_hex_graph(df)
+#     print(f"Graph built with {len(node_list)} nodes and {edge_index.shape[1]} edges.")
+
+#     print(f"Normalizing features based on data from time {TRAIN_START_TIME} to {TRAIN_END_TIME}...")
+#     stats = compute_norm_stats(df, TRAIN_START_TIME, TRAIN_END_TIME)
+#     df_norm = normalize_df(df, stats)
+
+#     print(f"Building training samples from time {TRAIN_START_TIME} to {TRAIN_END_TIME}...")
+#     train_samples = build_samples(df_norm, node_to_idx, X, Y, TRAIN_START_TIME, TRAIN_END_TIME)
+#     print(f"Created {len(train_samples)} training samples.")
+#     if not train_samples:
+#         print("No training samples were generated.")
+#         return
+
+#     print("Building temporal snapshots for GNN...")
+#     snapshots = build_snapshots(df_norm, node_list, node_to_idx)
+
+#     print("Initializing models...")
+#     lstm = LSTMEncoder()
+#     gnn = GNNEncoder()
+#     dec = Decoder(Y=Y, classes=NUM_CLASSES)
+
+#     print(f"Starting training for {EPOCHS} epochs on device: {DEVICE}...")
+#     lstm, ggn, dec = train_model(
+#         train_samples, snapshots, edge_index, lstm, gnn, dec,
+#         epochs=EPOCHS, device=DEVICE, batch_size=BATCH_SIZE
+#     )
+#     print("Training complete.")
+
+#     print(f"\nBuilding test samples from time {TEST_START_TIME} onwards...")
+#     max_time = df['time'].max()
+#     test_samples = build_samples(df_norm, node_to_idx, X, Y, TEST_START_TIME, max_time)
+#     print(f"Created {len(test_samples)} test samples.")
+
+#     evaluate_model(lstm, gnn, dec, test_samples, snapshots, edge_index, DEVICE, Y, NUM_CLASSES)
+
+#     # Use the new function to check a specific prediction
+#     # You can change the timestep here (e.g., 1001, 1010, etc.)
+#     predict_and_compare(start_time=TEST_START_TIME, df=df, df_norm=df_norm, snapshots=snapshots,
+#                         node_list=node_list, node_to_idx=node_to_idx, edge_index=edge_index,
+#                         lstm=lstm, gnn=gnn, dec=dec, X=X, Y=Y, device=DEVICE)
+
+# if __name__ == "__main__":
+#     random.seed(42)
+#     np.random.seed(42)
+#     torch.manual_seed(42)
+#     if torch.cuda.is_available():
+#         torch.cuda.manual_seed_all(42)
+#     main()
+
+
+def main_train():
+    """Trains the model and saves all necessary components to disk."""
     print(f"Loading data from {DATA_CSV}...")
     try:
         df = pd.read_csv(DATA_CSV)
@@ -313,7 +380,6 @@ def main():
 
     print("Building hexagonal graph...")
     node_to_idx, edge_index, node_list = build_hex_graph(df)
-    print(f"Graph built with {len(node_list)} nodes and {edge_index.shape[1]} edges.")
 
     print(f"Normalizing features based on data from time {TRAIN_START_TIME} to {TRAIN_END_TIME}...")
     stats = compute_norm_stats(df, TRAIN_START_TIME, TRAIN_END_TIME)
@@ -321,7 +387,6 @@ def main():
 
     print(f"Building training samples from time {TRAIN_START_TIME} to {TRAIN_END_TIME}...")
     train_samples = build_samples(df_norm, node_to_idx, X, Y, TRAIN_START_TIME, TRAIN_END_TIME)
-    print(f"Created {len(train_samples)} training samples.")
     if not train_samples:
         print("No training samples were generated.")
         return
@@ -335,24 +400,26 @@ def main():
     dec = Decoder(Y=Y, classes=NUM_CLASSES)
 
     print(f"Starting training for {EPOCHS} epochs on device: {DEVICE}...")
-    lstm, ggn, dec = train_model(
+    lstm, gnn, dec = train_model(
         train_samples, snapshots, edge_index, lstm, gnn, dec,
         epochs=EPOCHS, device=DEVICE, batch_size=BATCH_SIZE
     )
     print("Training complete.")
 
-    print(f"\nBuilding test samples from time {TEST_START_TIME} onwards...")
-    max_time = df['time'].max()
-    test_samples = build_samples(df_norm, node_to_idx, X, Y, TEST_START_TIME, max_time)
-    print(f"Created {len(test_samples)} test samples.")
+    # --- Save the trained model and helper objects ---
+    print(f"\nSaving model components to '{MODEL_SAVE_PATH}/'...")
+    os.makedirs(MODEL_SAVE_PATH, exist_ok=True)
 
-    evaluate_model(lstm, gnn, dec, test_samples, snapshots, edge_index, DEVICE, Y, NUM_CLASSES)
+    torch.save(lstm.state_dict(), os.path.join(MODEL_SAVE_PATH, "lstm_model.pth"))
+    torch.save(gnn.state_dict(), os.path.join(MODEL_SAVE_PATH, "gnn_model.pth"))
+    torch.save(dec.state_dict(), os.path.join(MODEL_SAVE_PATH, "decoder_model.pth"))
 
-    # Use the new function to check a specific prediction
-    # You can change the timestep here (e.g., 1001, 1010, etc.)
-    predict_and_compare(start_time=TEST_START_TIME, df=df, df_norm=df_norm, snapshots=snapshots,
-                        node_list=node_list, node_to_idx=node_to_idx, edge_index=edge_index,
-                        lstm=lstm, gnn=gnn, dec=dec, X=X, Y=Y, device=DEVICE)
+    # Save the normalization stats and graph info
+    joblib.dump(stats, os.path.join(MODEL_SAVE_PATH, "stats.pkl"))
+    graph_info = {'node_to_idx': node_to_idx, 'edge_index': edge_index, 'node_list': node_list}
+    joblib.dump(graph_info, os.path.join(MODEL_SAVE_PATH, "graph_info.pkl"))
+
+    print("All components saved successfully.")
 
 if __name__ == "__main__":
     random.seed(42)
@@ -360,4 +427,7 @@ if __name__ == "__main__":
     torch.manual_seed(42)
     if torch.cuda.is_available():
         torch.cuda.manual_seed_all(42)
-    main()
+
+    # Run the training process
+    main_train()
+
