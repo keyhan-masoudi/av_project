@@ -9,8 +9,8 @@ import math
 # -----------------------------
 # Config
 # -----------------------------
-xml_path = "../data/vehicles/chunk_0.xml"     # path to your SUMO XML file
-output_csv = "traffic_dataset.csv"
+xml_path = "chunk_0.xml"     # path to your SUMO XML file
+output_csv = "new_traffic_dataset.csv"
 hex_size = 250                # adjust to your map size
 # label thresholds
 THRESHOLDS = [15, 30, 45, 60]   # <=15->1, <=30->2, <=45->3, <=60->4, >60->5
