@@ -11,7 +11,7 @@ import math
 # -----------------------------
 xml_path = "chunk_0.xml"     # path to your SUMO XML file
 output_csv = "new_traffic_dataset.csv"
-hex_size = 250                # adjust to your map size
+hex_size = 200                # adjust to your map size
 # label thresholds
 THRESHOLDS = [15, 30, 45, 60]   # <=15->1, <=30->2, <=45->3, <=60->4, >60->5
 
@@ -62,10 +62,11 @@ def parse_xml_to_df(xml_path):
                 y = float(v.get("y", "0"))
                 sp = float(v.get("speed", "0"))
                 ang = float(v.get("angle", "0"))
+                weather = float(v.get("weather", "1"))
             except:
                 continue
-            rec.append((t, v.get("id"), x, y, sp, ang))
-    df = pd.DataFrame(rec, columns=["time","vehicle_id","x","y","speed","angle"])
+            rec.append((t, v.get("id"), x, y, sp, ang, weather))
+    df = pd.DataFrame(rec, columns=["time","vehicle_id","x","y","speed", "angle", "weather"])
     return df
 
 # -----------------------------
@@ -83,15 +84,15 @@ def aggregate_zone_stats(df, hex_size):
 
     zone_stats = (
         df.groupby(["time", "hex_id"])
-          .agg(num_vehicles=("vehicle_id", "count"),
-               avg_speed=("speed", "mean"),
-               avg_sin=("angle_sin", "mean"),
-               avg_cos=("angle_cos", "mean"))
-          .reset_index()
-          .sort_values(["time", "hex_id"])
-          .reset_index(drop=True)
+        .agg(num_vehicles=("vehicle_id", "count"),
+             avg_speed=("speed", "mean"),
+             avg_sin=("angle_sin", "mean"),
+             avg_cos=("angle_cos", "mean"),
+             weather=("weather", "first"))
+        .reset_index()
+        .sort_values(["time", "hex_id"])
+        .reset_index(drop=True)
     )
-
     # assign label using fixed thresholds
     zone_stats["label"] = zone_stats["num_vehicles"].apply(label_from_count)
     return zone_stats
