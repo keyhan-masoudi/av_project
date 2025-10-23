@@ -2,7 +2,7 @@ import xml.etree.ElementTree as ET
 import random
 
 # Load SUMO vehicle XML
-tree = ET.parse("test.xml")
+tree = ET.parse("chunk_0.xml")
 root = tree.getroot()
 
 # Prepare dicts to store angles and speeds per vehicle
@@ -115,5 +115,5 @@ for vid, speeds in vehicle_speeds.items():
 
 # Save tasks XML
 tasks_tree = ET.ElementTree(tasks_root)
-tasks_tree.write("tasks.xml", encoding="utf-8", xml_declaration=True)
+tasks_tree.write("out.xml", encoding="utf-8", xml_declaration=True)
 print("Tasks XML generated with rotation and accelerate/brake tasks!")
