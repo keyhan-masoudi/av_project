@@ -8,42 +8,35 @@ import os
 import joblib  # Used for saving Python objects
 import copy  # Used for Early Stopping
 import time  # Added for timing epochs
+import math
 from collections import defaultdict
+from torch_geometric.nn import GCNConv
 
-# The torch_geometric import might be needed if not already imported in the session
-try:
-    from torch_geometric.nn import GCNConv
-except ImportError:
-    print("torch_geometric not found. Installing...")
-    # Make sure pip is available in the environment if running locally
-    try:
-        import subprocess
-
-        subprocess.check_call(['pip', 'install', 'torch_geometric', '-q'])
-    except Exception as e:
-        print(f"Failed to install torch_geometric: {e}")
-        print("Please install it manually.")
-    from torch_geometric.nn import GCNConv
 
 # ==========================================================
 # CONFIGURATION
 # ==========================================================
-DATA_CSV = "new_traffic_dataset.csv"
-X = 20
-Y = 20
-EPOCHS = 150  # Max epochs
+DATA_CSV = "../final.csv"
+X = 15
+Y = 12
+EPOCHS = 100  # Max epochs
 BATCH_SIZE = 128
 NUM_CLASSES = 5
-MODEL_SAVE_PATH = "new_saved_model"  # Save to a new folder
+MODEL_SAVE_PATH = "final_model"  # Save to a new folder
+
+MAP_WIDTH = 4300
+MAP_HEIGHT = 3400
+HEX_SIZE = 200  # This is your 'radius'
+# ---
 
 # --- Training Data Time Range ---
 TRAIN_START_TIME = 400
 TRAIN_END_TIME = 2600
 
-# --- NEW: Validation Data Time Range ---
+
 # Must be AFTER the training range and contain sufficient data
-VALIDATION_START_TIME = 2601
-VALIDATION_END_TIME = 2900  # Adjust if needed based on your data
+VALIDATION_START_TIME = 2650
+VALIDATION_END_TIME = 3150  # Adjust if needed based on your data
 
 # --- Early Stopping Config (Based on Validation Loss) ---
 PATIENCE = 10  # Stop after 10 epochs with no validation loss improvement
@@ -107,7 +100,7 @@ class GNNEncoder(nn.Module):
 
 
 class Decoder(nn.Module):
-    def __init__(self, lstm_dim=64, gnn_dim=64, Y=20, hidden_dim=256, classes=5, dropout=0.2):  # Default dropout=0.2
+    def __init__(self, lstm_dim=64, gnn_dim=64, Y=12, hidden_dim=256, classes=5, dropout=0.2):  # Default dropout=0.2
         super().__init__()
         self.fc1 = nn.Linear(lstm_dim + gnn_dim, hidden_dim)
         self.act = nn.ReLU()
@@ -127,6 +120,32 @@ class Decoder(nn.Module):
 # ==========================================================
 # HELPER FUNCTIONS (With added robustness)
 # ==========================================================
+def _xy_to_axial(x, y, size):
+    """
+    Converts (x, y) cartesian coordinates to (q, r) axial hex coordinates.
+    This is the internal logic from your visualizer's 'xy_to_hex' function.
+    """
+    q_f = (np.sqrt(3) / 3 * x - 1 / 3 * y) / size
+    r_f = (2 / 3 * y) / size
+
+    # Round to nearest hex
+    q = round(q_f)
+    r = round(r_f)
+    s = round(-q_f - r_f)
+
+    # Correct for rounding errors
+    q_diff = abs(q - q_f)
+    r_diff = abs(r - r_f)
+    s_diff = abs(s - (-q_f - r_f))
+
+    if q_diff > r_diff and q_diff > s_diff:
+        q = -r - s
+    elif r_diff > s_diff:
+        r = -q - s
+
+    return (int(q), int(r))
+
+
 def compute_norm_stats(df, start_time, end_time):
     print(f"Computing normalization stats for time range {start_time}-{end_time}...")
     train_df = df[(df["time"] >= start_time) & (df["time"] <= end_time)]
@@ -235,35 +254,56 @@ def build_snapshots(df, node_list, node_to_idx):
     print("Finished building snapshots.")
     return snapshots
 
-
 def build_hex_graph(df):
-    print("Building hexagonal graph...")
-    if 'hex_id' not in df.columns: print("Error: 'hex_id' missing."); return {}, torch.empty((2, 0),
-                                                                                             dtype=torch.long), []
-    unique_hex_ids = df["hex_id"].unique()
+    print("Building static hexagonal graph based on map dimensions...")
     unique_hex_coords_set = set()
-    for h in unique_hex_ids:
-        try:
-            coords = tuple(map(int, str(h).split("_")))
-            if len(coords) == 2: unique_hex_coords_set.add(coords)
-        except:
-            pass
+
+    # 1. Calculate hex dimensions (for pointy-top hexes)
+    hex_width = math.sqrt(3) * HEX_SIZE
+    hex_height = 2 * HEX_SIZE
+    row_spacing = 0.75 * hex_height  # (1.5 * HEX_SIZE)
+
+    # 2. Calculate max rows and columns
+    max_rows = int(math.ceil(MAP_HEIGHT / row_spacing))
+    max_cols = int(math.ceil(MAP_WIDTH / hex_width))
+
+    # 3. Generate all hexes
+    print(f"Generating static {max_rows + 1}x{max_cols + 1} grid...")
+    for row in range(0, max_rows + 1):
+        row_is_even = (row % 2 == 0)
+        start_x = 0.0 if row_is_even else (hex_width / 2.0)
+        center_y = row * row_spacing
+
+        for col in range(0, max_cols + 1):
+            center_x = start_x + col * hex_width
+
+            # Convert (x, y) center to (q, r) axial tuple
+            q, r = _xy_to_axial(center_x, center_y, HEX_SIZE)
+            unique_hex_coords_set.add((q, r))
+
     unique_hex_coords = sorted(list(unique_hex_coords_set))
-    if not unique_hex_coords: print("Error: No valid hex coords."); return {}, torch.empty((2, 0), dtype=torch.long), []
+    if not unique_hex_coords:
+        print("Error: No hex coords generated.");
+        return {}, torch.empty((2, 0), dtype=torch.long), []
+
     node_to_idx = {h: i for i, h in enumerate(unique_hex_coords)}
     idx_to_node = {i: h for h, i in node_to_idx.items()}
     num_nodes = len(unique_hex_coords)
     edges = []
+
     for i in range(num_nodes):
         q, r = idx_to_node[i]
         for dq, dr in HEX_DIRECTIONS:
             neighbor_hex = (q + dq, r + dr)
-            if neighbor_hex in node_to_idx: edges.append((i, node_to_idx[neighbor_hex]))
-    if not edges: print("Warning: No edges created.")
+            if neighbor_hex in node_to_idx:  # Check if neighbor is in our generated set
+                edges.append((i, node_to_idx[neighbor_hex]))
+
+    if not edges:
+        print("Warning: No edges created.")
+
     edge_index = torch.tensor(edges, dtype=torch.long).t().contiguous()
     print(f"Graph built: {num_nodes} nodes, {edge_index.shape[1]} edges.")
     return node_to_idx, edge_index, unique_hex_coords
-
 
 # ==========================================================
 # TRAINING FUNCTION (UPDATED FOR VALIDATION & EARLY STOPPING)
