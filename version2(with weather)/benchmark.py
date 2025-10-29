@@ -14,12 +14,12 @@ from torch_geometric.nn import GCNConv
 # -----------------------------
 # Configuration
 # -----------------------------
-MODEL_PATH = "new_saved_model"  # <-- Make sure this is your trained model
+MODEL_PATH = "final_model"  # <-- Make sure this is your trained model
 # MODEL_PATH = "model_finetuned"
 # MODEL_PATH = "finetuned_models/run_2"
-DATA_CSV = "new_traffic_dataset.csv"
-X = 20  # <-- Must match the training configuration
-Y = 20  # <-- Must match the training configuration
+DATA_CSV = "../final.csv"
+X = 15  # <-- Must match the training configuration
+Y = 12  # <-- Must match the training configuration
 NUM_CLASSES = 5
 DEVICE = "cuda" if torch.cuda.is_available() else "cpu"
 
@@ -73,7 +73,7 @@ class GNNEncoder(nn.Module):
 
 
 class Decoder(nn.Module):
-    def __init__(self, lstm_dim=64, gnn_dim=64, Y=20, hidden_dim=256, classes=5, dropout=0.2):  # Default dropout=0.2
+    def __init__(self, lstm_dim=64, gnn_dim=64, Y=12, hidden_dim=256, classes=5, dropout=0.2):  # Default dropout=0.2
         super().__init__()
         self.fc1 = nn.Linear(lstm_dim + gnn_dim, hidden_dim)
         self.act = nn.ReLU()
