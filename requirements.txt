@@ -1,0 +1,8 @@
+numpy
+matplotlib
+torch
+scipy
+torchvision
+pandas
+gym
+openpyxl
