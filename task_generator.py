@@ -1,4 +1,6 @@
 import xml.etree.ElementTree as ET
+import random
+
 
 # Load SUMO vehicle XML
 tree = ET.parse("test.xml")
@@ -53,6 +55,62 @@ for vid, angles in vehicle_angles.items():
                                       cycles_needed="")  # function to fill later
             
             # Move i to timestep after end of rotation
+            i = j + 1
+        else:
+            i += 1
+
+# Prepare a dict to store speeds per vehicle
+vehicle_speeds = {}
+
+# Collect speeds for each vehicle at each timestep
+for timestep in root.findall("timestep"):
+    time = int(timestep.attrib["time"])
+    for vehicle in timestep.findall("vehicle"):
+        vid = vehicle.attrib["id"]
+        speed = float(vehicle.attrib["speed"])
+        if vid not in vehicle_speeds:
+            vehicle_speeds[vid] = []
+        vehicle_speeds[vid].append((time, speed))
+
+# Generate accelerate/brake tasks
+for vid, speeds in vehicle_speeds.items():
+    i = 1
+    while i < len(speeds):
+        prev_time, prev_speed = speeds[i-1]
+        curr_time, curr_speed = speeds[i]
+        if curr_speed != prev_speed:
+            # Speed change detected
+            start_time = curr_time
+            start_speed = prev_speed
+            # Find end of speed change interval
+            j = i
+            while j < len(speeds) - 1 and speeds[j][1] != speeds[j+1][1]:
+                j += 1
+            end_time, end_speed = speeds[j]
+
+            # Determine random deadline offset
+            if end_speed > start_speed:  # accelerate
+                offset = random.uniform(3, 7)
+            else:  # brake
+                offset = random.uniform(2, 3)
+            deadline = end_time + offset
+
+            # Create timestep element in tasks XML
+            timestep_elem = tasks_root.find(f".//timestep[@time='{start_time}']")
+            if timestep_elem is None:
+                timestep_elem = ET.SubElement(tasks_root, "timestep", time=str(start_time))
+
+            # Create task element
+            task_elem = ET.SubElement(timestep_elem, "task",
+                                      id=f"{vid}_speed_{start_time}",
+                                      deadline=str(round(deadline, 2)),
+                                      creator=vid,
+                                      priority="crucial",
+                                      start_speed=str(start_speed),
+                                      end_speed=str(end_speed),
+                                      dataSize="",  # to fill later
+                                      cycles_needed="")  # to fill later
+
             i = j + 1
         else:
             i += 1
