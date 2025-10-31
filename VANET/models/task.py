@@ -1,11 +1,10 @@
 from dataclasses import dataclass
 
+from VANET.config import Config
+from VANET.models.base import ModelBaseABC
+from VANET.models.node.base import MobileNodeABC, NodeABC
+from VANET.utils.enums import Layer
 import numpy as np
-
-from config import Config
-from models.base import ModelBaseABC
-from models.node.base import MobileNodeABC, NodeABC
-from utils.enums import Layer
 
 
 @dataclass
@@ -17,6 +16,7 @@ class Task(ModelBaseABC):
     power: float  # The amount of power unit that this tasks consumes while executing.
     creator_id: str  # Thd id of the node who created the task.
     dataSize: float
+    remaining_time: float
 
     start_time: float = 0  # The time that this task was offloaded to a node (either local or external).
     finish_time: float = 0  # The time that this task was finished in the offloaded node.
