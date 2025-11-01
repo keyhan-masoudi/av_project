@@ -18,6 +18,7 @@ class NoiseConfigGeneralAttribute:
         "NoiseConfig.BlackTraffic()",
         "NoiseConfig.RedTraffic()",
         "NoiseConfig.OrangeTraffic()",
+        "NoiseConfig.YellowTraffic()",
         "NoiseConfig.GreenTraffic()",
     ]
 

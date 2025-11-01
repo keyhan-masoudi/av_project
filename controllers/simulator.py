@@ -389,7 +389,7 @@ class Simulator:
                         min_load = min(loads)
                         max_load = max(loads)
                         self.metrics.inc_task_load_diff(task.id, min_load, max_load)
-
+                # todo: add local critical
                 if isinstance(task.executor, (FixedFogNode, MobileFogNode)):
                     self.metrics.inc_fog_execution()
                 elif task.creator.id == task.executor.id:

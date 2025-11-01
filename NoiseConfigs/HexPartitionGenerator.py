@@ -87,7 +87,7 @@ class Partitions:
 # Example usage
 width = 4300
 height = 3400
-radius = 150
+radius = 200
 generator = CodeGenerator(width, height, radius)
 code = generator.generate_code()
 

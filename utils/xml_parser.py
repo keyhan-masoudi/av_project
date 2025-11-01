@@ -75,7 +75,7 @@ class MobileNodeSumoXMLParser(SumoXMLParserABC):
     def __init__(self, chunk_path: str, chunk_number: int):
         xml_file_path = f"{chunk_path}/chunk_{chunk_number}.xml"
         super().__init__(xml_file_path)
-        self._data: Dict[float, Tuple[List[UserNode], List[MobileFogNode]]] = {}  # TODO: Maybe change to int.
+        self._data: Dict[float, Tuple[List[UserNode], List[MobileFogNode]]] = {}
 
     def parse(self) -> Dict[float, Tuple[List[UserNode], List[MobileFogNode]]]:
         if self._data:

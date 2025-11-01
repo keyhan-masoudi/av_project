@@ -121,20 +121,26 @@ class Config:
 
             DEFAULT_GreenTrafficNoise = GreenTrafficNoise1
 
+        class YellowTrafficNoise:
+            YellowTrafficNoise1 = [100, 96, 95, 94, 90]
+            YellowTrafficNoise2 = [102, 98, 97, 96, 92]
+
+            DEFAULT_YellowTrafficNoise = YellowTrafficNoise1
+
         class OrangeTrafficNoise:
-            OrangeTrafficNoise1 = [100, 96, 95, 94, 90]
-            OrangeTrafficNoise2 = [102, 98, 97, 96, 92]
+            OrangeTrafficNoise1 = [105, 101, 100, 99, 95]
+            OrangeTrafficNoise2 = [105, 101, 100, 99, 95]
 
             DEFAULT_OrangeTrafficNoise = OrangeTrafficNoise1
 
         class RedTrafficNoise:
-            RedTrafficNoise1 = [105, 101, 100, 99, 95]
-            RedTrafficNoise2 = [105, 101, 100, 99, 95]
+            RedTrafficNoise1 = [110, 106, 105, 104, 100]
+            RedTrafficNoise2 = [108, 104, 103, 102, 98]
 
             DEFAULT_RedTrafficNoise = RedTrafficNoise1
 
         class BlackTrafficNoise:
-            BlackTrafficNoise1 = [110, 106, 105, 104, 100]
-            BlackTrafficNoise2 = [108, 104, 103, 102, 98]
+            BlackTrafficNoise1 = [115, 111, 110, 109, 105]
+            BlackTrafficNoise2 = [111, 107, 106, 105, 101]
 
             DEFAULT_BlackTrafficNoise = BlackTrafficNoise1

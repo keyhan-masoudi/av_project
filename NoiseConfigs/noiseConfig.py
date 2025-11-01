@@ -27,6 +27,10 @@ class NoiseConfig:
         def __init__(self):
             super().__init__(max_noise=Config.TrafficNoise.GreenTrafficNoise.DEFAULT_GreenTrafficNoise[0], q3_noise=Config.TrafficNoise.GreenTrafficNoise.DEFAULT_GreenTrafficNoise[1], mean_noise=Config.TrafficNoise.GreenTrafficNoise.DEFAULT_GreenTrafficNoise[2], q1_noise=Config.TrafficNoise.GreenTrafficNoise.DEFAULT_GreenTrafficNoise[3], min_noise=Config.TrafficNoise.GreenTrafficNoise.DEFAULT_GreenTrafficNoise[4])
 
+    class YellowTraffic(TrafficNoiseConfig):
+        def __init__(self):
+            super().__init__(max_noise=Config.TrafficNoise.YellowTrafficNoise.DEFAULT_YellowTrafficNoise[0], q3_noise=Config.TrafficNoise.YellowTrafficNoise.DEFAULT_YellowTrafficNoise[1], mean_noise=Config.TrafficNoise.YellowTrafficNoise.DEFAULT_YellowTrafficNoise[2], q1_noise=Config.TrafficNoise.YellowTrafficNoise.DEFAULT_YellowTrafficNoise[3], min_noise=Config.TrafficNoise.YellowTrafficNoise.DEFAULT_YellowTrafficNoise[4])
+
     class OrangeTraffic(TrafficNoiseConfig):
         def __init__(self):
             super().__init__(max_noise=Config.TrafficNoise.OrangeTrafficNoise.DEFAULT_OrangeTrafficNoise[0], q3_noise=Config.TrafficNoise.OrangeTrafficNoise.DEFAULT_OrangeTrafficNoise[1], mean_noise=Config.TrafficNoise.OrangeTrafficNoise.DEFAULT_OrangeTrafficNoise[2], q1_noise=Config.TrafficNoise.OrangeTrafficNoise.DEFAULT_OrangeTrafficNoise[3], min_noise=Config.TrafficNoise.OrangeTrafficNoise.DEFAULT_OrangeTrafficNoise[4])

@@ -120,12 +120,14 @@ def run_one(params):
     if traffic_noise_profile == 0:
         # Use "Noise 0" configuration
         Config.TrafficNoise.GreenTrafficNoise.DEFAULT_GreenTrafficNoise = Config.TrafficNoise.GreenTrafficNoise.GreenTrafficNoise1
+        Config.TrafficNoise.YellowTrafficNoise.DEFAULT_YellowTrafficNoise = Config.TrafficNoise.YellowTrafficNoise.YellowTrafficNoise1
         Config.TrafficNoise.OrangeTrafficNoise.DEFAULT_OrangeTrafficNoise = Config.TrafficNoise.OrangeTrafficNoise.OrangeTrafficNoise1
         Config.TrafficNoise.RedTrafficNoise.DEFAULT_RedTrafficNoise = Config.TrafficNoise.RedTrafficNoise.RedTrafficNoise1
         Config.TrafficNoise.BlackTrafficNoise.DEFAULT_BlackTrafficNoise = Config.TrafficNoise.BlackTrafficNoise.BlackTrafficNoise1
     else:
         # Use "Noise 1" configuration
         Config.TrafficNoise.GreenTrafficNoise.DEFAULT_GreenTrafficNoise = Config.TrafficNoise.GreenTrafficNoise.GreenTrafficNoise2
+        Config.TrafficNoise.YellowTrafficNoise.DEFAULT_YellowTrafficNoise = Config.TrafficNoise.YellowTrafficNoise.YellowTrafficNoise2
         Config.TrafficNoise.OrangeTrafficNoise.DEFAULT_OrangeTrafficNoise = Config.TrafficNoise.OrangeTrafficNoise.OrangeTrafficNoise2
         Config.TrafficNoise.RedTrafficNoise.DEFAULT_RedTrafficNoise = Config.TrafficNoise.RedTrafficNoise.RedTrafficNoise2
         Config.TrafficNoise.BlackTrafficNoise.DEFAULT_BlackTrafficNoise = Config.TrafficNoise.BlackTrafficNoise.BlackTrafficNoise2
