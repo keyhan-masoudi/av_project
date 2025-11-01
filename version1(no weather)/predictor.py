@@ -13,7 +13,7 @@ from torch_geometric.nn import GCNConv
 # -----------------------------
 MODEL_PATH = "saved_model"
 OUTPUT_CSV = "prediction_output.csv"
-DATA_CSV = "new_traffic_dataset.csv" # The script needs the original data to get a test slice
+DATA_CSV = "new_traffic_dataset1.csv" # The script needs the original data to get a test slice
 X = 10 # Must match the training configuration
 Y = 5  # Must match the training configuration
 NUM_CLASSES = 5

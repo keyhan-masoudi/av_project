@@ -14,10 +14,10 @@ from torch_geometric.nn import GCNConv
 # -----------------------------
 # Configuration
 # -----------------------------
-MODEL_PATH = "final_model"  # <-- Make sure this is your trained model
+MODEL_PATH = "VANET-Copy\\version2(with weather)\\final_model"
 # MODEL_PATH = "model_finetuned"
 # MODEL_PATH = "finetuned_models/run_2"
-DATA_CSV = "../final.csv"
+DATA_CSV = "VANET-Copy\\final.csv"
 X = 15  # <-- Must match the training configuration
 Y = 12  # <-- Must match the training configuration
 NUM_CLASSES = 5

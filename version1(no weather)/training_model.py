@@ -12,7 +12,7 @@ from torch_geometric.nn import GCNConv
 # -----------------------------
 # Configuration
 # -----------------------------
-DATA_CSV = "new_traffic_dataset.csv"
+DATA_CSV = "new_traffic_dataset1.csv"
 X = 10
 Y = 5
 EPOCHS = 20

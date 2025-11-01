@@ -26,10 +26,10 @@ except ImportError:
 # -----------------------------
 # Configuration
 # -----------------------------
-MODEL_PATH = "new_saved_model"  # <-- Make sure this is your trained model
-DATA_CSV = "new_traffic_dataset.csv"
-X = 20  # <-- Must match the training configuration
-Y = 20  # <-- Must match the training configuration (Model predicts 20 steps)
+MODEL_PATH = "final_model"  # <-- Make sure this is your trained model
+DATA_CSV = "../final.csv"
+X = 15  # <-- Must match the training configuration
+Y = 12  # <-- Must match the training configuration (Model predicts 20 steps)
 NUM_CLASSES = 5
 DEVICE = "cuda" if torch.cuda.is_available() else "cpu"
 print(f"Using device: {DEVICE}")
@@ -39,8 +39,7 @@ print(f"Using device: {DEVICE}")
 SEQ_TIME_START = 2600
 SEQ_TIME_END = 3560  # Inclusive end time
 SEQ_TIME_STEP = 10  # Increment step
-ACCURACY_HORIZON_SHORT = 15  # Compare first 10 steps
-ACCURACY_HORIZON_FULL = 20  # Compare all 20 steps
+ACCURACY_HORIZON_FULL = 12  # Compare all 20 steps
 
 
 # ---
@@ -196,7 +195,6 @@ def run_accuracy_benchmark_sequential():
     print(f"--- Starting Sequential Accuracy Benchmark ---")
     print(f"Testing model '{MODEL_PATH}'")
     print(f"Using start times from {SEQ_TIME_START} to {SEQ_TIME_END} (step {SEQ_TIME_STEP}).")
-    print(f"Calculating accuracy for first {ACCURACY_HORIZON_SHORT} and all {ACCURACY_HORIZON_FULL} steps.")
 
     try:
         # --- 1. Load Full Dataset ---
@@ -279,40 +277,11 @@ def run_accuracy_benchmark_sequential():
             else:
                 print(f"    -> Warn: No matching full real data for {start_time}. Skip acc.")
 
-            # --- Compare SHORT Prediction (First 10 steps) ---
-            t_end_output_short = start_time + X + ACCURACY_HORIZON_SHORT - 1
-
-            # Filter the already merged full comparison DF
-            comparison_df_short = comparison_df_full[comparison_df_full['time'] <= t_end_output_short]
-
-            if not comparison_df_short.empty:
-                real_labels_short = comparison_df_short['label']
-                pred_labels_short = comparison_df_short['label_pred']
-                # Labels should already be 0-indexed from the full comparison part
-
-                if len(real_labels_short) == len(pred_labels_short) and len(real_labels_short) > 0:
-                    accuracy_short = accuracy_score(real_labels_short, pred_labels_short)
-                    all_accuracy_scores_short.append(accuracy_short)
-                    print(f"    -> Accuracy (first {ACCURACY_HORIZON_SHORT} steps): {accuracy_short * 100:.2f}%")
-                else:
-                    print(f"    -> Warn: Label issue for short comparison at {start_time}. Skip acc.")
-            # If full comparison was empty, short will be too, no need for separate warning
-
         # --- 5. Report Statistics ---
         print("\n" + "=" * 50)
         print("--- Accuracy Benchmark Results ---")
         print(f" (Based on {num_to_run} start times in sequence)")
         print("=" * 50)
-
-        if all_accuracy_scores_short:
-            acc_array_short = np.array(all_accuracy_scores_short)
-            print(f"\n--- Statistics for First {ACCURACY_HORIZON_SHORT} Steps ({len(acc_array_short)} runs) ---")
-            print(f"Mean Accuracy:   {np.mean(acc_array_short) * 100:.2f}%")
-            print(f"Median Accuracy: {np.median(acc_array_short) * 100:.2f}%")
-            print(f"Max Accuracy:    {np.max(acc_array_short) * 100:.2f}%")
-            print(f"Min Accuracy:    {np.min(acc_array_short) * 100:.2f}%")
-        else:
-            print(f"\nNo accuracy scores calculated for the first {ACCURACY_HORIZON_SHORT} steps.")
 
         if all_accuracy_scores_full:
             acc_array_full = np.array(all_accuracy_scores_full)

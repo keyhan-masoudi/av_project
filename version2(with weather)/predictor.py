@@ -4,80 +4,91 @@ import pandas as pd
 import numpy as np
 import os
 import joblib
+import time
+import random
 from collections import defaultdict
-from torch_geometric.nn import GCNConv
+from torch_geometric.nn import GCNConv # Corrected import
 
 # -----------------------------
 # Configuration
 # -----------------------------
-MODEL_PATH = "saved_model"
+MODEL_PATH = "saved_model"       # <-- UPDATED
 OUTPUT_CSV = "prediction_output.csv"
-DATA_CSV = "new_traffic_dataset.csv"  # The script needs the original data to get a test slice
-X = 10  # Must match the training configuration
-Y = 5  # Must match the training configuration
+DATA_CSV = "new_traffic_dataset1.csv" # The script needs the original data to get a test slice
+X = 15 # <-- UPDATED: Must match the training configuration
+Y = 12 # <-- UPDATED: Must match the training configuration
+
 NUM_CLASSES = 5
 
-DEVICE = "cuda" if torch.cuda.is_available() else "cpu"
-
+# DEVICE = "cuda" if torch.cuda.is_available() else "cpu"
+DEVICE = "cpu"
 
 # ==========================================================
 # RE-DEFINE HELPER FUNCTIONS & MODEL CLASSES
-# (This makes the cell runnable on its own)
+# (Must match the architecture from training)
 # ==========================================================
 
-# --- Model Definitions ---
+# --- Model Definitions (UPDATED to match new training) ---
 class LSTMEncoder(nn.Module):
-
-    def __init__(self, in_dim=6, hidden_dim=64, out_dim=32):
+    # Increased dimensions and added 2 layers + dropout
+    def __init__(self, in_dim=6, hidden_dim=128, out_dim=64, num_layers=2, dropout=0.1):
         super().__init__()
-        self.lstm = nn.LSTM(in_dim, hidden_dim, batch_first=True)
+        self.lstm = nn.LSTM(in_dim, hidden_dim, num_layers=num_layers,
+                            batch_first=True, dropout=dropout if num_layers > 1 else 0)
         self.fc = nn.Linear(hidden_dim, out_dim)
         self.act = nn.ReLU()
+        self.dropout = nn.Dropout(dropout)
 
     def forward(self, x):
         _, (h_n, _) = self.lstm(x)
-        return self.act(self.fc(h_n.squeeze(0)))
-
+        # h_n is (num_layers, batch, hidden_dim), we only want the last layer's hidden state
+        h_n_last = h_n[-1, :, :]
+        x = self.act(self.fc(h_n_last))
+        return self.dropout(x)
 
 class GNNEncoder(nn.Module):
-    # <-- Correct: in_dim=6 matches your new model
-    def __init__(self, in_dim=6, h1=64, h2=32, out_dim=32):
+    # Increased dimensions and added dropout
+    def __init__(self, in_dim=6, h1=128, h2=64, out_dim=64, dropout=0.1):
         super().__init__()
         self.conv1 = GCNConv(in_dim, h1)
         self.conv2 = GCNConv(h1, h2)
         self.fc = nn.Linear(h2, out_dim)
         self.act = nn.ReLU()
+        self.dropout = nn.Dropout(dropout)
 
     def forward(self, x, edge_index):
         x = self.act(self.conv1(x, edge_index))
+        x = self.dropout(x)
         x = self.act(self.conv2(x, edge_index))
-        return self.act(self.fc(x))
-
+        x = self.dropout(x)
+        x = self.act(self.fc(x))
+        return self.dropout(x)
 
 class Decoder(nn.Module):
-    # Make sure classes=NUM_CLASSES to match your training
-    def __init__(self, lstm_dim=32, gnn_dim=32, Y=5, hidden_dim=128, classes=NUM_CLASSES):
+    # Increased dimensions to match encoders and added dropout
+    def __init__(self, lstm_dim=64, gnn_dim=64, Y=20, hidden_dim=256, classes=5, dropout=0.1):
         super().__init__()
         self.fc1 = nn.Linear(lstm_dim + gnn_dim, hidden_dim)
-        self.fc2 = nn.Linear(hidden_dim, Y * classes)
         self.act = nn.ReLU()
+        self.dropout = nn.Dropout(dropout)
+        self.fc2 = nn.Linear(hidden_dim, Y * classes)
         self.Y = Y
         self.classes = classes
 
     def forward(self, lstm_emb, gnn_emb):
         x = torch.cat([lstm_emb, gnn_emb], dim=1)
         x = self.act(self.fc1(x))
+        x = self.dropout(x)
         x = self.fc2(x)
         return x.view(x.size(0), self.Y, self.classes)
 
 
-# --- Helper Functions ---
+# --- Helper Functions (Updated to match new training) ---
 def normalize_df(df, stats):
     df_norm = df.copy()
-    # <-- MODIFIED: Added "sunny" and "rainy"
+    # <-- Correct: Using 6 features
     feature_cols = ["num_vehicles", "avg_speed", "avg_sin", "avg_cos", "sunny", "rainy"]
     for col in feature_cols:
-        # Check if feature was in stats (it should be if trained correctly)
         if col in stats:
             min_val, max_val = stats[col]
             df_norm[col] = (df_norm[col] - min_val) / (max_val - min_val + 1e-9)
@@ -87,7 +98,7 @@ def normalize_df(df, stats):
 
 
 def build_snapshots(df, node_list, node_to_idx):
-    # <-- MODIFIED: Added "sunny" and "rainy"
+    # <-- Correct: Using 6 features
     feature_cols = ["num_vehicles", "avg_speed", "avg_sin", "avg_cos", "sunny", "rainy"]
     snapshots = {}
     unique_times = sorted(df["time"].unique())
@@ -108,20 +119,27 @@ def build_snapshots(df, node_list, node_to_idx):
 # ==========================================================
 def main_predict(input_df):
     """
-    Loads the trained model and makes a 5-step prediction based on a 10-step input DataFrame.
+    Loads the trained model and makes a Y-step (20) prediction
+    based on an X-step (15) input DataFrame.
     """
     print("--- Starting Prediction ---")
     print(f"Loading model components from '{MODEL_PATH}/'...")
     if not os.path.exists(MODEL_PATH):
-        print(f"Error: Model directory '{MODEL_PATH}' not found. Please upload it to your Colab session.")
+        print(f"Error: Model directory '{MODEL_PATH}' not found.")
         return
 
     stats = joblib.load(os.path.join(MODEL_PATH, "stats.pkl"))
     graph_info = joblib.load(os.path.join(MODEL_PATH, "graph_info.pkl"))
-    node_to_idx, edge_index, node_list = graph_info['node_to_idx'], graph_info['edge_index'].to(DEVICE), graph_info[
-        'node_list']
+    node_to_idx, edge_index, node_list = graph_info['node_to_idx'], graph_info['edge_index'].to(DEVICE), graph_info['node_list']
 
-    lstm, gnn, dec = LSTMEncoder(), GNNEncoder(), Decoder()
+    # --- UPDATED: Initialize the new, larger models ---
+    print(f"Initializing models with Y={Y} and NUM_CLASSES={NUM_CLASSES}")
+    lstm = LSTMEncoder()
+    gnn = GNNEncoder()
+    # CRITICAL: Must match the new encoder dims (64, 64) and the global Y/classes
+    dec = Decoder(lstm_dim=64, gnn_dim=64, Y=Y, classes=NUM_CLASSES)
+    # ---
+
     lstm.load_state_dict(torch.load(os.path.join(MODEL_PATH, "lstm_model.pth")))
     gnn.load_state_dict(torch.load(os.path.join(MODEL_PATH, "gnn_model.pth")))
     dec.load_state_dict(torch.load(os.path.join(MODEL_PATH, "decoder_model.pth")))
@@ -132,16 +150,22 @@ def main_predict(input_df):
     print("Preparing input data for prediction...")
     df_norm = normalize_df(input_df, stats)
     sequences = []
-    # <-- MODIFIED: Added "sunny" and "rainy"
+    # <-- Correct: Using 6 features
     feature_cols = ["num_vehicles", "avg_speed", "avg_sin", "avg_cos", "sunny", "rainy"]
+
     for node in node_list:
         hex_id = f"{node[0]}_{node[1]}"
         node_df_norm = df_norm[df_norm["hex_id"] == hex_id].sort_values("time")
         seq_data = node_df_norm[feature_cols].values
+
         if len(seq_data) < X:
             padding = np.zeros((X - len(seq_data), len(feature_cols)))
             seq_data = np.vstack([padding, seq_data])
+        elif len(seq_data) > X:
+             seq_data = seq_data[-X:] # Ensure it's exactly X steps
+
         sequences.append(torch.tensor(seq_data, dtype=torch.float32))
+
     sequences = torch.stack(sequences).to(DEVICE)
 
     last_timestep = input_df['time'].max()
@@ -149,17 +173,23 @@ def main_predict(input_df):
     snapshot_tensor = snapshots[last_timestep].to(DEVICE)
 
     print("Making prediction...")
+    # --- Time the inference step ---
+    inf_start = time.perf_counter()
     with torch.no_grad():
         lstm_emb = lstm(sequences)
         gnn_emb = gnn(snapshot_tensor, edge_index)
         logits = dec(lstm_emb, gnn_emb)
         predicted_labels = torch.argmax(logits, dim=2).cpu().numpy()
+    inf_end = time.perf_counter()
+    print(f"-> Inference complete in {inf_end - inf_start:.4f} seconds.")
+    # ---
 
     print(f"Formatting prediction and saving to '{OUTPUT_CSV}'...")
     output_rows = []
     start_time_pred = last_timestep + 1
     for i in range(len(node_list)):
         hex_id = f"{node_list[i][0]}_{node_list[i][1]}"
+        # <-- UPDATED: This loop now correctly goes from j=0 to Y=19
         for j in range(Y):
             output_rows.append({
                 'time': start_time_pred + j,
@@ -169,8 +199,8 @@ def main_predict(input_df):
     output_df = pd.DataFrame(output_rows)
     output_df.to_csv(OUTPUT_CSV, index=False)
 
-    print(f"Prediction saved to {OUTPUT_CSV} and will be downloaded.")
-    files.download(OUTPUT_CSV)
+    print(f"Prediction saved to {OUTPUT_CSV}.")
+    # files.download(OUTPUT_CSV) # <-- Commented out for non-Colab use
     print("\n--- Prediction Output Head ---")
     print(output_df.head())
 
@@ -189,16 +219,28 @@ try:
     # ---
 
     # **** CHANGE THIS VALUE TO TEST DIFFERENT TIME SLICES ****
-    start_pred_time = 1650
+    # This time must have X-1 (i.e., 14) future timesteps available in the data
+    start_pred_time = 1600
     # **********************************************************
 
-    end_pred_time = start_pred_time + X - 1
-    input_slice_df = full_df[(full_df['time'] >= start_pred_time) & (full_df['time'] <= end_pred_time)].copy()
+    end_pred_time = start_pred_time + X - 1 # This will be 1500 + 14 = 1514
+    input_slice_df = full_df[
+        (full_df['time'] >= start_pred_time) &
+        (full_df['time'] <= end_pred_time)
+    ].copy()
 
-    if len(input_slice_df['time'].unique()) != X:
-        print(
-            f"Error: The input slice must contain exactly {X} timesteps of data. Please check your `start_pred_time` value.")
+    unique_times_count = len(input_slice_df['time'].unique())
+    if unique_times_count != X:
+        print(f"Error: The input slice must contain exactly {X} timesteps of data.")
+        print(f"Found only {unique_times_count} unique timesteps between {start_pred_time} and {end_pred_time}.")
+        print(f"Please check your `start_pred_time` value and ensure data exists up to time {end_pred_time}.")
     else:
+        print(f"Successfully extracted {X} timesteps from t={start_pred_time} to t={end_pred_time}.")
         main_predict(input_slice_df)
+
 except FileNotFoundError:
-    print(f"Error: '{DATA_CSV}' not found. Please make sure it has been uploaded to this Colab session.")
+    print(f"Error: '{DATA_CSV}' not found. Please make sure it has been uploaded.")
+except Exception as e:
+    print(f"An error occurred: {e}")
+    import traceback
+    traceback.print_exc()
