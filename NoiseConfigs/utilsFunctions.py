@@ -42,10 +42,12 @@ class UtilsFunc:
         for partition in partitions:
             count = partition_traffic.get(partition, 0)
             if count < 15:
-                traffic_statuses[partition] = NoiseConfigGeneralAttribute.Traffic_options[3]
+                traffic_statuses[partition] = NoiseConfigGeneralAttribute.Traffic_options[4]
             elif count < 30:
-                traffic_statuses[partition] = NoiseConfigGeneralAttribute.Traffic_options[2]
+                traffic_statuses[partition] = NoiseConfigGeneralAttribute.Traffic_options[3]
             elif count < 45:
+                traffic_statuses[partition] = NoiseConfigGeneralAttribute.Traffic_options[2]
+            elif count < 60:
                 traffic_statuses[partition] = NoiseConfigGeneralAttribute.Traffic_options[1]
             else:
                 traffic_statuses[partition] = NoiseConfigGeneralAttribute.Traffic_options[0]

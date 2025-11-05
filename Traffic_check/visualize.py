@@ -8,7 +8,7 @@ import os
 # --- Settings ---
 INPUT_EXCEL_FILE = 'traffic_analysis_report.xlsx'
 OUTPUT_IMAGE_FILE = 'traffic_density_map_final.pdf'
-HEX_RADIUS = 150
+HEX_RADIUS = 200
 
 # --- Font settings for the paper ---
 # The invalid 'colorbar.labelsize' has been removed from this section.

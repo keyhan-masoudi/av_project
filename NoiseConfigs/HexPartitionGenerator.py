@@ -55,10 +55,6 @@ class Partitions:
         self.rainStatus = rainStatus
         self.trafficStatus = trafficStatus
         self.urbanStatus = urbanStatus
-    
-    def change_rainStatus(self):
-        # todo: maybe need to change this to have a more reasonable environment
-        self.rainStatus = eval(random.choice(NoiseConfigGeneralAttribute.Rain_options))
 
     def update_traffic_status(self, traffic_statuses: Dict["Partitions", str]):
         new_status_str = traffic_statuses[self]

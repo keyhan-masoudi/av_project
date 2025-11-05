@@ -23,10 +23,6 @@ class Partitions:
         self.rainStatus = rainStatus
         self.trafficStatus = trafficStatus
         self.urbanStatus = urbanStatus
-    
-    def change_rainStatus(self):
-        # todo: maybe need to change this to have a more reasonable environment
-        self.rainStatus = eval(random.choice(NoiseConfigGeneralAttribute.Rain_options))
 
     def update_traffic_status(self, traffic_statuses: Dict["Partitions", str]):
         new_status_str = traffic_statuses[self]
@@ -34,7 +30,7 @@ class Partitions:
 
 class Partition1(Partitions):
     rainStatus = NoiseConfig.Rain100()
-    trafficStatus = NoiseConfig.RedTraffic()
+    trafficStatus = NoiseConfig.GreenTraffic()
     urbanStatus = NoiseConfig.Rural()
     center_x = 0.0
     center_y = 0.0
@@ -44,9 +40,9 @@ class Partition1(Partitions):
 
 
 class Partition2(Partitions):
-    rainStatus = NoiseConfig.Rain100()
-    trafficStatus = NoiseConfig.BlackTraffic()
-    urbanStatus = NoiseConfig.Rural()
+    rainStatus = NoiseConfig.Rain50()
+    trafficStatus = NoiseConfig.OrangeTraffic()
+    urbanStatus = NoiseConfig.BadUrban()
     center_x = 346.41016151377545
     center_y = 0.0
 
@@ -55,9 +51,9 @@ class Partition2(Partitions):
 
 
 class Partition3(Partitions):
-    rainStatus = NoiseConfig.Rain150()
+    rainStatus = NoiseConfig.Rain0()
     trafficStatus = NoiseConfig.GreenTraffic()
-    urbanStatus = NoiseConfig.BadUrban()
+    urbanStatus = NoiseConfig.GoodUrban()
     center_x = 692.8203230275509
     center_y = 0.0
 
@@ -66,9 +62,9 @@ class Partition3(Partitions):
 
 
 class Partition4(Partitions):
-    rainStatus = NoiseConfig.Rain100()
+    rainStatus = NoiseConfig.Rain13()
     trafficStatus = NoiseConfig.RedTraffic()
-    urbanStatus = NoiseConfig.MediumUrban()
+    urbanStatus = NoiseConfig.BadUrban()
     center_x = 1039.2304845413264
     center_y = 0.0
 
@@ -77,7 +73,7 @@ class Partition4(Partitions):
 
 
 class Partition5(Partitions):
-    rainStatus = NoiseConfig.Rain23()
+    rainStatus = NoiseConfig.Rain13()
     trafficStatus = NoiseConfig.BlackTraffic()
     urbanStatus = NoiseConfig.GoodUrban()
     center_x = 1385.6406460551018
@@ -88,9 +84,9 @@ class Partition5(Partitions):
 
 
 class Partition6(Partitions):
-    rainStatus = NoiseConfig.Rain200()
-    trafficStatus = NoiseConfig.RedTraffic()
-    urbanStatus = NoiseConfig.GoodUrban()
+    rainStatus = NoiseConfig.Rain0()
+    trafficStatus = NoiseConfig.YellowTraffic()
+    urbanStatus = NoiseConfig.MediumUrban()
     center_x = 1732.0508075688772
     center_y = 0.0
 
@@ -99,9 +95,9 @@ class Partition6(Partitions):
 
 
 class Partition7(Partitions):
-    rainStatus = NoiseConfig.Rain150()
-    trafficStatus = NoiseConfig.BlackTraffic()
-    urbanStatus = NoiseConfig.MediumUrban()
+    rainStatus = NoiseConfig.Rain23()
+    trafficStatus = NoiseConfig.OrangeTraffic()
+    urbanStatus = NoiseConfig.Rural()
     center_x = 2078.460969082653
     center_y = 0.0
 
@@ -110,9 +106,9 @@ class Partition7(Partitions):
 
 
 class Partition8(Partitions):
-    rainStatus = NoiseConfig.Rain200()
-    trafficStatus = NoiseConfig.OrangeTraffic()
-    urbanStatus = NoiseConfig.MediumUrban()
+    rainStatus = NoiseConfig.Rain50()
+    trafficStatus = NoiseConfig.BlackTraffic()
+    urbanStatus = NoiseConfig.GoodUrban()
     center_x = 2424.871130596428
     center_y = 0.0
 
@@ -121,8 +117,8 @@ class Partition8(Partitions):
 
 
 class Partition9(Partitions):
-    rainStatus = NoiseConfig.Rain0()
-    trafficStatus = NoiseConfig.BlackTraffic()
+    rainStatus = NoiseConfig.Rain50()
+    trafficStatus = NoiseConfig.YellowTraffic()
     urbanStatus = NoiseConfig.Rural()
     center_x = 2771.2812921102036
     center_y = 0.0
@@ -132,9 +128,9 @@ class Partition9(Partitions):
 
 
 class Partition10(Partitions):
-    rainStatus = NoiseConfig.Rain100()
-    trafficStatus = NoiseConfig.RedTraffic()
-    urbanStatus = NoiseConfig.Rural()
+    rainStatus = NoiseConfig.Rain0()
+    trafficStatus = NoiseConfig.YellowTraffic()
+    urbanStatus = NoiseConfig.GoodUrban()
     center_x = 3117.691453623979
     center_y = 0.0
 
@@ -143,8 +139,8 @@ class Partition10(Partitions):
 
 
 class Partition11(Partitions):
-    rainStatus = NoiseConfig.Rain100()
-    trafficStatus = NoiseConfig.GreenTraffic()
+    rainStatus = NoiseConfig.Rain23()
+    trafficStatus = NoiseConfig.BlackTraffic()
     urbanStatus = NoiseConfig.GoodUrban()
     center_x = 3464.1016151377544
     center_y = 0.0
@@ -154,9 +150,9 @@ class Partition11(Partitions):
 
 
 class Partition12(Partitions):
-    rainStatus = NoiseConfig.Rain200()
-    trafficStatus = NoiseConfig.BlackTraffic()
-    urbanStatus = NoiseConfig.GoodUrban()
+    rainStatus = NoiseConfig.Rain13()
+    trafficStatus = NoiseConfig.YellowTraffic()
+    urbanStatus = NoiseConfig.Rural()
     center_x = 3810.51177665153
     center_y = 0.0
 
@@ -165,9 +161,9 @@ class Partition12(Partitions):
 
 
 class Partition13(Partitions):
-    rainStatus = NoiseConfig.Rain150()
-    trafficStatus = NoiseConfig.BlackTraffic()
-    urbanStatus = NoiseConfig.Rural()
+    rainStatus = NoiseConfig.Rain50()
+    trafficStatus = NoiseConfig.RedTraffic()
+    urbanStatus = NoiseConfig.BadUrban()
     center_x = 4156.921938165306
     center_y = 0.0
 
@@ -176,9 +172,9 @@ class Partition13(Partitions):
 
 
 class Partition14(Partitions):
-    rainStatus = NoiseConfig.Rain200()
+    rainStatus = NoiseConfig.Rain50()
     trafficStatus = NoiseConfig.GreenTraffic()
-    urbanStatus = NoiseConfig.BadUrban()
+    urbanStatus = NoiseConfig.Rural()
     center_x = 4503.332099679081
     center_y = 0.0
 
@@ -187,9 +183,9 @@ class Partition14(Partitions):
 
 
 class Partition15(Partitions):
-    rainStatus = NoiseConfig.Rain0()
-    trafficStatus = NoiseConfig.RedTraffic()
-    urbanStatus = NoiseConfig.Rural()
+    rainStatus = NoiseConfig.Rain13()
+    trafficStatus = NoiseConfig.GreenTraffic()
+    urbanStatus = NoiseConfig.GoodUrban()
     center_x = 173.20508075688772
     center_y = 300.0
 
@@ -198,9 +194,9 @@ class Partition15(Partitions):
 
 
 class Partition16(Partitions):
-    rainStatus = NoiseConfig.Rain200()
-    trafficStatus = NoiseConfig.RedTraffic()
-    urbanStatus = NoiseConfig.Rural()
+    rainStatus = NoiseConfig.Rain50()
+    trafficStatus = NoiseConfig.OrangeTraffic()
+    urbanStatus = NoiseConfig.GoodUrban()
     center_x = 519.6152422706632
     center_y = 300.0
 
@@ -209,9 +205,9 @@ class Partition16(Partitions):
 
 
 class Partition17(Partitions):
-    rainStatus = NoiseConfig.Rain150()
+    rainStatus = NoiseConfig.Rain0()
     trafficStatus = NoiseConfig.RedTraffic()
-    urbanStatus = NoiseConfig.GoodUrban()
+    urbanStatus = NoiseConfig.BadUrban()
     center_x = 866.0254037844386
     center_y = 300.0
 
@@ -220,9 +216,9 @@ class Partition17(Partitions):
 
 
 class Partition18(Partitions):
-    rainStatus = NoiseConfig.Rain23()
-    trafficStatus = NoiseConfig.BlackTraffic()
-    urbanStatus = NoiseConfig.Rural()
+    rainStatus = NoiseConfig.Rain150()
+    trafficStatus = NoiseConfig.YellowTraffic()
+    urbanStatus = NoiseConfig.MediumUrban()
     center_x = 1212.4355652982142
     center_y = 300.0
 
@@ -232,8 +228,8 @@ class Partition18(Partitions):
 
 class Partition19(Partitions):
     rainStatus = NoiseConfig.Rain50()
-    trafficStatus = NoiseConfig.GreenTraffic()
-    urbanStatus = NoiseConfig.GoodUrban()
+    trafficStatus = NoiseConfig.OrangeTraffic()
+    urbanStatus = NoiseConfig.Rural()
     center_x = 1558.8457268119896
     center_y = 300.0
 
@@ -242,7 +238,7 @@ class Partition19(Partitions):
 
 
 class Partition20(Partitions):
-    rainStatus = NoiseConfig.Rain23()
+    rainStatus = NoiseConfig.Rain50()
     trafficStatus = NoiseConfig.RedTraffic()
     urbanStatus = NoiseConfig.Rural()
     center_x = 1905.255888325765
@@ -253,8 +249,8 @@ class Partition20(Partitions):
 
 
 class Partition21(Partitions):
-    rainStatus = NoiseConfig.Rain13()
-    trafficStatus = NoiseConfig.RedTraffic()
+    rainStatus = NoiseConfig.Rain0()
+    trafficStatus = NoiseConfig.YellowTraffic()
     urbanStatus = NoiseConfig.MediumUrban()
     center_x = 2251.6660498395404
     center_y = 300.0
@@ -264,9 +260,9 @@ class Partition21(Partitions):
 
 
 class Partition22(Partitions):
-    rainStatus = NoiseConfig.Rain23()
-    trafficStatus = NoiseConfig.OrangeTraffic()
-    urbanStatus = NoiseConfig.GoodUrban()
+    rainStatus = NoiseConfig.Rain200()
+    trafficStatus = NoiseConfig.RedTraffic()
+    urbanStatus = NoiseConfig.BadUrban()
     center_x = 2598.0762113533156
     center_y = 300.0
 
@@ -275,9 +271,9 @@ class Partition22(Partitions):
 
 
 class Partition23(Partitions):
-    rainStatus = NoiseConfig.Rain100()
-    trafficStatus = NoiseConfig.RedTraffic()
-    urbanStatus = NoiseConfig.BadUrban()
+    rainStatus = NoiseConfig.Rain23()
+    trafficStatus = NoiseConfig.BlackTraffic()
+    urbanStatus = NoiseConfig.GoodUrban()
     center_x = 2944.486372867091
     center_y = 300.0
 
@@ -286,9 +282,9 @@ class Partition23(Partitions):
 
 
 class Partition24(Partitions):
-    rainStatus = NoiseConfig.Rain200()
-    trafficStatus = NoiseConfig.RedTraffic()
-    urbanStatus = NoiseConfig.GoodUrban()
+    rainStatus = NoiseConfig.Rain50()
+    trafficStatus = NoiseConfig.YellowTraffic()
+    urbanStatus = NoiseConfig.MediumUrban()
     center_x = 3290.896534380867
     center_y = 300.0
 
@@ -297,9 +293,9 @@ class Partition24(Partitions):
 
 
 class Partition25(Partitions):
-    rainStatus = NoiseConfig.Rain0()
-    trafficStatus = NoiseConfig.RedTraffic()
-    urbanStatus = NoiseConfig.BadUrban()
+    rainStatus = NoiseConfig.Rain150()
+    trafficStatus = NoiseConfig.BlackTraffic()
+    urbanStatus = NoiseConfig.Rural()
     center_x = 3637.306695894642
     center_y = 300.0
 
@@ -308,9 +304,9 @@ class Partition25(Partitions):
 
 
 class Partition26(Partitions):
-    rainStatus = NoiseConfig.Rain50()
-    trafficStatus = NoiseConfig.BlackTraffic()
-    urbanStatus = NoiseConfig.MediumUrban()
+    rainStatus = NoiseConfig.Rain100()
+    trafficStatus = NoiseConfig.OrangeTraffic()
+    urbanStatus = NoiseConfig.Rural()
     center_x = 3983.7168574084176
     center_y = 300.0
 
@@ -319,9 +315,9 @@ class Partition26(Partitions):
 
 
 class Partition27(Partitions):
-    rainStatus = NoiseConfig.Rain13()
-    trafficStatus = NoiseConfig.GreenTraffic()
-    urbanStatus = NoiseConfig.Rural()
+    rainStatus = NoiseConfig.Rain50()
+    trafficStatus = NoiseConfig.OrangeTraffic()
+    urbanStatus = NoiseConfig.MediumUrban()
     center_x = 4330.127018922193
     center_y = 300.0
 
@@ -330,9 +326,9 @@ class Partition27(Partitions):
 
 
 class Partition28(Partitions):
-    rainStatus = NoiseConfig.Rain13()
+    rainStatus = NoiseConfig.Rain200()
     trafficStatus = NoiseConfig.GreenTraffic()
-    urbanStatus = NoiseConfig.MediumUrban()
+    urbanStatus = NoiseConfig.Rural()
     center_x = 4676.537180435968
     center_y = 300.0
 
@@ -341,9 +337,9 @@ class Partition28(Partitions):
 
 
 class Partition29(Partitions):
-    rainStatus = NoiseConfig.Rain13()
-    trafficStatus = NoiseConfig.OrangeTraffic()
-    urbanStatus = NoiseConfig.GoodUrban()
+    rainStatus = NoiseConfig.Rain100()
+    trafficStatus = NoiseConfig.RedTraffic()
+    urbanStatus = NoiseConfig.Rural()
     center_x = 0.0
     center_y = 600.0
 
@@ -353,8 +349,8 @@ class Partition29(Partitions):
 
 class Partition30(Partitions):
     rainStatus = NoiseConfig.Rain0()
-    trafficStatus = NoiseConfig.BlackTraffic()
-    urbanStatus = NoiseConfig.BadUrban()
+    trafficStatus = NoiseConfig.GreenTraffic()
+    urbanStatus = NoiseConfig.MediumUrban()
     center_x = 346.41016151377545
     center_y = 600.0
 
@@ -363,9 +359,9 @@ class Partition30(Partitions):
 
 
 class Partition31(Partitions):
-    rainStatus = NoiseConfig.Rain13()
+    rainStatus = NoiseConfig.Rain100()
     trafficStatus = NoiseConfig.OrangeTraffic()
-    urbanStatus = NoiseConfig.Rural()
+    urbanStatus = NoiseConfig.GoodUrban()
     center_x = 692.8203230275509
     center_y = 600.0
 
@@ -375,8 +371,8 @@ class Partition31(Partitions):
 
 class Partition32(Partitions):
     rainStatus = NoiseConfig.Rain0()
-    trafficStatus = NoiseConfig.BlackTraffic()
-    urbanStatus = NoiseConfig.BadUrban()
+    trafficStatus = NoiseConfig.OrangeTraffic()
+    urbanStatus = NoiseConfig.GoodUrban()
     center_x = 1039.2304845413264
     center_y = 600.0
 
@@ -385,9 +381,9 @@ class Partition32(Partitions):
 
 
 class Partition33(Partitions):
-    rainStatus = NoiseConfig.Rain0()
+    rainStatus = NoiseConfig.Rain100()
     trafficStatus = NoiseConfig.BlackTraffic()
-    urbanStatus = NoiseConfig.Rural()
+    urbanStatus = NoiseConfig.GoodUrban()
     center_x = 1385.6406460551018
     center_y = 600.0
 
@@ -396,8 +392,8 @@ class Partition33(Partitions):
 
 
 class Partition34(Partitions):
-    rainStatus = NoiseConfig.Rain200()
-    trafficStatus = NoiseConfig.GreenTraffic()
+    rainStatus = NoiseConfig.Rain150()
+    trafficStatus = NoiseConfig.OrangeTraffic()
     urbanStatus = NoiseConfig.Rural()
     center_x = 1732.0508075688772
     center_y = 600.0
@@ -407,9 +403,9 @@ class Partition34(Partitions):
 
 
 class Partition35(Partitions):
-    rainStatus = NoiseConfig.Rain13()
-    trafficStatus = NoiseConfig.GreenTraffic()
-    urbanStatus = NoiseConfig.Rural()
+    rainStatus = NoiseConfig.Rain23()
+    trafficStatus = NoiseConfig.BlackTraffic()
+    urbanStatus = NoiseConfig.MediumUrban()
     center_x = 2078.460969082653
     center_y = 600.0
 
@@ -418,8 +414,8 @@ class Partition35(Partitions):
 
 
 class Partition36(Partitions):
-    rainStatus = NoiseConfig.Rain13()
-    trafficStatus = NoiseConfig.RedTraffic()
+    rainStatus = NoiseConfig.Rain50()
+    trafficStatus = NoiseConfig.GreenTraffic()
     urbanStatus = NoiseConfig.MediumUrban()
     center_x = 2424.871130596428
     center_y = 600.0
@@ -429,8 +425,8 @@ class Partition36(Partitions):
 
 
 class Partition37(Partitions):
-    rainStatus = NoiseConfig.Rain100()
-    trafficStatus = NoiseConfig.GreenTraffic()
+    rainStatus = NoiseConfig.Rain50()
+    trafficStatus = NoiseConfig.RedTraffic()
     urbanStatus = NoiseConfig.GoodUrban()
     center_x = 2771.2812921102036
     center_y = 600.0
@@ -440,8 +436,8 @@ class Partition37(Partitions):
 
 
 class Partition38(Partitions):
-    rainStatus = NoiseConfig.Rain13()
-    trafficStatus = NoiseConfig.OrangeTraffic()
+    rainStatus = NoiseConfig.Rain150()
+    trafficStatus = NoiseConfig.RedTraffic()
     urbanStatus = NoiseConfig.BadUrban()
     center_x = 3117.691453623979
     center_y = 600.0
@@ -452,7 +448,7 @@ class Partition38(Partitions):
 
 class Partition39(Partitions):
     rainStatus = NoiseConfig.Rain200()
-    trafficStatus = NoiseConfig.OrangeTraffic()
+    trafficStatus = NoiseConfig.GreenTraffic()
     urbanStatus = NoiseConfig.GoodUrban()
     center_x = 3464.1016151377544
     center_y = 600.0
@@ -462,9 +458,9 @@ class Partition39(Partitions):
 
 
 class Partition40(Partitions):
-    rainStatus = NoiseConfig.Rain150()
-    trafficStatus = NoiseConfig.OrangeTraffic()
-    urbanStatus = NoiseConfig.GoodUrban()
+    rainStatus = NoiseConfig.Rain50()
+    trafficStatus = NoiseConfig.GreenTraffic()
+    urbanStatus = NoiseConfig.Rural()
     center_x = 3810.51177665153
     center_y = 600.0
 
@@ -473,8 +469,8 @@ class Partition40(Partitions):
 
 
 class Partition41(Partitions):
-    rainStatus = NoiseConfig.Rain200()
-    trafficStatus = NoiseConfig.OrangeTraffic()
+    rainStatus = NoiseConfig.Rain50()
+    trafficStatus = NoiseConfig.RedTraffic()
     urbanStatus = NoiseConfig.Rural()
     center_x = 4156.921938165306
     center_y = 600.0
@@ -484,8 +480,8 @@ class Partition41(Partitions):
 
 
 class Partition42(Partitions):
-    rainStatus = NoiseConfig.Rain0()
-    trafficStatus = NoiseConfig.BlackTraffic()
+    rainStatus = NoiseConfig.Rain150()
+    trafficStatus = NoiseConfig.GreenTraffic()
     urbanStatus = NoiseConfig.MediumUrban()
     center_x = 4503.332099679081
     center_y = 600.0
@@ -495,8 +491,8 @@ class Partition42(Partitions):
 
 
 class Partition43(Partitions):
-    rainStatus = NoiseConfig.Rain13()
-    trafficStatus = NoiseConfig.OrangeTraffic()
+    rainStatus = NoiseConfig.Rain200()
+    trafficStatus = NoiseConfig.BlackTraffic()
     urbanStatus = NoiseConfig.MediumUrban()
     center_x = 173.20508075688772
     center_y = 900.0
@@ -506,9 +502,9 @@ class Partition43(Partitions):
 
 
 class Partition44(Partitions):
-    rainStatus = NoiseConfig.Rain13()
-    trafficStatus = NoiseConfig.OrangeTraffic()
-    urbanStatus = NoiseConfig.Rural()
+    rainStatus = NoiseConfig.Rain100()
+    trafficStatus = NoiseConfig.GreenTraffic()
+    urbanStatus = NoiseConfig.GoodUrban()
     center_x = 519.6152422706632
     center_y = 900.0
 
@@ -517,9 +513,9 @@ class Partition44(Partitions):
 
 
 class Partition45(Partitions):
-    rainStatus = NoiseConfig.Rain13()
-    trafficStatus = NoiseConfig.BlackTraffic()
-    urbanStatus = NoiseConfig.Rural()
+    rainStatus = NoiseConfig.Rain200()
+    trafficStatus = NoiseConfig.RedTraffic()
+    urbanStatus = NoiseConfig.MediumUrban()
     center_x = 866.0254037844386
     center_y = 900.0
 
@@ -528,8 +524,8 @@ class Partition45(Partitions):
 
 
 class Partition46(Partitions):
-    rainStatus = NoiseConfig.Rain150()
-    trafficStatus = NoiseConfig.RedTraffic()
+    rainStatus = NoiseConfig.Rain100()
+    trafficStatus = NoiseConfig.GreenTraffic()
     urbanStatus = NoiseConfig.Rural()
     center_x = 1212.4355652982142
     center_y = 900.0
@@ -539,8 +535,8 @@ class Partition46(Partitions):
 
 
 class Partition47(Partitions):
-    rainStatus = NoiseConfig.Rain150()
-    trafficStatus = NoiseConfig.GreenTraffic()
+    rainStatus = NoiseConfig.Rain23()
+    trafficStatus = NoiseConfig.BlackTraffic()
     urbanStatus = NoiseConfig.BadUrban()
     center_x = 1558.8457268119896
     center_y = 900.0
@@ -552,7 +548,7 @@ class Partition47(Partitions):
 class Partition48(Partitions):
     rainStatus = NoiseConfig.Rain50()
     trafficStatus = NoiseConfig.BlackTraffic()
-    urbanStatus = NoiseConfig.MediumUrban()
+    urbanStatus = NoiseConfig.BadUrban()
     center_x = 1905.255888325765
     center_y = 900.0
 
@@ -562,8 +558,8 @@ class Partition48(Partitions):
 
 class Partition49(Partitions):
     rainStatus = NoiseConfig.Rain200()
-    trafficStatus = NoiseConfig.RedTraffic()
-    urbanStatus = NoiseConfig.BadUrban()
+    trafficStatus = NoiseConfig.BlackTraffic()
+    urbanStatus = NoiseConfig.Rural()
     center_x = 2251.6660498395404
     center_y = 900.0
 
@@ -573,8 +569,8 @@ class Partition49(Partitions):
 
 class Partition50(Partitions):
     rainStatus = NoiseConfig.Rain13()
-    trafficStatus = NoiseConfig.RedTraffic()
-    urbanStatus = NoiseConfig.GoodUrban()
+    trafficStatus = NoiseConfig.YellowTraffic()
+    urbanStatus = NoiseConfig.MediumUrban()
     center_x = 2598.0762113533156
     center_y = 900.0
 
@@ -583,9 +579,9 @@ class Partition50(Partitions):
 
 
 class Partition51(Partitions):
-    rainStatus = NoiseConfig.Rain200()
-    trafficStatus = NoiseConfig.RedTraffic()
-    urbanStatus = NoiseConfig.GoodUrban()
+    rainStatus = NoiseConfig.Rain100()
+    trafficStatus = NoiseConfig.OrangeTraffic()
+    urbanStatus = NoiseConfig.Rural()
     center_x = 2944.486372867091
     center_y = 900.0
 
@@ -594,8 +590,8 @@ class Partition51(Partitions):
 
 
 class Partition52(Partitions):
-    rainStatus = NoiseConfig.Rain50()
-    trafficStatus = NoiseConfig.RedTraffic()
+    rainStatus = NoiseConfig.Rain200()
+    trafficStatus = NoiseConfig.OrangeTraffic()
     urbanStatus = NoiseConfig.MediumUrban()
     center_x = 3290.896534380867
     center_y = 900.0
@@ -605,9 +601,9 @@ class Partition52(Partitions):
 
 
 class Partition53(Partitions):
-    rainStatus = NoiseConfig.Rain50()
-    trafficStatus = NoiseConfig.BlackTraffic()
-    urbanStatus = NoiseConfig.BadUrban()
+    rainStatus = NoiseConfig.Rain23()
+    trafficStatus = NoiseConfig.RedTraffic()
+    urbanStatus = NoiseConfig.MediumUrban()
     center_x = 3637.306695894642
     center_y = 900.0
 
@@ -616,9 +612,9 @@ class Partition53(Partitions):
 
 
 class Partition54(Partitions):
-    rainStatus = NoiseConfig.Rain0()
-    trafficStatus = NoiseConfig.GreenTraffic()
-    urbanStatus = NoiseConfig.BadUrban()
+    rainStatus = NoiseConfig.Rain23()
+    trafficStatus = NoiseConfig.RedTraffic()
+    urbanStatus = NoiseConfig.Rural()
     center_x = 3983.7168574084176
     center_y = 900.0
 
@@ -627,9 +623,9 @@ class Partition54(Partitions):
 
 
 class Partition55(Partitions):
-    rainStatus = NoiseConfig.Rain200()
-    trafficStatus = NoiseConfig.GreenTraffic()
-    urbanStatus = NoiseConfig.GoodUrban()
+    rainStatus = NoiseConfig.Rain23()
+    trafficStatus = NoiseConfig.BlackTraffic()
+    urbanStatus = NoiseConfig.MediumUrban()
     center_x = 4330.127018922193
     center_y = 900.0
 
@@ -638,8 +634,8 @@ class Partition55(Partitions):
 
 
 class Partition56(Partitions):
-    rainStatus = NoiseConfig.Rain13()
-    trafficStatus = NoiseConfig.RedTraffic()
+    rainStatus = NoiseConfig.Rain0()
+    trafficStatus = NoiseConfig.BlackTraffic()
     urbanStatus = NoiseConfig.Rural()
     center_x = 4676.537180435968
     center_y = 900.0
@@ -649,7 +645,7 @@ class Partition56(Partitions):
 
 
 class Partition57(Partitions):
-    rainStatus = NoiseConfig.Rain13()
+    rainStatus = NoiseConfig.Rain23()
     trafficStatus = NoiseConfig.BlackTraffic()
     urbanStatus = NoiseConfig.GoodUrban()
     center_x = 0.0
@@ -660,9 +656,9 @@ class Partition57(Partitions):
 
 
 class Partition58(Partitions):
-    rainStatus = NoiseConfig.Rain0()
+    rainStatus = NoiseConfig.Rain150()
     trafficStatus = NoiseConfig.RedTraffic()
-    urbanStatus = NoiseConfig.BadUrban()
+    urbanStatus = NoiseConfig.MediumUrban()
     center_x = 346.41016151377545
     center_y = 1200.0
 
@@ -671,9 +667,9 @@ class Partition58(Partitions):
 
 
 class Partition59(Partitions):
-    rainStatus = NoiseConfig.Rain100()
-    trafficStatus = NoiseConfig.OrangeTraffic()
-    urbanStatus = NoiseConfig.BadUrban()
+    rainStatus = NoiseConfig.Rain150()
+    trafficStatus = NoiseConfig.GreenTraffic()
+    urbanStatus = NoiseConfig.GoodUrban()
     center_x = 692.8203230275509
     center_y = 1200.0
 
@@ -683,8 +679,8 @@ class Partition59(Partitions):
 
 class Partition60(Partitions):
     rainStatus = NoiseConfig.Rain150()
-    trafficStatus = NoiseConfig.RedTraffic()
-    urbanStatus = NoiseConfig.GoodUrban()
+    trafficStatus = NoiseConfig.OrangeTraffic()
+    urbanStatus = NoiseConfig.BadUrban()
     center_x = 1039.2304845413264
     center_y = 1200.0
 
@@ -693,9 +689,9 @@ class Partition60(Partitions):
 
 
 class Partition61(Partitions):
-    rainStatus = NoiseConfig.Rain150()
+    rainStatus = NoiseConfig.Rain50()
     trafficStatus = NoiseConfig.RedTraffic()
-    urbanStatus = NoiseConfig.MediumUrban()
+    urbanStatus = NoiseConfig.GoodUrban()
     center_x = 1385.6406460551018
     center_y = 1200.0
 
@@ -704,9 +700,9 @@ class Partition61(Partitions):
 
 
 class Partition62(Partitions):
-    rainStatus = NoiseConfig.Rain100()
-    trafficStatus = NoiseConfig.BlackTraffic()
-    urbanStatus = NoiseConfig.BadUrban()
+    rainStatus = NoiseConfig.Rain23()
+    trafficStatus = NoiseConfig.OrangeTraffic()
+    urbanStatus = NoiseConfig.MediumUrban()
     center_x = 1732.0508075688772
     center_y = 1200.0
 
@@ -715,9 +711,9 @@ class Partition62(Partitions):
 
 
 class Partition63(Partitions):
-    rainStatus = NoiseConfig.Rain13()
-    trafficStatus = NoiseConfig.RedTraffic()
-    urbanStatus = NoiseConfig.MediumUrban()
+    rainStatus = NoiseConfig.Rain150()
+    trafficStatus = NoiseConfig.OrangeTraffic()
+    urbanStatus = NoiseConfig.BadUrban()
     center_x = 2078.460969082653
     center_y = 1200.0
 
@@ -726,8 +722,8 @@ class Partition63(Partitions):
 
 
 class Partition64(Partitions):
-    rainStatus = NoiseConfig.Rain100()
-    trafficStatus = NoiseConfig.GreenTraffic()
+    rainStatus = NoiseConfig.Rain23()
+    trafficStatus = NoiseConfig.OrangeTraffic()
     urbanStatus = NoiseConfig.Rural()
     center_x = 2424.871130596428
     center_y = 1200.0
@@ -737,9 +733,9 @@ class Partition64(Partitions):
 
 
 class Partition65(Partitions):
-    rainStatus = NoiseConfig.Rain13()
+    rainStatus = NoiseConfig.Rain150()
     trafficStatus = NoiseConfig.GreenTraffic()
-    urbanStatus = NoiseConfig.Rural()
+    urbanStatus = NoiseConfig.BadUrban()
     center_x = 2771.2812921102036
     center_y = 1200.0
 
@@ -749,8 +745,8 @@ class Partition65(Partitions):
 
 class Partition66(Partitions):
     rainStatus = NoiseConfig.Rain0()
-    trafficStatus = NoiseConfig.RedTraffic()
-    urbanStatus = NoiseConfig.BadUrban()
+    trafficStatus = NoiseConfig.YellowTraffic()
+    urbanStatus = NoiseConfig.GoodUrban()
     center_x = 3117.691453623979
     center_y = 1200.0
 
@@ -759,9 +755,9 @@ class Partition66(Partitions):
 
 
 class Partition67(Partitions):
-    rainStatus = NoiseConfig.Rain200()
-    trafficStatus = NoiseConfig.OrangeTraffic()
-    urbanStatus = NoiseConfig.GoodUrban()
+    rainStatus = NoiseConfig.Rain100()
+    trafficStatus = NoiseConfig.RedTraffic()
+    urbanStatus = NoiseConfig.Rural()
     center_x = 3464.1016151377544
     center_y = 1200.0
 
@@ -782,8 +778,8 @@ class Partition68(Partitions):
 
 class Partition69(Partitions):
     rainStatus = NoiseConfig.Rain13()
-    trafficStatus = NoiseConfig.OrangeTraffic()
-    urbanStatus = NoiseConfig.Rural()
+    trafficStatus = NoiseConfig.YellowTraffic()
+    urbanStatus = NoiseConfig.MediumUrban()
     center_x = 4156.921938165306
     center_y = 1200.0
 
@@ -792,7 +788,7 @@ class Partition69(Partitions):
 
 
 class Partition70(Partitions):
-    rainStatus = NoiseConfig.Rain0()
+    rainStatus = NoiseConfig.Rain100()
     trafficStatus = NoiseConfig.BlackTraffic()
     urbanStatus = NoiseConfig.Rural()
     center_x = 4503.332099679081
@@ -803,8 +799,8 @@ class Partition70(Partitions):
 
 
 class Partition71(Partitions):
-    rainStatus = NoiseConfig.Rain150()
-    trafficStatus = NoiseConfig.RedTraffic()
+    rainStatus = NoiseConfig.Rain100()
+    trafficStatus = NoiseConfig.BlackTraffic()
     urbanStatus = NoiseConfig.GoodUrban()
     center_x = 173.20508075688772
     center_y = 1500.0
@@ -815,8 +811,8 @@ class Partition71(Partitions):
 
 class Partition72(Partitions):
     rainStatus = NoiseConfig.Rain100()
-    trafficStatus = NoiseConfig.BlackTraffic()
-    urbanStatus = NoiseConfig.BadUrban()
+    trafficStatus = NoiseConfig.GreenTraffic()
+    urbanStatus = NoiseConfig.MediumUrban()
     center_x = 519.6152422706632
     center_y = 1500.0
 
@@ -825,9 +821,9 @@ class Partition72(Partitions):
 
 
 class Partition73(Partitions):
-    rainStatus = NoiseConfig.Rain100()
-    trafficStatus = NoiseConfig.OrangeTraffic()
-    urbanStatus = NoiseConfig.MediumUrban()
+    rainStatus = NoiseConfig.Rain13()
+    trafficStatus = NoiseConfig.BlackTraffic()
+    urbanStatus = NoiseConfig.BadUrban()
     center_x = 866.0254037844386
     center_y = 1500.0
 
@@ -836,8 +832,8 @@ class Partition73(Partitions):
 
 
 class Partition74(Partitions):
-    rainStatus = NoiseConfig.Rain150()
-    trafficStatus = NoiseConfig.GreenTraffic()
+    rainStatus = NoiseConfig.Rain13()
+    trafficStatus = NoiseConfig.RedTraffic()
     urbanStatus = NoiseConfig.Rural()
     center_x = 1212.4355652982142
     center_y = 1500.0
@@ -847,8 +843,8 @@ class Partition74(Partitions):
 
 
 class Partition75(Partitions):
-    rainStatus = NoiseConfig.Rain200()
-    trafficStatus = NoiseConfig.GreenTraffic()
+    rainStatus = NoiseConfig.Rain100()
+    trafficStatus = NoiseConfig.RedTraffic()
     urbanStatus = NoiseConfig.Rural()
     center_x = 1558.8457268119896
     center_y = 1500.0
@@ -858,9 +854,9 @@ class Partition75(Partitions):
 
 
 class Partition76(Partitions):
-    rainStatus = NoiseConfig.Rain13()
-    trafficStatus = NoiseConfig.RedTraffic()
-    urbanStatus = NoiseConfig.GoodUrban()
+    rainStatus = NoiseConfig.Rain100()
+    trafficStatus = NoiseConfig.GreenTraffic()
+    urbanStatus = NoiseConfig.MediumUrban()
     center_x = 1905.255888325765
     center_y = 1500.0
 
@@ -869,9 +865,9 @@ class Partition76(Partitions):
 
 
 class Partition77(Partitions):
-    rainStatus = NoiseConfig.Rain50()
-    trafficStatus = NoiseConfig.BlackTraffic()
-    urbanStatus = NoiseConfig.MediumUrban()
+    rainStatus = NoiseConfig.Rain13()
+    trafficStatus = NoiseConfig.OrangeTraffic()
+    urbanStatus = NoiseConfig.GoodUrban()
     center_x = 2251.6660498395404
     center_y = 1500.0
 
@@ -881,8 +877,8 @@ class Partition77(Partitions):
 
 class Partition78(Partitions):
     rainStatus = NoiseConfig.Rain13()
-    trafficStatus = NoiseConfig.GreenTraffic()
-    urbanStatus = NoiseConfig.BadUrban()
+    trafficStatus = NoiseConfig.YellowTraffic()
+    urbanStatus = NoiseConfig.GoodUrban()
     center_x = 2598.0762113533156
     center_y = 1500.0
 
@@ -891,8 +887,8 @@ class Partition78(Partitions):
 
 
 class Partition79(Partitions):
-    rainStatus = NoiseConfig.Rain50()
-    trafficStatus = NoiseConfig.BlackTraffic()
+    rainStatus = NoiseConfig.Rain13()
+    trafficStatus = NoiseConfig.OrangeTraffic()
     urbanStatus = NoiseConfig.Rural()
     center_x = 2944.486372867091
     center_y = 1500.0
@@ -902,9 +898,9 @@ class Partition79(Partitions):
 
 
 class Partition80(Partitions):
-    rainStatus = NoiseConfig.Rain100()
-    trafficStatus = NoiseConfig.OrangeTraffic()
-    urbanStatus = NoiseConfig.BadUrban()
+    rainStatus = NoiseConfig.Rain50()
+    trafficStatus = NoiseConfig.RedTraffic()
+    urbanStatus = NoiseConfig.GoodUrban()
     center_x = 3290.896534380867
     center_y = 1500.0
 
@@ -913,9 +909,9 @@ class Partition80(Partitions):
 
 
 class Partition81(Partitions):
-    rainStatus = NoiseConfig.Rain0()
+    rainStatus = NoiseConfig.Rain23()
     trafficStatus = NoiseConfig.OrangeTraffic()
-    urbanStatus = NoiseConfig.MediumUrban()
+    urbanStatus = NoiseConfig.GoodUrban()
     center_x = 3637.306695894642
     center_y = 1500.0
 
@@ -924,9 +920,9 @@ class Partition81(Partitions):
 
 
 class Partition82(Partitions):
-    rainStatus = NoiseConfig.Rain23()
-    trafficStatus = NoiseConfig.RedTraffic()
-    urbanStatus = NoiseConfig.GoodUrban()
+    rainStatus = NoiseConfig.Rain100()
+    trafficStatus = NoiseConfig.YellowTraffic()
+    urbanStatus = NoiseConfig.Rural()
     center_x = 3983.7168574084176
     center_y = 1500.0
 
@@ -935,9 +931,9 @@ class Partition82(Partitions):
 
 
 class Partition83(Partitions):
-    rainStatus = NoiseConfig.Rain0()
-    trafficStatus = NoiseConfig.GreenTraffic()
-    urbanStatus = NoiseConfig.BadUrban()
+    rainStatus = NoiseConfig.Rain150()
+    trafficStatus = NoiseConfig.YellowTraffic()
+    urbanStatus = NoiseConfig.Rural()
     center_x = 4330.127018922193
     center_y = 1500.0
 
@@ -946,9 +942,9 @@ class Partition83(Partitions):
 
 
 class Partition84(Partitions):
-    rainStatus = NoiseConfig.Rain200()
-    trafficStatus = NoiseConfig.BlackTraffic()
-    urbanStatus = NoiseConfig.GoodUrban()
+    rainStatus = NoiseConfig.Rain23()
+    trafficStatus = NoiseConfig.RedTraffic()
+    urbanStatus = NoiseConfig.Rural()
     center_x = 4676.537180435968
     center_y = 1500.0
 
@@ -958,8 +954,8 @@ class Partition84(Partitions):
 
 class Partition85(Partitions):
     rainStatus = NoiseConfig.Rain200()
-    trafficStatus = NoiseConfig.OrangeTraffic()
-    urbanStatus = NoiseConfig.MediumUrban()
+    trafficStatus = NoiseConfig.YellowTraffic()
+    urbanStatus = NoiseConfig.Rural()
     center_x = 0.0
     center_y = 1800.0
 
@@ -968,9 +964,9 @@ class Partition85(Partitions):
 
 
 class Partition86(Partitions):
-    rainStatus = NoiseConfig.Rain100()
-    trafficStatus = NoiseConfig.OrangeTraffic()
-    urbanStatus = NoiseConfig.MediumUrban()
+    rainStatus = NoiseConfig.Rain200()
+    trafficStatus = NoiseConfig.RedTraffic()
+    urbanStatus = NoiseConfig.BadUrban()
     center_x = 346.41016151377545
     center_y = 1800.0
 
@@ -981,7 +977,7 @@ class Partition86(Partitions):
 class Partition87(Partitions):
     rainStatus = NoiseConfig.Rain23()
     trafficStatus = NoiseConfig.RedTraffic()
-    urbanStatus = NoiseConfig.MediumUrban()
+    urbanStatus = NoiseConfig.BadUrban()
     center_x = 692.8203230275509
     center_y = 1800.0
 
@@ -990,9 +986,9 @@ class Partition87(Partitions):
 
 
 class Partition88(Partitions):
-    rainStatus = NoiseConfig.Rain0()
-    trafficStatus = NoiseConfig.RedTraffic()
-    urbanStatus = NoiseConfig.Rural()
+    rainStatus = NoiseConfig.Rain150()
+    trafficStatus = NoiseConfig.OrangeTraffic()
+    urbanStatus = NoiseConfig.GoodUrban()
     center_x = 1039.2304845413264
     center_y = 1800.0
 
@@ -1001,9 +997,9 @@ class Partition88(Partitions):
 
 
 class Partition89(Partitions):
-    rainStatus = NoiseConfig.Rain23()
-    trafficStatus = NoiseConfig.OrangeTraffic()
-    urbanStatus = NoiseConfig.MediumUrban()
+    rainStatus = NoiseConfig.Rain0()
+    trafficStatus = NoiseConfig.BlackTraffic()
+    urbanStatus = NoiseConfig.BadUrban()
     center_x = 1385.6406460551018
     center_y = 1800.0
 
@@ -1012,9 +1008,9 @@ class Partition89(Partitions):
 
 
 class Partition90(Partitions):
-    rainStatus = NoiseConfig.Rain200()
-    trafficStatus = NoiseConfig.RedTraffic()
-    urbanStatus = NoiseConfig.Rural()
+    rainStatus = NoiseConfig.Rain23()
+    trafficStatus = NoiseConfig.BlackTraffic()
+    urbanStatus = NoiseConfig.BadUrban()
     center_x = 1732.0508075688772
     center_y = 1800.0
 
@@ -1025,7 +1021,7 @@ class Partition90(Partitions):
 class Partition91(Partitions):
     rainStatus = NoiseConfig.Rain23()
     trafficStatus = NoiseConfig.RedTraffic()
-    urbanStatus = NoiseConfig.BadUrban()
+    urbanStatus = NoiseConfig.MediumUrban()
     center_x = 2078.460969082653
     center_y = 1800.0
 
@@ -1034,8 +1030,8 @@ class Partition91(Partitions):
 
 
 class Partition92(Partitions):
-    rainStatus = NoiseConfig.Rain23()
-    trafficStatus = NoiseConfig.OrangeTraffic()
+    rainStatus = NoiseConfig.Rain50()
+    trafficStatus = NoiseConfig.YellowTraffic()
     urbanStatus = NoiseConfig.BadUrban()
     center_x = 2424.871130596428
     center_y = 1800.0
@@ -1045,9 +1041,9 @@ class Partition92(Partitions):
 
 
 class Partition93(Partitions):
-    rainStatus = NoiseConfig.Rain50()
+    rainStatus = NoiseConfig.Rain150()
     trafficStatus = NoiseConfig.BlackTraffic()
-    urbanStatus = NoiseConfig.Rural()
+    urbanStatus = NoiseConfig.MediumUrban()
     center_x = 2771.2812921102036
     center_y = 1800.0
 
@@ -1056,9 +1052,9 @@ class Partition93(Partitions):
 
 
 class Partition94(Partitions):
-    rainStatus = NoiseConfig.Rain100()
-    trafficStatus = NoiseConfig.OrangeTraffic()
-    urbanStatus = NoiseConfig.MediumUrban()
+    rainStatus = NoiseConfig.Rain150()
+    trafficStatus = NoiseConfig.BlackTraffic()
+    urbanStatus = NoiseConfig.Rural()
     center_x = 3117.691453623979
     center_y = 1800.0
 
@@ -1068,8 +1064,8 @@ class Partition94(Partitions):
 
 class Partition95(Partitions):
     rainStatus = NoiseConfig.Rain150()
-    trafficStatus = NoiseConfig.GreenTraffic()
-    urbanStatus = NoiseConfig.GoodUrban()
+    trafficStatus = NoiseConfig.BlackTraffic()
+    urbanStatus = NoiseConfig.BadUrban()
     center_x = 3464.1016151377544
     center_y = 1800.0
 
@@ -1078,9 +1074,9 @@ class Partition95(Partitions):
 
 
 class Partition96(Partitions):
-    rainStatus = NoiseConfig.Rain13()
-    trafficStatus = NoiseConfig.BlackTraffic()
-    urbanStatus = NoiseConfig.GoodUrban()
+    rainStatus = NoiseConfig.Rain50()
+    trafficStatus = NoiseConfig.OrangeTraffic()
+    urbanStatus = NoiseConfig.BadUrban()
     center_x = 3810.51177665153
     center_y = 1800.0
 
@@ -1089,9 +1085,9 @@ class Partition96(Partitions):
 
 
 class Partition97(Partitions):
-    rainStatus = NoiseConfig.Rain200()
-    trafficStatus = NoiseConfig.RedTraffic()
-    urbanStatus = NoiseConfig.GoodUrban()
+    rainStatus = NoiseConfig.Rain150()
+    trafficStatus = NoiseConfig.YellowTraffic()
+    urbanStatus = NoiseConfig.BadUrban()
     center_x = 4156.921938165306
     center_y = 1800.0
 
@@ -1102,7 +1098,7 @@ class Partition97(Partitions):
 class Partition98(Partitions):
     rainStatus = NoiseConfig.Rain23()
     trafficStatus = NoiseConfig.GreenTraffic()
-    urbanStatus = NoiseConfig.Rural()
+    urbanStatus = NoiseConfig.BadUrban()
     center_x = 4503.332099679081
     center_y = 1800.0
 
@@ -1111,9 +1107,9 @@ class Partition98(Partitions):
 
 
 class Partition99(Partitions):
-    rainStatus = NoiseConfig.Rain0()
-    trafficStatus = NoiseConfig.RedTraffic()
-    urbanStatus = NoiseConfig.GoodUrban()
+    rainStatus = NoiseConfig.Rain150()
+    trafficStatus = NoiseConfig.YellowTraffic()
+    urbanStatus = NoiseConfig.MediumUrban()
     center_x = 173.20508075688772
     center_y = 2100.0
 
@@ -1122,9 +1118,9 @@ class Partition99(Partitions):
 
 
 class Partition100(Partitions):
-    rainStatus = NoiseConfig.Rain150()
-    trafficStatus = NoiseConfig.BlackTraffic()
-    urbanStatus = NoiseConfig.MediumUrban()
+    rainStatus = NoiseConfig.Rain0()
+    trafficStatus = NoiseConfig.YellowTraffic()
+    urbanStatus = NoiseConfig.Rural()
     center_x = 519.6152422706632
     center_y = 2100.0
 
@@ -1133,9 +1129,9 @@ class Partition100(Partitions):
 
 
 class Partition101(Partitions):
-    rainStatus = NoiseConfig.Rain50()
-    trafficStatus = NoiseConfig.GreenTraffic()
-    urbanStatus = NoiseConfig.BadUrban()
+    rainStatus = NoiseConfig.Rain150()
+    trafficStatus = NoiseConfig.OrangeTraffic()
+    urbanStatus = NoiseConfig.MediumUrban()
     center_x = 866.0254037844386
     center_y = 2100.0
 
@@ -1144,9 +1140,9 @@ class Partition101(Partitions):
 
 
 class Partition102(Partitions):
-    rainStatus = NoiseConfig.Rain50()
-    trafficStatus = NoiseConfig.RedTraffic()
-    urbanStatus = NoiseConfig.GoodUrban()
+    rainStatus = NoiseConfig.Rain0()
+    trafficStatus = NoiseConfig.YellowTraffic()
+    urbanStatus = NoiseConfig.BadUrban()
     center_x = 1212.4355652982142
     center_y = 2100.0
 
@@ -1155,9 +1151,9 @@ class Partition102(Partitions):
 
 
 class Partition103(Partitions):
-    rainStatus = NoiseConfig.Rain150()
-    trafficStatus = NoiseConfig.GreenTraffic()
-    urbanStatus = NoiseConfig.MediumUrban()
+    rainStatus = NoiseConfig.Rain23()
+    trafficStatus = NoiseConfig.RedTraffic()
+    urbanStatus = NoiseConfig.Rural()
     center_x = 1558.8457268119896
     center_y = 2100.0
 
@@ -1166,9 +1162,9 @@ class Partition103(Partitions):
 
 
 class Partition104(Partitions):
-    rainStatus = NoiseConfig.Rain100()
+    rainStatus = NoiseConfig.Rain0()
     trafficStatus = NoiseConfig.BlackTraffic()
-    urbanStatus = NoiseConfig.GoodUrban()
+    urbanStatus = NoiseConfig.BadUrban()
     center_x = 1905.255888325765
     center_y = 2100.0
 
@@ -1177,9 +1173,9 @@ class Partition104(Partitions):
 
 
 class Partition105(Partitions):
-    rainStatus = NoiseConfig.Rain100()
+    rainStatus = NoiseConfig.Rain150()
     trafficStatus = NoiseConfig.RedTraffic()
-    urbanStatus = NoiseConfig.MediumUrban()
+    urbanStatus = NoiseConfig.GoodUrban()
     center_x = 2251.6660498395404
     center_y = 2100.0
 
@@ -1188,9 +1184,9 @@ class Partition105(Partitions):
 
 
 class Partition106(Partitions):
-    rainStatus = NoiseConfig.Rain100()
-    trafficStatus = NoiseConfig.GreenTraffic()
-    urbanStatus = NoiseConfig.GoodUrban()
+    rainStatus = NoiseConfig.Rain200()
+    trafficStatus = NoiseConfig.BlackTraffic()
+    urbanStatus = NoiseConfig.MediumUrban()
     center_x = 2598.0762113533156
     center_y = 2100.0
 
@@ -1200,8 +1196,8 @@ class Partition106(Partitions):
 
 class Partition107(Partitions):
     rainStatus = NoiseConfig.Rain100()
-    trafficStatus = NoiseConfig.RedTraffic()
-    urbanStatus = NoiseConfig.BadUrban()
+    trafficStatus = NoiseConfig.BlackTraffic()
+    urbanStatus = NoiseConfig.MediumUrban()
     center_x = 2944.486372867091
     center_y = 2100.0
 
@@ -1211,8 +1207,8 @@ class Partition107(Partitions):
 
 class Partition108(Partitions):
     rainStatus = NoiseConfig.Rain50()
-    trafficStatus = NoiseConfig.GreenTraffic()
-    urbanStatus = NoiseConfig.Rural()
+    trafficStatus = NoiseConfig.BlackTraffic()
+    urbanStatus = NoiseConfig.GoodUrban()
     center_x = 3290.896534380867
     center_y = 2100.0
 
@@ -1221,9 +1217,9 @@ class Partition108(Partitions):
 
 
 class Partition109(Partitions):
-    rainStatus = NoiseConfig.Rain100()
-    trafficStatus = NoiseConfig.OrangeTraffic()
-    urbanStatus = NoiseConfig.GoodUrban()
+    rainStatus = NoiseConfig.Rain23()
+    trafficStatus = NoiseConfig.GreenTraffic()
+    urbanStatus = NoiseConfig.Rural()
     center_x = 3637.306695894642
     center_y = 2100.0
 
@@ -1232,8 +1228,8 @@ class Partition109(Partitions):
 
 
 class Partition110(Partitions):
-    rainStatus = NoiseConfig.Rain50()
-    trafficStatus = NoiseConfig.OrangeTraffic()
+    rainStatus = NoiseConfig.Rain150()
+    trafficStatus = NoiseConfig.RedTraffic()
     urbanStatus = NoiseConfig.Rural()
     center_x = 3983.7168574084176
     center_y = 2100.0
@@ -1243,9 +1239,9 @@ class Partition110(Partitions):
 
 
 class Partition111(Partitions):
-    rainStatus = NoiseConfig.Rain13()
-    trafficStatus = NoiseConfig.GreenTraffic()
-    urbanStatus = NoiseConfig.GoodUrban()
+    rainStatus = NoiseConfig.Rain200()
+    trafficStatus = NoiseConfig.YellowTraffic()
+    urbanStatus = NoiseConfig.Rural()
     center_x = 4330.127018922193
     center_y = 2100.0
 
@@ -1254,9 +1250,9 @@ class Partition111(Partitions):
 
 
 class Partition112(Partitions):
-    rainStatus = NoiseConfig.Rain0()
-    trafficStatus = NoiseConfig.OrangeTraffic()
-    urbanStatus = NoiseConfig.Rural()
+    rainStatus = NoiseConfig.Rain23()
+    trafficStatus = NoiseConfig.YellowTraffic()
+    urbanStatus = NoiseConfig.BadUrban()
     center_x = 4676.537180435968
     center_y = 2100.0
 
@@ -1265,8 +1261,8 @@ class Partition112(Partitions):
 
 
 class Partition113(Partitions):
-    rainStatus = NoiseConfig.Rain150()
-    trafficStatus = NoiseConfig.OrangeTraffic()
+    rainStatus = NoiseConfig.Rain50()
+    trafficStatus = NoiseConfig.BlackTraffic()
     urbanStatus = NoiseConfig.GoodUrban()
     center_x = 0.0
     center_y = 2400.0
@@ -1276,7 +1272,7 @@ class Partition113(Partitions):
 
 
 class Partition114(Partitions):
-    rainStatus = NoiseConfig.Rain50()
+    rainStatus = NoiseConfig.Rain13()
     trafficStatus = NoiseConfig.RedTraffic()
     urbanStatus = NoiseConfig.Rural()
     center_x = 346.41016151377545
@@ -1287,9 +1283,9 @@ class Partition114(Partitions):
 
 
 class Partition115(Partitions):
-    rainStatus = NoiseConfig.Rain13()
+    rainStatus = NoiseConfig.Rain200()
     trafficStatus = NoiseConfig.BlackTraffic()
-    urbanStatus = NoiseConfig.BadUrban()
+    urbanStatus = NoiseConfig.MediumUrban()
     center_x = 692.8203230275509
     center_y = 2400.0
 
@@ -1300,7 +1296,7 @@ class Partition115(Partitions):
 class Partition116(Partitions):
     rainStatus = NoiseConfig.Rain23()
     trafficStatus = NoiseConfig.BlackTraffic()
-    urbanStatus = NoiseConfig.GoodUrban()
+    urbanStatus = NoiseConfig.BadUrban()
     center_x = 1039.2304845413264
     center_y = 2400.0
 
@@ -1309,9 +1305,9 @@ class Partition116(Partitions):
 
 
 class Partition117(Partitions):
-    rainStatus = NoiseConfig.Rain200()
-    trafficStatus = NoiseConfig.GreenTraffic()
-    urbanStatus = NoiseConfig.GoodUrban()
+    rainStatus = NoiseConfig.Rain13()
+    trafficStatus = NoiseConfig.YellowTraffic()
+    urbanStatus = NoiseConfig.Rural()
     center_x = 1385.6406460551018
     center_y = 2400.0
 
@@ -1320,9 +1316,9 @@ class Partition117(Partitions):
 
 
 class Partition118(Partitions):
-    rainStatus = NoiseConfig.Rain0()
-    trafficStatus = NoiseConfig.BlackTraffic()
-    urbanStatus = NoiseConfig.Rural()
+    rainStatus = NoiseConfig.Rain150()
+    trafficStatus = NoiseConfig.OrangeTraffic()
+    urbanStatus = NoiseConfig.BadUrban()
     center_x = 1732.0508075688772
     center_y = 2400.0
 
@@ -1331,9 +1327,9 @@ class Partition118(Partitions):
 
 
 class Partition119(Partitions):
-    rainStatus = NoiseConfig.Rain150()
-    trafficStatus = NoiseConfig.GreenTraffic()
-    urbanStatus = NoiseConfig.GoodUrban()
+    rainStatus = NoiseConfig.Rain13()
+    trafficStatus = NoiseConfig.YellowTraffic()
+    urbanStatus = NoiseConfig.MediumUrban()
     center_x = 2078.460969082653
     center_y = 2400.0
 
@@ -1342,8 +1338,8 @@ class Partition119(Partitions):
 
 
 class Partition120(Partitions):
-    rainStatus = NoiseConfig.Rain100()
-    trafficStatus = NoiseConfig.GreenTraffic()
+    rainStatus = NoiseConfig.Rain200()
+    trafficStatus = NoiseConfig.YellowTraffic()
     urbanStatus = NoiseConfig.GoodUrban()
     center_x = 2424.871130596428
     center_y = 2400.0
@@ -1353,9 +1349,9 @@ class Partition120(Partitions):
 
 
 class Partition121(Partitions):
-    rainStatus = NoiseConfig.Rain100()
-    trafficStatus = NoiseConfig.GreenTraffic()
-    urbanStatus = NoiseConfig.MediumUrban()
+    rainStatus = NoiseConfig.Rain150()
+    trafficStatus = NoiseConfig.YellowTraffic()
+    urbanStatus = NoiseConfig.Rural()
     center_x = 2771.2812921102036
     center_y = 2400.0
 
@@ -1364,9 +1360,9 @@ class Partition121(Partitions):
 
 
 class Partition122(Partitions):
-    rainStatus = NoiseConfig.Rain0()
-    trafficStatus = NoiseConfig.BlackTraffic()
-    urbanStatus = NoiseConfig.Rural()
+    rainStatus = NoiseConfig.Rain100()
+    trafficStatus = NoiseConfig.YellowTraffic()
+    urbanStatus = NoiseConfig.MediumUrban()
     center_x = 3117.691453623979
     center_y = 2400.0
 
@@ -1375,9 +1371,9 @@ class Partition122(Partitions):
 
 
 class Partition123(Partitions):
-    rainStatus = NoiseConfig.Rain150()
+    rainStatus = NoiseConfig.Rain200()
     trafficStatus = NoiseConfig.OrangeTraffic()
-    urbanStatus = NoiseConfig.BadUrban()
+    urbanStatus = NoiseConfig.MediumUrban()
     center_x = 3464.1016151377544
     center_y = 2400.0
 
@@ -1386,9 +1382,9 @@ class Partition123(Partitions):
 
 
 class Partition124(Partitions):
-    rainStatus = NoiseConfig.Rain150()
-    trafficStatus = NoiseConfig.RedTraffic()
-    urbanStatus = NoiseConfig.BadUrban()
+    rainStatus = NoiseConfig.Rain23()
+    trafficStatus = NoiseConfig.OrangeTraffic()
+    urbanStatus = NoiseConfig.MediumUrban()
     center_x = 3810.51177665153
     center_y = 2400.0
 
@@ -1397,8 +1393,8 @@ class Partition124(Partitions):
 
 
 class Partition125(Partitions):
-    rainStatus = NoiseConfig.Rain200()
-    trafficStatus = NoiseConfig.RedTraffic()
+    rainStatus = NoiseConfig.Rain13()
+    trafficStatus = NoiseConfig.OrangeTraffic()
     urbanStatus = NoiseConfig.Rural()
     center_x = 4156.921938165306
     center_y = 2400.0
@@ -1408,8 +1404,8 @@ class Partition125(Partitions):
 
 
 class Partition126(Partitions):
-    rainStatus = NoiseConfig.Rain23()
-    trafficStatus = NoiseConfig.OrangeTraffic()
+    rainStatus = NoiseConfig.Rain50()
+    trafficStatus = NoiseConfig.RedTraffic()
     urbanStatus = NoiseConfig.MediumUrban()
     center_x = 4503.332099679081
     center_y = 2400.0
@@ -1419,9 +1415,9 @@ class Partition126(Partitions):
 
 
 class Partition127(Partitions):
-    rainStatus = NoiseConfig.Rain50()
-    trafficStatus = NoiseConfig.OrangeTraffic()
-    urbanStatus = NoiseConfig.GoodUrban()
+    rainStatus = NoiseConfig.Rain150()
+    trafficStatus = NoiseConfig.RedTraffic()
+    urbanStatus = NoiseConfig.MediumUrban()
     center_x = 173.20508075688772
     center_y = 2700.0
 
@@ -1430,9 +1426,9 @@ class Partition127(Partitions):
 
 
 class Partition128(Partitions):
-    rainStatus = NoiseConfig.Rain13()
-    trafficStatus = NoiseConfig.BlackTraffic()
-    urbanStatus = NoiseConfig.BadUrban()
+    rainStatus = NoiseConfig.Rain100()
+    trafficStatus = NoiseConfig.OrangeTraffic()
+    urbanStatus = NoiseConfig.Rural()
     center_x = 519.6152422706632
     center_y = 2700.0
 
@@ -1441,9 +1437,9 @@ class Partition128(Partitions):
 
 
 class Partition129(Partitions):
-    rainStatus = NoiseConfig.Rain50()
-    trafficStatus = NoiseConfig.RedTraffic()
-    urbanStatus = NoiseConfig.GoodUrban()
+    rainStatus = NoiseConfig.Rain150()
+    trafficStatus = NoiseConfig.GreenTraffic()
+    urbanStatus = NoiseConfig.Rural()
     center_x = 866.0254037844386
     center_y = 2700.0
 
@@ -1452,9 +1448,9 @@ class Partition129(Partitions):
 
 
 class Partition130(Partitions):
-    rainStatus = NoiseConfig.Rain150()
-    trafficStatus = NoiseConfig.OrangeTraffic()
-    urbanStatus = NoiseConfig.BadUrban()
+    rainStatus = NoiseConfig.Rain23()
+    trafficStatus = NoiseConfig.BlackTraffic()
+    urbanStatus = NoiseConfig.GoodUrban()
     center_x = 1212.4355652982142
     center_y = 2700.0
 
@@ -1464,7 +1460,7 @@ class Partition130(Partitions):
 
 class Partition131(Partitions):
     rainStatus = NoiseConfig.Rain200()
-    trafficStatus = NoiseConfig.GreenTraffic()
+    trafficStatus = NoiseConfig.OrangeTraffic()
     urbanStatus = NoiseConfig.BadUrban()
     center_x = 1558.8457268119896
     center_y = 2700.0
@@ -1474,9 +1470,9 @@ class Partition131(Partitions):
 
 
 class Partition132(Partitions):
-    rainStatus = NoiseConfig.Rain50()
-    trafficStatus = NoiseConfig.OrangeTraffic()
-    urbanStatus = NoiseConfig.BadUrban()
+    rainStatus = NoiseConfig.Rain23()
+    trafficStatus = NoiseConfig.BlackTraffic()
+    urbanStatus = NoiseConfig.Rural()
     center_x = 1905.255888325765
     center_y = 2700.0
 
@@ -1485,9 +1481,9 @@ class Partition132(Partitions):
 
 
 class Partition133(Partitions):
-    rainStatus = NoiseConfig.Rain200()
-    trafficStatus = NoiseConfig.BlackTraffic()
-    urbanStatus = NoiseConfig.MediumUrban()
+    rainStatus = NoiseConfig.Rain23()
+    trafficStatus = NoiseConfig.RedTraffic()
+    urbanStatus = NoiseConfig.BadUrban()
     center_x = 2251.6660498395404
     center_y = 2700.0
 
@@ -1497,8 +1493,8 @@ class Partition133(Partitions):
 
 class Partition134(Partitions):
     rainStatus = NoiseConfig.Rain13()
-    trafficStatus = NoiseConfig.BlackTraffic()
-    urbanStatus = NoiseConfig.BadUrban()
+    trafficStatus = NoiseConfig.RedTraffic()
+    urbanStatus = NoiseConfig.GoodUrban()
     center_x = 2598.0762113533156
     center_y = 2700.0
 
@@ -1507,9 +1503,9 @@ class Partition134(Partitions):
 
 
 class Partition135(Partitions):
-    rainStatus = NoiseConfig.Rain23()
-    trafficStatus = NoiseConfig.BlackTraffic()
-    urbanStatus = NoiseConfig.Rural()
+    rainStatus = NoiseConfig.Rain0()
+    trafficStatus = NoiseConfig.OrangeTraffic()
+    urbanStatus = NoiseConfig.MediumUrban()
     center_x = 2944.486372867091
     center_y = 2700.0
 
@@ -1518,9 +1514,9 @@ class Partition135(Partitions):
 
 
 class Partition136(Partitions):
-    rainStatus = NoiseConfig.Rain0()
-    trafficStatus = NoiseConfig.BlackTraffic()
-    urbanStatus = NoiseConfig.GoodUrban()
+    rainStatus = NoiseConfig.Rain150()
+    trafficStatus = NoiseConfig.GreenTraffic()
+    urbanStatus = NoiseConfig.MediumUrban()
     center_x = 3290.896534380867
     center_y = 2700.0
 
@@ -1529,7 +1525,7 @@ class Partition136(Partitions):
 
 
 class Partition137(Partitions):
-    rainStatus = NoiseConfig.Rain200()
+    rainStatus = NoiseConfig.Rain23()
     trafficStatus = NoiseConfig.GreenTraffic()
     urbanStatus = NoiseConfig.GoodUrban()
     center_x = 3637.306695894642
@@ -1540,8 +1536,8 @@ class Partition137(Partitions):
 
 
 class Partition138(Partitions):
-    rainStatus = NoiseConfig.Rain150()
-    trafficStatus = NoiseConfig.RedTraffic()
+    rainStatus = NoiseConfig.Rain100()
+    trafficStatus = NoiseConfig.OrangeTraffic()
     urbanStatus = NoiseConfig.MediumUrban()
     center_x = 3983.7168574084176
     center_y = 2700.0
@@ -1552,8 +1548,8 @@ class Partition138(Partitions):
 
 class Partition139(Partitions):
     rainStatus = NoiseConfig.Rain150()
-    trafficStatus = NoiseConfig.OrangeTraffic()
-    urbanStatus = NoiseConfig.BadUrban()
+    trafficStatus = NoiseConfig.RedTraffic()
+    urbanStatus = NoiseConfig.Rural()
     center_x = 4330.127018922193
     center_y = 2700.0
 
@@ -1563,8 +1559,8 @@ class Partition139(Partitions):
 
 class Partition140(Partitions):
     rainStatus = NoiseConfig.Rain200()
-    trafficStatus = NoiseConfig.OrangeTraffic()
-    urbanStatus = NoiseConfig.MediumUrban()
+    trafficStatus = NoiseConfig.RedTraffic()
+    urbanStatus = NoiseConfig.Rural()
     center_x = 4676.537180435968
     center_y = 2700.0
 
@@ -1573,9 +1569,9 @@ class Partition140(Partitions):
 
 
 class Partition141(Partitions):
-    rainStatus = NoiseConfig.Rain150()
-    trafficStatus = NoiseConfig.RedTraffic()
-    urbanStatus = NoiseConfig.BadUrban()
+    rainStatus = NoiseConfig.Rain0()
+    trafficStatus = NoiseConfig.GreenTraffic()
+    urbanStatus = NoiseConfig.MediumUrban()
     center_x = 0.0
     center_y = 3000.0
 
@@ -1585,8 +1581,8 @@ class Partition141(Partitions):
 
 class Partition142(Partitions):
     rainStatus = NoiseConfig.Rain200()
-    trafficStatus = NoiseConfig.OrangeTraffic()
-    urbanStatus = NoiseConfig.GoodUrban()
+    trafficStatus = NoiseConfig.RedTraffic()
+    urbanStatus = NoiseConfig.BadUrban()
     center_x = 346.41016151377545
     center_y = 3000.0
 
@@ -1595,8 +1591,8 @@ class Partition142(Partitions):
 
 
 class Partition143(Partitions):
-    rainStatus = NoiseConfig.Rain23()
-    trafficStatus = NoiseConfig.GreenTraffic()
+    rainStatus = NoiseConfig.Rain100()
+    trafficStatus = NoiseConfig.OrangeTraffic()
     urbanStatus = NoiseConfig.Rural()
     center_x = 692.8203230275509
     center_y = 3000.0
@@ -1606,9 +1602,9 @@ class Partition143(Partitions):
 
 
 class Partition144(Partitions):
-    rainStatus = NoiseConfig.Rain50()
+    rainStatus = NoiseConfig.Rain200()
     trafficStatus = NoiseConfig.RedTraffic()
-    urbanStatus = NoiseConfig.BadUrban()
+    urbanStatus = NoiseConfig.GoodUrban()
     center_x = 1039.2304845413264
     center_y = 3000.0
 
@@ -1617,8 +1613,8 @@ class Partition144(Partitions):
 
 
 class Partition145(Partitions):
-    rainStatus = NoiseConfig.Rain23()
-    trafficStatus = NoiseConfig.OrangeTraffic()
+    rainStatus = NoiseConfig.Rain200()
+    trafficStatus = NoiseConfig.GreenTraffic()
     urbanStatus = NoiseConfig.MediumUrban()
     center_x = 1385.6406460551018
     center_y = 3000.0
@@ -1629,8 +1625,8 @@ class Partition145(Partitions):
 
 class Partition146(Partitions):
     rainStatus = NoiseConfig.Rain50()
-    trafficStatus = NoiseConfig.GreenTraffic()
-    urbanStatus = NoiseConfig.Rural()
+    trafficStatus = NoiseConfig.YellowTraffic()
+    urbanStatus = NoiseConfig.GoodUrban()
     center_x = 1732.0508075688772
     center_y = 3000.0
 
@@ -1639,9 +1635,9 @@ class Partition146(Partitions):
 
 
 class Partition147(Partitions):
-    rainStatus = NoiseConfig.Rain13()
-    trafficStatus = NoiseConfig.GreenTraffic()
-    urbanStatus = NoiseConfig.GoodUrban()
+    rainStatus = NoiseConfig.Rain100()
+    trafficStatus = NoiseConfig.BlackTraffic()
+    urbanStatus = NoiseConfig.Rural()
     center_x = 2078.460969082653
     center_y = 3000.0
 
@@ -1651,8 +1647,8 @@ class Partition147(Partitions):
 
 class Partition148(Partitions):
     rainStatus = NoiseConfig.Rain150()
-    trafficStatus = NoiseConfig.GreenTraffic()
-    urbanStatus = NoiseConfig.MediumUrban()
+    trafficStatus = NoiseConfig.OrangeTraffic()
+    urbanStatus = NoiseConfig.BadUrban()
     center_x = 2424.871130596428
     center_y = 3000.0
 
@@ -1661,7 +1657,7 @@ class Partition148(Partitions):
 
 
 class Partition149(Partitions):
-    rainStatus = NoiseConfig.Rain23()
+    rainStatus = NoiseConfig.Rain0()
     trafficStatus = NoiseConfig.RedTraffic()
     urbanStatus = NoiseConfig.MediumUrban()
     center_x = 2771.2812921102036
@@ -1672,9 +1668,9 @@ class Partition149(Partitions):
 
 
 class Partition150(Partitions):
-    rainStatus = NoiseConfig.Rain200()
-    trafficStatus = NoiseConfig.GreenTraffic()
-    urbanStatus = NoiseConfig.Rural()
+    rainStatus = NoiseConfig.Rain50()
+    trafficStatus = NoiseConfig.RedTraffic()
+    urbanStatus = NoiseConfig.MediumUrban()
     center_x = 3117.691453623979
     center_y = 3000.0
 
@@ -1683,9 +1679,9 @@ class Partition150(Partitions):
 
 
 class Partition151(Partitions):
-    rainStatus = NoiseConfig.Rain23()
-    trafficStatus = NoiseConfig.OrangeTraffic()
-    urbanStatus = NoiseConfig.GoodUrban()
+    rainStatus = NoiseConfig.Rain100()
+    trafficStatus = NoiseConfig.YellowTraffic()
+    urbanStatus = NoiseConfig.MediumUrban()
     center_x = 3464.1016151377544
     center_y = 3000.0
 
@@ -1694,9 +1690,9 @@ class Partition151(Partitions):
 
 
 class Partition152(Partitions):
-    rainStatus = NoiseConfig.Rain50()
-    trafficStatus = NoiseConfig.OrangeTraffic()
-    urbanStatus = NoiseConfig.BadUrban()
+    rainStatus = NoiseConfig.Rain0()
+    trafficStatus = NoiseConfig.GreenTraffic()
+    urbanStatus = NoiseConfig.Rural()
     center_x = 3810.51177665153
     center_y = 3000.0
 
@@ -1705,9 +1701,9 @@ class Partition152(Partitions):
 
 
 class Partition153(Partitions):
-    rainStatus = NoiseConfig.Rain50()
-    trafficStatus = NoiseConfig.OrangeTraffic()
-    urbanStatus = NoiseConfig.BadUrban()
+    rainStatus = NoiseConfig.Rain13()
+    trafficStatus = NoiseConfig.YellowTraffic()
+    urbanStatus = NoiseConfig.Rural()
     center_x = 4156.921938165306
     center_y = 3000.0
 
@@ -1716,9 +1712,9 @@ class Partition153(Partitions):
 
 
 class Partition154(Partitions):
-    rainStatus = NoiseConfig.Rain0()
+    rainStatus = NoiseConfig.Rain100()
     trafficStatus = NoiseConfig.GreenTraffic()
-    urbanStatus = NoiseConfig.Rural()
+    urbanStatus = NoiseConfig.BadUrban()
     center_x = 4503.332099679081
     center_y = 3000.0
 
@@ -1727,9 +1723,9 @@ class Partition154(Partitions):
 
 
 class Partition155(Partitions):
-    rainStatus = NoiseConfig.Rain100()
-    trafficStatus = NoiseConfig.BlackTraffic()
-    urbanStatus = NoiseConfig.Rural()
+    rainStatus = NoiseConfig.Rain200()
+    trafficStatus = NoiseConfig.RedTraffic()
+    urbanStatus = NoiseConfig.BadUrban()
     center_x = 173.20508075688772
     center_y = 3300.0
 
@@ -1739,8 +1735,8 @@ class Partition155(Partitions):
 
 class Partition156(Partitions):
     rainStatus = NoiseConfig.Rain150()
-    trafficStatus = NoiseConfig.RedTraffic()
-    urbanStatus = NoiseConfig.BadUrban()
+    trafficStatus = NoiseConfig.YellowTraffic()
+    urbanStatus = NoiseConfig.GoodUrban()
     center_x = 519.6152422706632
     center_y = 3300.0
 
@@ -1749,8 +1745,8 @@ class Partition156(Partitions):
 
 
 class Partition157(Partitions):
-    rainStatus = NoiseConfig.Rain100()
-    trafficStatus = NoiseConfig.OrangeTraffic()
+    rainStatus = NoiseConfig.Rain0()
+    trafficStatus = NoiseConfig.YellowTraffic()
     urbanStatus = NoiseConfig.MediumUrban()
     center_x = 866.0254037844386
     center_y = 3300.0
@@ -1760,8 +1756,8 @@ class Partition157(Partitions):
 
 
 class Partition158(Partitions):
-    rainStatus = NoiseConfig.Rain200()
-    trafficStatus = NoiseConfig.RedTraffic()
+    rainStatus = NoiseConfig.Rain150()
+    trafficStatus = NoiseConfig.OrangeTraffic()
     urbanStatus = NoiseConfig.BadUrban()
     center_x = 1212.4355652982142
     center_y = 3300.0
@@ -1772,8 +1768,8 @@ class Partition158(Partitions):
 
 class Partition159(Partitions):
     rainStatus = NoiseConfig.Rain200()
-    trafficStatus = NoiseConfig.OrangeTraffic()
-    urbanStatus = NoiseConfig.Rural()
+    trafficStatus = NoiseConfig.YellowTraffic()
+    urbanStatus = NoiseConfig.MediumUrban()
     center_x = 1558.8457268119896
     center_y = 3300.0
 
@@ -1782,9 +1778,9 @@ class Partition159(Partitions):
 
 
 class Partition160(Partitions):
-    rainStatus = NoiseConfig.Rain150()
-    trafficStatus = NoiseConfig.BlackTraffic()
-    urbanStatus = NoiseConfig.GoodUrban()
+    rainStatus = NoiseConfig.Rain100()
+    trafficStatus = NoiseConfig.OrangeTraffic()
+    urbanStatus = NoiseConfig.MediumUrban()
     center_x = 1905.255888325765
     center_y = 3300.0
 
@@ -1794,8 +1790,8 @@ class Partition160(Partitions):
 
 class Partition161(Partitions):
     rainStatus = NoiseConfig.Rain50()
-    trafficStatus = NoiseConfig.OrangeTraffic()
-    urbanStatus = NoiseConfig.GoodUrban()
+    trafficStatus = NoiseConfig.RedTraffic()
+    urbanStatus = NoiseConfig.Rural()
     center_x = 2251.6660498395404
     center_y = 3300.0
 
@@ -1804,9 +1800,9 @@ class Partition161(Partitions):
 
 
 class Partition162(Partitions):
-    rainStatus = NoiseConfig.Rain0()
+    rainStatus = NoiseConfig.Rain13()
     trafficStatus = NoiseConfig.RedTraffic()
-    urbanStatus = NoiseConfig.GoodUrban()
+    urbanStatus = NoiseConfig.MediumUrban()
     center_x = 2598.0762113533156
     center_y = 3300.0
 
@@ -1815,9 +1811,9 @@ class Partition162(Partitions):
 
 
 class Partition163(Partitions):
-    rainStatus = NoiseConfig.Rain0()
-    trafficStatus = NoiseConfig.GreenTraffic()
-    urbanStatus = NoiseConfig.MediumUrban()
+    rainStatus = NoiseConfig.Rain200()
+    trafficStatus = NoiseConfig.OrangeTraffic()
+    urbanStatus = NoiseConfig.Rural()
     center_x = 2944.486372867091
     center_y = 3300.0
 
@@ -1826,8 +1822,8 @@ class Partition163(Partitions):
 
 
 class Partition164(Partitions):
-    rainStatus = NoiseConfig.Rain200()
-    trafficStatus = NoiseConfig.RedTraffic()
+    rainStatus = NoiseConfig.Rain23()
+    trafficStatus = NoiseConfig.BlackTraffic()
     urbanStatus = NoiseConfig.Rural()
     center_x = 3290.896534380867
     center_y = 3300.0
@@ -1837,9 +1833,9 @@ class Partition164(Partitions):
 
 
 class Partition165(Partitions):
-    rainStatus = NoiseConfig.Rain200()
-    trafficStatus = NoiseConfig.GreenTraffic()
-    urbanStatus = NoiseConfig.GoodUrban()
+    rainStatus = NoiseConfig.Rain0()
+    trafficStatus = NoiseConfig.BlackTraffic()
+    urbanStatus = NoiseConfig.Rural()
     center_x = 3637.306695894642
     center_y = 3300.0
 
@@ -1848,8 +1844,8 @@ class Partition165(Partitions):
 
 
 class Partition166(Partitions):
-    rainStatus = NoiseConfig.Rain0()
-    trafficStatus = NoiseConfig.GreenTraffic()
+    rainStatus = NoiseConfig.Rain23()
+    trafficStatus = NoiseConfig.RedTraffic()
     urbanStatus = NoiseConfig.BadUrban()
     center_x = 3983.7168574084176
     center_y = 3300.0
@@ -1859,9 +1855,9 @@ class Partition166(Partitions):
 
 
 class Partition167(Partitions):
-    rainStatus = NoiseConfig.Rain50()
-    trafficStatus = NoiseConfig.GreenTraffic()
-    urbanStatus = NoiseConfig.GoodUrban()
+    rainStatus = NoiseConfig.Rain150()
+    trafficStatus = NoiseConfig.RedTraffic()
+    urbanStatus = NoiseConfig.MediumUrban()
     center_x = 4330.127018922193
     center_y = 3300.0
 
@@ -1870,9 +1866,9 @@ class Partition167(Partitions):
 
 
 class Partition168(Partitions):
-    rainStatus = NoiseConfig.Rain23()
-    trafficStatus = NoiseConfig.GreenTraffic()
-    urbanStatus = NoiseConfig.MediumUrban()
+    rainStatus = NoiseConfig.Rain150()
+    trafficStatus = NoiseConfig.YellowTraffic()
+    urbanStatus = NoiseConfig.Rural()
     center_x = 4676.537180435968
     center_y = 3300.0
 
@@ -1883,7 +1879,7 @@ class Partition168(Partitions):
 class Partition169(Partitions):
     rainStatus = NoiseConfig.Rain100()
     trafficStatus = NoiseConfig.GreenTraffic()
-    urbanStatus = NoiseConfig.Rural()
+    urbanStatus = NoiseConfig.BadUrban()
     center_x = 0.0
     center_y = 3600.0
 
@@ -1892,9 +1888,9 @@ class Partition169(Partitions):
 
 
 class Partition170(Partitions):
-    rainStatus = NoiseConfig.Rain0()
-    trafficStatus = NoiseConfig.RedTraffic()
-    urbanStatus = NoiseConfig.Rural()
+    rainStatus = NoiseConfig.Rain200()
+    trafficStatus = NoiseConfig.BlackTraffic()
+    urbanStatus = NoiseConfig.BadUrban()
     center_x = 346.41016151377545
     center_y = 3600.0
 
@@ -1903,8 +1899,8 @@ class Partition170(Partitions):
 
 
 class Partition171(Partitions):
-    rainStatus = NoiseConfig.Rain0()
-    trafficStatus = NoiseConfig.BlackTraffic()
+    rainStatus = NoiseConfig.Rain50()
+    trafficStatus = NoiseConfig.RedTraffic()
     urbanStatus = NoiseConfig.BadUrban()
     center_x = 692.8203230275509
     center_y = 3600.0
@@ -1914,9 +1910,9 @@ class Partition171(Partitions):
 
 
 class Partition172(Partitions):
-    rainStatus = NoiseConfig.Rain150()
-    trafficStatus = NoiseConfig.OrangeTraffic()
-    urbanStatus = NoiseConfig.BadUrban()
+    rainStatus = NoiseConfig.Rain50()
+    trafficStatus = NoiseConfig.BlackTraffic()
+    urbanStatus = NoiseConfig.GoodUrban()
     center_x = 1039.2304845413264
     center_y = 3600.0
 
@@ -1925,9 +1921,9 @@ class Partition172(Partitions):
 
 
 class Partition173(Partitions):
-    rainStatus = NoiseConfig.Rain100()
-    trafficStatus = NoiseConfig.GreenTraffic()
-    urbanStatus = NoiseConfig.GoodUrban()
+    rainStatus = NoiseConfig.Rain23()
+    trafficStatus = NoiseConfig.OrangeTraffic()
+    urbanStatus = NoiseConfig.Rural()
     center_x = 1385.6406460551018
     center_y = 3600.0
 
@@ -1936,8 +1932,8 @@ class Partition173(Partitions):
 
 
 class Partition174(Partitions):
-    rainStatus = NoiseConfig.Rain100()
-    trafficStatus = NoiseConfig.GreenTraffic()
+    rainStatus = NoiseConfig.Rain23()
+    trafficStatus = NoiseConfig.YellowTraffic()
     urbanStatus = NoiseConfig.MediumUrban()
     center_x = 1732.0508075688772
     center_y = 3600.0
@@ -1948,8 +1944,8 @@ class Partition174(Partitions):
 
 class Partition175(Partitions):
     rainStatus = NoiseConfig.Rain100()
-    trafficStatus = NoiseConfig.RedTraffic()
-    urbanStatus = NoiseConfig.BadUrban()
+    trafficStatus = NoiseConfig.BlackTraffic()
+    urbanStatus = NoiseConfig.GoodUrban()
     center_x = 2078.460969082653
     center_y = 3600.0
 
@@ -1958,8 +1954,8 @@ class Partition175(Partitions):
 
 
 class Partition176(Partitions):
-    rainStatus = NoiseConfig.Rain23()
-    trafficStatus = NoiseConfig.GreenTraffic()
+    rainStatus = NoiseConfig.Rain13()
+    trafficStatus = NoiseConfig.YellowTraffic()
     urbanStatus = NoiseConfig.GoodUrban()
     center_x = 2424.871130596428
     center_y = 3600.0
@@ -1969,9 +1965,9 @@ class Partition176(Partitions):
 
 
 class Partition177(Partitions):
-    rainStatus = NoiseConfig.Rain23()
+    rainStatus = NoiseConfig.Rain0()
     trafficStatus = NoiseConfig.RedTraffic()
-    urbanStatus = NoiseConfig.MediumUrban()
+    urbanStatus = NoiseConfig.GoodUrban()
     center_x = 2771.2812921102036
     center_y = 3600.0
 
@@ -1980,9 +1976,9 @@ class Partition177(Partitions):
 
 
 class Partition178(Partitions):
-    rainStatus = NoiseConfig.Rain150()
+    rainStatus = NoiseConfig.Rain50()
     trafficStatus = NoiseConfig.BlackTraffic()
-    urbanStatus = NoiseConfig.MediumUrban()
+    urbanStatus = NoiseConfig.Rural()
     center_x = 3117.691453623979
     center_y = 3600.0
 
@@ -1991,9 +1987,9 @@ class Partition178(Partitions):
 
 
 class Partition179(Partitions):
-    rainStatus = NoiseConfig.Rain100()
-    trafficStatus = NoiseConfig.BlackTraffic()
-    urbanStatus = NoiseConfig.GoodUrban()
+    rainStatus = NoiseConfig.Rain23()
+    trafficStatus = NoiseConfig.RedTraffic()
+    urbanStatus = NoiseConfig.BadUrban()
     center_x = 3464.1016151377544
     center_y = 3600.0
 
@@ -2002,9 +1998,9 @@ class Partition179(Partitions):
 
 
 class Partition180(Partitions):
-    rainStatus = NoiseConfig.Rain150()
-    trafficStatus = NoiseConfig.GreenTraffic()
-    urbanStatus = NoiseConfig.MediumUrban()
+    rainStatus = NoiseConfig.Rain13()
+    trafficStatus = NoiseConfig.RedTraffic()
+    urbanStatus = NoiseConfig.Rural()
     center_x = 3810.51177665153
     center_y = 3600.0
 
@@ -2013,9 +2009,9 @@ class Partition180(Partitions):
 
 
 class Partition181(Partitions):
-    rainStatus = NoiseConfig.Rain0()
-    trafficStatus = NoiseConfig.GreenTraffic()
-    urbanStatus = NoiseConfig.Rural()
+    rainStatus = NoiseConfig.Rain23()
+    trafficStatus = NoiseConfig.RedTraffic()
+    urbanStatus = NoiseConfig.MediumUrban()
     center_x = 4156.921938165306
     center_y = 3600.0
 
@@ -2024,9 +2020,9 @@ class Partition181(Partitions):
 
 
 class Partition182(Partitions):
-    rainStatus = NoiseConfig.Rain0()
-    trafficStatus = NoiseConfig.BlackTraffic()
-    urbanStatus = NoiseConfig.Rural()
+    rainStatus = NoiseConfig.Rain200()
+    trafficStatus = NoiseConfig.YellowTraffic()
+    urbanStatus = NoiseConfig.GoodUrban()
     center_x = 4503.332099679081
     center_y = 3600.0
 
