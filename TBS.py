@@ -220,13 +220,19 @@ def simulate_tbs(periodic_jobs, aperiodic_jobs, sim_end, user_us=None):
             if t > sim_end:
                 break
 
-    missed = sum(1 for r in job_records if r[5])
+    # missed = sum(1 for r in job_records if r[5])
+
+    total_aperiodic_released = sum(1 for e in events if e[0] == "aperiodic")
+    total_aperiodic_finished = sum(1 for r in job_records if r[1] == "aperiodic")
+    # print(total_aperiodic_finished)
+    missed_aperiodic = total_aperiodic_released - total_aperiodic_finished
+
     return {
         "Up": Up,
         "Us": Us,
         "sim_time": sim_end,
         "total_jobs": len(job_records),
-        "missed": missed,
+        "missed": missed_aperiodic,
         "details": job_records,
     }
 
