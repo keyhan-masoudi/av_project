@@ -173,8 +173,18 @@ def simulate_tbs(periodic_jobs, aperiodic_jobs, sim_end, user_us=None):
         else:
             t += time_to_complete
             missed = t > running_job.deadline + 1e-12
-            job_records.append((running_job.job_id, running_job.kind, running_job.arrival,
-                                t, running_job.deadline, missed))
+            exec_time = running_job.remaining + (t - running_job.arrival) if running_job.remaining == 0 else running_job.remaining
+            job_records.append((
+            running_job.job_id,
+            running_job.kind,
+            running_job.arrival,
+            t,                              # finish time
+            running_job.deadline,
+            missed,
+            exec_time,                      # total exec time
+            running_job.remaining           # remaining time at completion (0 if done)
+))
+
             running_job = None
             if t > sim_end:
                 break
@@ -220,6 +230,11 @@ if __name__ == "__main__":
     print(f"Total jobs = {result['total_jobs']}, missed = {result['missed']}")
     print(f"Simulated {result['sim_time']} seconds")
 
+    # for rec in result['details'][-10:]:
+    #     jid, kind, arr, fin, dl, miss = rec
+    #     print(f"{jid:8s} | {kind:9s} | arr={arr:6.2f} fin={fin:7.3f} dl={dl:7.3f} missed={miss}")
+
     for rec in result['details'][-10:]:
-        jid, kind, arr, fin, dl, miss = rec
-        print(f"{jid:8s} | {kind:9s} | arr={arr:6.2f} fin={fin:7.3f} dl={dl:7.3f} missed={miss}")
+        jid, kind, arr, fin, dl, miss, exec_time, remaining = rec
+        print(f"{jid:8s} | {kind:9s} | arr={arr:6.2f} fin={fin:7.3f} "
+            f"dl={dl:7.3f} exec={exec_time:6.3f} remain={remaining:6.3f} missed={miss}")
