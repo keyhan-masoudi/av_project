@@ -1,5 +1,3 @@
-# WeatherScenarioGenerator.py
-
 import random
 import json
 import inspect
