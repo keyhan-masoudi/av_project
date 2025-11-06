@@ -1,9 +1,9 @@
 class Config:
-    CHUNK_SIZE = 1200
+    CHUNK_SIZE = 3600
     NEGATIVE_REWARD = -10
 
     class SimulatorConfig:
-        SIMULATION_DURATION = 1200
+        SIMULATION_DURATION = 3600
         TIMEOUT_TIME = 2
         BANDWIDTH = 150
 

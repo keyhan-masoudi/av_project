@@ -6,6 +6,7 @@ import pandas as pd
 import sys
 import os
 import torch
+import glob
 
 from NoiseConfigs.noiseConfigGeneralAttribute import NoiseConfigGeneralAttribute
 from NoiseConfigs.utilsFunctions import UtilsFunc
@@ -72,18 +73,6 @@ def calcAttenuation(task, node, intersecting_partitions):
     ) + UtilsFunc().get_max_rain_attenuation(intersecting_partitions)
 
 
-# ==========================================================
-# PREDICTOR CONFIGURATION (Centralized Here)
-# ==========================================================
-PREDICTOR_MODEL_PATH = "D:\code\VANET - Copy\\new_saved_model"  # Path to the TRAINED model
-MODEL_X_TRAINED = 20  # Input history the model was TRAINED with
-MODEL_Y_TRAINED = 20  # Output steps the model was TRAINED for
-PREDICTOR_Y_NEEDED = 12  # How many steps the SIMULATION needs
-NUM_CLASSES = 5
-PREDICTION_UPDATE_INTERVAL = 10
-DEVICE = "cuda" if torch.cuda.is_available() else "cpu"
-
-
 class Simulator:
     def __init__(self, loader: Loader, clock: Clock, cloud: CloudNode):
         self.metrics: MetricsController = MetricsController()
@@ -98,13 +87,9 @@ class Simulator:
         self.retransmission_tasks: Dict[float, List[Task]] = {}
         self.missed_deadline_data: List[Dict] = []
         self.success_deadline_data: List[Dict] = []
+        self.traffic_predictions = defaultdict(dict)
+        
 
-        self.predictor_models = None
-        self.predictor_stats = None
-        self.predictor_graph_info = None
-        self.historical_traffic_features = deque(maxlen=MODEL_X_TRAINED)  # Use model's X
-        self.traffic_predictions = defaultdict(dict)  # Stores {future_time: {hex_id: label}}
-        self.predictor_ready = False
 
     def init_simulation(self):
         self.clock.set_current_time(0)
@@ -114,14 +99,6 @@ class Simulator:
         self.update_mobile_fog_nodes_coordinate()
         self.update_user_nodes_coordinate()
         # For zone managers that use deep RL, the simulator reference is set.
-        components = load_predictor_components(
-            PREDICTOR_MODEL_PATH,
-            MODEL_Y_TRAINED,  # Pass the Y=20 the decoder expects
-            NUM_CLASSES,
-            DEVICE
-        )
-        self.predictor_models, self.predictor_stats, self.predictor_graph_info = components
-        self.predictor_ready = True
         # Reset other state if needed
         self.historical_traffic_features.clear()
         self.traffic_predictions.clear()
@@ -297,6 +274,7 @@ class Simulator:
                 else:
                     self.offload_to_cloud(task, current_time, partitions, self.cloud_node)
 
+
     def update_rain_with_constraints(self, neighbors_map, partitions):
         """
         Updates the rain status of each partition based on its neighbors' status
@@ -332,15 +310,59 @@ class Simulator:
             if allowed_options:
                 new_rain_status_str = random.choice(allowed_options)
                 p.rainStatus = eval(new_rain_status_str)
+
+        
+    def load_all_predictions_from_csv(self, directory_path: str):
+        """
+        Scans a directory for prediction CSVs and loads them all into memory.
+        This is called once at the start of the simulation.
+        """
+        print(f"--- Pre-loading all predictions from '{directory_path}' ---")
+        self.all_preloaded_predictions = defaultdict(dict)
+        
+        # Find all prediction files in the specified directory
+        csv_files = glob.glob(os.path.join(directory_path, "prediction_output_*.csv"))
+        
+        if not csv_files:
+            print(f"Warning: No prediction files found in '{directory_path}'.")
+            print("Traffic prediction will be unavailable.")
+            return
+
+        total_rows = 0
+        for f_path in csv_files:
+            try:
+                # Read the CSV file
+                df = pd.read_csv(f_path)
+                # Iterate over its rows and store them in our dictionary
+                for row in df.itertuples():
+                    # Assumes CSV columns are 'time', 'hex_id', and 'label'
+                    self.all_preloaded_predictions[row.time][row.hex_id] = row.label
+                    total_rows += 1
+            except Exception as e:
+                print(f"Error loading prediction file {f_path}: {e}")
+        
+        if total_rows > 0:
+            min_t = min(self.all_preloaded_predictions.keys())
+            max_t = max(self.all_preloaded_predictions.keys())
+            print(f"Successfully loaded {total_rows} prediction rows from {len(csv_files)} files.")
+            print(f"Pre-loaded data covers timesteps from {min_t} to {max_t}.")
+        else:
+            print("Warning: No data was loaded from prediction files.")     
+
+
+   
     #TODO predict full data 
     def start_simulation(self):
         self.init_simulation()
         partitions = UtilsFunc.load_partitions("generated_hex_partitions")
         neighbors_map = UtilsFunc.find_neighbors(partitions)
 
+        PREDICTION_UPDATE_INTERVAL = 10 
+        PREDICTOR_Y_NEEDED = 12
+
+
         while (current_time := self.clock.get_current_time()) < Config.SimulatorConfig.SIMULATION_DURATION:
             # while (current_time := self.clock.get_current_time()) < 300:
-
             print(red_bg(f"current_time:{current_time}"))
 
             # Update traffic status
@@ -355,49 +377,6 @@ class Simulator:
                 partition.update_traffic_status(traffic_data)
             # self.logTrafficStatus(partitions)
             # --- 2. Store Current Features for Predictor History ---
-            # --- Call the imported function ---
-            current_features_df = get_current_traffic_features_as_df(current_time, partitions, traffic_data_dict)
-            print(current_features_df.values)
-            if not current_features_df.empty:  # Only append if data was generated
-                self.historical_traffic_features.append(current_features_df)
-            # else: print(f"Warn: No current features generated at time {current_time}.") # Optional warning
-
-            # --- 3. Run Predictor Periodically ---
-            if self.predictor_ready and current_time > 0 and current_time % PREDICTION_UPDATE_INTERVAL == 0:
-                print(f"--- Updating traffic predictions at time {current_time} ---")
-                predict_start_time = time.time()
-                if len(self.historical_traffic_features) == MODEL_X_TRAINED:  # Check against model's X
-                    input_df = pd.concat(list(self.historical_traffic_features), ignore_index=True)
-
-                    # --- Call the imported function, pass Y_NEEDED ---
-                    pred_df = run_traffic_prediction(  # Use the imported function
-                        input_df,
-                        self.predictor_models,
-                        self.predictor_stats,
-                        self.predictor_graph_info,
-                        MODEL_X_TRAINED,  # Pass X model expects
-                        PREDICTOR_Y_NEEDED,  # Pass Y simulation needs (12)
-                        DEVICE
-                    )
-                    # ---
-
-                    if not pred_df.empty:
-                        min_t, max_t = pred_df['time'].min(), pred_df['time'].max()
-                        print(f"Generated {len(pred_df)} predictions ({min_t}-{max_t})")
-                        # Clear old predictions for this window before adding new ones
-                        for t in range(min_t, max_t + 1):
-                            if t in self.traffic_predictions: del self.traffic_predictions[t]
-                        # Store new predictions
-                        for row in pred_df.itertuples():
-                            self.traffic_predictions[row.time][row.hex_id] = row.label_pred  # Storing 1-based label
-                    else:
-                        print("Warning: Predictor returned empty DataFrame.")
-                    predict_end_time = time.time()
-                    print(f"Prediction update took {predict_end_time - predict_start_time:.3f} seconds.")
-                else:
-                    print(
-                        f"Skipping prediction: Not enough history ({len(self.historical_traffic_features)}/{MODEL_X_TRAINED}).")
-
             # --- 4. Clean up old predictions ---
             keys_to_delete = [t for t in self.traffic_predictions if t < current_time]
             for t in keys_to_delete: del self.traffic_predictions[t]

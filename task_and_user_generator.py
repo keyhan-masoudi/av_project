@@ -11,7 +11,7 @@ import matplotlib.pyplot as plt
 
 
 class Config:
-    CHUNK_SIZE = 1200  # Chunk size in seconds
+    CHUNK_SIZE = 3600  # Chunk size in seconds
 
     class TaskConfig:
         # MIN_EXEC_TIME: float = 12.5  # Slightly increased execution times
@@ -347,4 +347,4 @@ def main(path: str):
 
 
 if __name__ == '__main__':
-    main("./simulation.out.xml")
+    main("VANET-Copy\data\simulation.out.xml")
