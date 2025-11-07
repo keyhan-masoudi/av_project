@@ -5,10 +5,13 @@ import math
 from collections import deque
 from dataclasses import dataclass, field
 from typing import Deque
+from typing import List
+
 import xml.etree.ElementTree as ET
 import heapq
 
 import numpy as np
+import random
 
 from config import Config
 from controllers.metric import MetricsController
@@ -17,7 +20,14 @@ from models.base import ModelBaseABC
 from utils.enums import Layer
 from utils.distance import get_distance
 from typing import TYPE_CHECKING
+from models.task import Task 
 
+PERIODIC_TASKS = [
+    (7.0,  (800.0, 1200.0), (1000.0, 1200.0)),
+    (5.0,  (1000.0, 5000.0), (1000.0, 1200.0)),
+    (6.0,  (500.0, 1000.0),  (500.0, 1000.0)),
+]
+random.seed(42)
 
 def blue_bg(text):
     return f"\033[44m{text}\033[0m"
@@ -296,7 +306,10 @@ class CriticalUserNode(NodeABC):
         self.frequency = Config.CriticalUserNodeConfig.USER_NODE_FREQUENCY
         self.remaining_power = self.power
         self.tasks = deque()
+        self.periodic_jobs_active = []   
         self.finished_tasks = deque()
+        self.last_tbs_deadline = 0.0       # for TBS
+        self.next_periodic_release = {p: 0.0 for (p, _, _) in PERIODIC_TASKS}
 
     def set_parent_node(self, parent: 'MobileNodeABC'):
         """
@@ -309,7 +322,99 @@ class CriticalUserNode(NodeABC):
         self.y = self.parent_node.y
         self.radius = self.parent_node.radius  # Inherit radius from parent
 
+    def release_periodic_jobs(self, current_time):
+        """Release new periodic jobs at their release times."""
+        new_jobs = []
+        for idx, (period, data_range, cycles_range) in enumerate(PERIODIC_TASKS, start=1):
+            # check if it's time for release
+            if current_time >= self.next_periodic_release[period] - 1e-9:
+                data_kb = random.uniform(*data_range)
+                cycles_per_bit = random.uniform(*cycles_range)
+                bits = data_kb * 1024
+                exec_time = (bits * cycles_per_bit) / self.frequency
+                deadline = current_time + period
+                task = Task(
+                    release_time=current_time,
+                    deadline=deadline,
+                    exec_time=exec_time,
+                    power=0,
+                    creator_id=f"{self.id}",
+                    dataSize=data_kb,
+                    cycles_per_bit=cycles_per_bit,
+                    remaining_time=exec_time,
+                    start_time=current_time
+                )
+                new_jobs.append(task)
+                self.next_periodic_release[period] += period
+        self.periodic_jobs_active.extend(new_jobs)
 
+    def execute_tasks(self, current_time: float, fixed_fog_nodes) -> list:
+        """
+        Run one time-step of EDF+TBS scheduling.
+        If tasks finish early, continue executing others until the timestep ends.
+        Returns: list of finished Task objects in this step.
+        """
+        timestep = 1.0
+        finished_tasks_this_step = []
+
+        # 1️⃣ release new periodic jobs if needed
+        self.release_periodic_jobs(current_time)
+
+        # 2️⃣ Build ready list (periodic + aperiodic)
+        ready_jobs = []
+        for task in self.periodic_jobs_active:
+            if task.remaining_time > 0:
+                heapq.heappush(ready_jobs, (task.deadline, task))
+
+        # 3️⃣ Assign TBS deadlines to new aperiodic tasks
+        while self.tasks:
+            task = self.tasks.popleft()
+            Ck = task.exec_time
+            rk = current_time
+
+            # compute Us = 1 - Up (based on current periodic utilization)
+            total_util = 0.0
+            for (period, data_range, cycles_range) in PERIODIC_TASKS:
+                max_data = max(data_range)
+                max_cycles = max(cycles_range)
+                bits = max_data * 1024
+                Ci = (bits * max_cycles) / self.frequency
+                total_util += Ci / period
+            Us = max(0.1, 1.0 - total_util)
+
+            dk = max(rk, self.last_tbs_deadline) + (Ck / Us)
+            self.last_tbs_deadline = dk
+            task.deadline = dk
+            task.start_time = rk
+            heapq.heappush(ready_jobs, (task.deadline, task))
+
+        # 4️⃣ EDF loop — run until timestep exhausted
+        time_remaining = timestep
+        while time_remaining > 1e-9 and ready_jobs:
+            _, running_task = heapq.heappop(ready_jobs)
+
+            run_time = min(running_task.remaining_time, time_remaining)
+            running_task.remaining_time -= run_time
+            time_remaining -= run_time
+
+            # mark completion or reinsert
+            if running_task.remaining_time <= 1e-9:
+                running_task.finish_time = current_time + (timestep - time_remaining)
+                finished_tasks_this_step.append(running_task)
+
+                if running_task.creator_id.startswith("P"):
+                    self.periodic_jobs_active = [
+                        j for j in self.periodic_jobs_active if j is not running_task
+                    ]
+            else:
+                # still has remaining time, put back
+                heapq.heappush(ready_jobs, (running_task.deadline, running_task))
+
+        # 5️⃣ store finished tasks and return
+        self.finished_tasks.extend(finished_tasks_this_step)
+        return finished_tasks_this_step
+
+    
     # --- Abstract Method Implementations ---
     @property
     def max_tasks_queue_len(self) -> int:
