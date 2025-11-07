@@ -338,7 +338,7 @@ class CriticalUserNode(NodeABC):
                     deadline=deadline,
                     exec_time=exec_time,
                     power=0,
-                    creator_id=f"{self.id}",
+                    creator_id=f"#{self.id}",
                     dataSize=data_kb,
                     cycles_per_bit=cycles_per_bit,
                     remaining_time=exec_time,
@@ -402,9 +402,13 @@ class CriticalUserNode(NodeABC):
                 running_task.finish_time = current_time + (timestep - time_remaining)
                 finished_tasks_this_step.append(running_task)
 
-                if running_task.creator_id.startswith("P"):
+                if running_task.creator_id.startswith("#"):
                     self.periodic_jobs_active = [
                         j for j in self.periodic_jobs_active if j is not running_task
+                    ]
+                else:
+                    self.aperiodic_jobs_active = [
+                        j for j in self.aperiodic_jobs_active if j is not running_task
                     ]
             else:
                 # still has remaining time, put back
