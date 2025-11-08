@@ -251,6 +251,7 @@ class NodeABC(ModelBaseABC, abc.ABC):
                 if task.remaining_time <= 0:
                     task.finish_time = current_time
                     finished_tasks_this_step.append(task)
+                    self.finished_tasks.append(task)
                     # Continue to use remaining tick power if available
                     continue
                 else:
@@ -262,6 +263,7 @@ class NodeABC(ModelBaseABC, abc.ABC):
             # Reinsert unready tasks
             for item in temp_unready_tasks:
                 heapq.heappush(core_heap, item)
+
 
         return finished_tasks_this_step
 
@@ -407,8 +409,8 @@ class CriticalUserNode(NodeABC):
                         j for j in self.periodic_jobs_active if j is not running_task
                     ]
                 else:
-                    self.aperiodic_jobs_active = [
-                        j for j in self.aperiodic_jobs_active if j is not running_task
+                    self.tasks = [ # TODO
+                        j for j in self.tasks if j is not running_task
                     ]
             else:
                 # still has remaining time, put back
