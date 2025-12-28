@@ -179,7 +179,7 @@ def main_predict(input_df, output_csv_path): # <-- UPDATED to accept output path
         predicted_labels = torch.argmax(logits, dim=2).cpu().numpy()
     inf_end = time.perf_counter()
     print(f"-> Inference complete in {inf_end - inf_start:.4f} seconds.")
-    # ---
+    # -------
 
     print(f"Formatting prediction and saving to '{output_csv_path}'...") # <-- UPDATED
     output_rows = []
@@ -201,10 +201,10 @@ def main_predict(input_df, output_csv_path): # <-- UPDATED to accept output path
     print(f"\n--- Prediction Output Head for {output_csv_path} ---") # <-- UPDATED
     print(output_df.head())
 
-
 # ==========================================================
 # EXECUTION
 # ==========================================================
+
 print("Loading full dataset to extract test slices...")
 try:
     full_df = pd.read_csv(DATA_CSV)
@@ -224,7 +224,7 @@ try:
 
     PREDICT_DIR = "predict_dir"
     os.makedirs(PREDICT_DIR, exist_ok=True)
-    
+
     print(f"Starting sequential prediction loop... Will run {NUM_PREDICTIONS_TO_RUN} predictions.")
     
     for i in range(NUM_PREDICTIONS_TO_RUN):
@@ -246,7 +246,7 @@ try:
             print(f"STOPPING LOOP: Not enough data for this slice.")
             print(f"Required data up to t={current_end_time}, but data only exists up to t={max_data_time}.")
             break
-            
+        
         # --- Extract Slice ---
         input_slice_df = full_df[
             (full_df['time'] >= current_start_time) &

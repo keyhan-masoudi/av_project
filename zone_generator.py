@@ -9,7 +9,7 @@ import math
 # -----------------------------
 # Config
 # -----------------------------
-xml_path = "chunk_0.xml"  # path to your SUMO XML file
+xml_path = "data\\vehicles\chunk_0.xml"  # path to your SUMO XML file
 output_csv = "final.csv"
 hex_size = 200  # adjust to your map size
 # label thresholds
