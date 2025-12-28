@@ -268,7 +268,7 @@ if __name__ == "__main__":
     print(f"Total jobs = {result['total_jobs']}, missed = {result['missed']}")
     print(f"Simulated {result['sim_time']} seconds")
 
-    for rec in result['details'][-10:]:
+    for rec in result['details'][:]:
         jid, kind, arr, fin, dl, miss, exec_time, remaining = rec
         print(f"{jid:8s} | {kind:9s} | arr={arr:6.2f} fin={fin:7.3f} "
               f"dl={dl:7.3f} exec={exec_time:6.3f} remain={remaining:6.3f} missed={miss}")
