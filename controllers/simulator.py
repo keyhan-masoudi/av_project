@@ -25,11 +25,6 @@ from models.node.user import UserNode
 from models.task import Task
 from utils.clock import Clock
 from utils.enums import Layer
-from traffic_prediction import (
-    load_predictor_components,
-    run_traffic_prediction,
-    get_current_traffic_features_as_df
-)
 import sys
 import os
 import pandas as pd
@@ -102,6 +97,7 @@ class Simulator:
         # Reset other state if needed
         self.historical_traffic_features.clear()
         self.traffic_predictions.clear()
+        self.load_all_predictions_from_csv("DATA/prediction_data")
         self.retransmission_tasks.clear()
         self.missed_deadline_data = []
         self.success_deadline_data = []
@@ -318,7 +314,6 @@ class Simulator:
         This is called once at the start of the simulation.
         """
         print(f"--- Pre-loading all predictions from '{directory_path}' ---")
-        self.all_preloaded_predictions = defaultdict(dict)
         
         # Find all prediction files in the specified directory
         csv_files = glob.glob(os.path.join(directory_path, "prediction_output_*.csv"))
@@ -336,14 +331,14 @@ class Simulator:
                 # Iterate over its rows and store them in our dictionary
                 for row in df.itertuples():
                     # Assumes CSV columns are 'time', 'hex_id', and 'label'
-                    self.all_preloaded_predictions[row.time][row.hex_id] = row.label
+                    self.traffic_predictions[row.time][row.hex_id] = row.label
                     total_rows += 1
             except Exception as e:
                 print(f"Error loading prediction file {f_path}: {e}")
         
         if total_rows > 0:
-            min_t = min(self.all_preloaded_predictions.keys())
-            max_t = max(self.all_preloaded_predictions.keys())
+            min_t = min(self.traffic_predictions.keys())
+            max_t = max(self.traffic_predictions.keys())
             print(f"Successfully loaded {total_rows} prediction rows from {len(csv_files)} files.")
             print(f"Pre-loaded data covers timesteps from {min_t} to {max_t}.")
         else:
