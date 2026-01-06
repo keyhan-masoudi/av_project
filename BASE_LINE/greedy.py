@@ -4,7 +4,8 @@ from dataclasses import dataclass, field
 from collections import deque
 from typing import List, Dict, Tuple
 import abc
-
+from models.node.base import NodeABC
+from models.task import Task
 
 class ModelBaseABC:
     pass
@@ -14,41 +15,41 @@ class MobileNodeABC(ModelBaseABC):
     pass
 
 
-class NodeABC(ModelBaseABC, abc.ABC):
-    def __init__(self, node_id, power, x=0, y=0, bandwidth=10, latency=0.5):
-        self.id = node_id
-        self.x = x
-        self.y = y
-        self.power = power  # Processing speed
-        self.bandwidth = bandwidth  # Network speed
-        self.latency = latency  # Network latency
+# class NodeABC(ModelBaseABC, abc.ABC):
+#     def __init__(self, node_id, power, x=0, y=0, bandwidth=10, latency=0.5):
+#         self.id = node_id
+#         self.x = x
+#         self.y = y
+#         self.power = power  # Processing speed
+#         self.bandwidth = bandwidth  # Network speed
+#         self.latency = latency  # Network latency
 
-        # Simulating 2 cores per node for this example
-        self.cores = [[], []]
-        self.tasks = deque()
-        self.finished_tasks = deque()
+#         # Simulating 2 cores per node for this example
+#         self.cores = [[], []]
+#         self.tasks = deque()
+#         self.finished_tasks = deque()
 
-    def __repr__(self):
-        return f"Node({self.id})"
+#     def __repr__(self):
+#         return f"Node({self.id})"
 
 
-class Task(ModelBaseABC):
-    def __init__(self, t_id, release, exec_time, deadline, data_size, creator_id="Car"):
-        self.id = t_id
-        self.release_time = release
-        self.deadline = deadline
-        self.exec_time = exec_time
-        self.dataSize = data_size
-        self.creator_id = creator_id
+# class Task(ModelBaseABC):
+#     def __init__(self, t_id, release, exec_time, deadline, data_size, creator_id="Car"):
+#         self.id = t_id
+#         self.release_time = release
+#         self.deadline = deadline
+#         self.exec_time = exec_time
+#         self.dataSize = data_size
+#         self.creator_id = creator_id
 
-        # Runtime attributes
-        self.start_time = 0
-        self.finish_time = 0
-        self.executor = None
-        self.remaining_time = exec_time
+#         # Runtime attributes
+#         self.start_time = 0
+#         self.finish_time = 0
+#         self.executor = None
+#         self.remaining_time = exec_time
 
-    def __repr__(self):
-        return f"Task({self.id} | Rel:{self.release_time} | D:{self.deadline})"
+#     def __repr__(self):
+#         return f"Task({self.id} | Rel:{self.release_time} | D:{self.deadline})"
 
 
 # ==========================================
