@@ -29,11 +29,17 @@ class Actor(nn.Module):
         self.fc2 = nn.Linear(hidden_dim, hidden_dim)
         self.fc3 = nn.Linear(hidden_dim, action_dim)
 
-    def forward(self, state):
+    def forward(self, state, mask=None):
         x = F.relu(self.fc1(state))
         x = F.relu(self.fc2(x))
         # Use softmax to get a probability distribution over discrete actions
-        action_probs = F.softmax(self.fc3(x), dim=-1)
+        logits = self.fc3(x)
+
+        if mask is not None:
+            logits = logits.masked_fill(mask == 0, -1e9)
+
+        # Use softmax to get a probability distribution over discrete actions
+        action_probs = F.softmax(logits, dim=-1)
         return action_probs
 
 
@@ -95,11 +101,16 @@ class SACAgent:
         # Experience Replay Memory
         self.memory = deque(maxlen=10000)
 
-    def select_action(self, state):
+    def select_action(self, state, mask=None):
         """Select an action based on the current policy."""
         state_tensor = torch.FloatTensor(state).to(self.device).unsqueeze(0)
+
+        mask_tensor = None
+        if mask is not None:
+            mask_tensor = torch.FloatTensor(mask).to(self.device).unsqueeze(0)
+
         with torch.no_grad():
-            action_probs = self.actor(state_tensor)
+            action_probs = self.actor(state_tensor, mask=mask_tensor)
             dist = Categorical(action_probs)
             action = dist.sample()
         return action.item()

@@ -23,7 +23,7 @@ def is_deadline_miss_happening(task, executor, fn_nodes):
         closest_fn = find_closest_fn(task.creator.x, task.creator.y, fn_nodes, task.power)
         dataRate = findDataRate(task, executor, closest_fn)
         # print(f"closest_fn:{closest_fn}, x: {closest_fn}")
-        if closest_fn.x == 4214.90 and closest_fn.y == 1932.26:
+        if closest_fn.x == Config.CloudConfig.CLOSEST_FOG_X and closest_fn.y == Config.CloudConfig.CLOSEST_FOG_Y:
             real_exec_time += (task.dataSize / dataRate) + (
                     task.dataSize / Config.CloudConfig.CLOUD_BANDWIDTH)
         else:
@@ -44,6 +44,19 @@ def compute_agent_reward(task, executor, fn_nodes):
     else:
         return 5.0 * (lateness / task.deadline)
 
+def get_action_mask(task):
+    """
+    Returns a mask vector [local, fog, cloud].
+    If local execution misses the deadline, mask[0] becomes 0.
+    """
+    mask = [1.0, 1.0, 1.0]
+    if task is not None:
+        local_exec_time = findExecTimeInEachKindOfNode(task, task.creator)
+
+        if (task.release_time + local_exec_time) > task.deadline:
+            mask[0] = 0.0
+
+    return np.array(mask, dtype=np.float32)
 
 def get_agent_state(task, simulator):
     creator = task.creator

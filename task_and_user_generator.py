@@ -11,18 +11,18 @@ import matplotlib.pyplot as plt
 
 
 class Config:
-    CHUNK_SIZE = 1200  # Chunk size in seconds
+    CHUNK_SIZE = 1300  # Chunk size in seconds
 
     class TaskConfig:
         # MIN_EXEC_TIME: float = 12.5  # Slightly increased execution times
         # MAX_EXEC_TIME: float = 25.0  # Tasks take longer to complete
         MIN_POWER_CONSUMPTION: float = 1.0  # Higher power consumption than before
         MAX_POWER_CONSUMPTION: float = 3.5
-        DEADLINE_MIN_FREE_TIME: float = 5.0  # Less deadline flexibility # note : next time make it a little bit more
-        DEADLINE_MAX_FREE_TIME: float = 8.0
-        MIN_CYCLE_PER_BIT: float = 1 # *10^3
+        DEADLINE_MIN_FREE_TIME: float = 3.0  # Less deadline flexibility # note : next time make it a little bit more
+        DEADLINE_MAX_FREE_TIME: float = 15.0
+        MIN_CYCLE_PER_BIT: float = 1  # *10^3
         MAX_CYCLE_PER_BIT: float = 1.5
-        MIN_DATASIZE: float = 0.5 # *10^6
+        MIN_DATASIZE: float = 0.5  # *10^6
         MAX_DATASIZE: float = 0.8
 
     class VehicleConfig:
@@ -55,7 +55,8 @@ class Vehicle:
     power: float
     type: str
     lane: str
-    frequency:float
+    frequency: float
+
 
 @dataclass
 class Task:
@@ -66,6 +67,7 @@ class Task:
     creator: str  # Thd id of the node who created the task.
     cycles_per_bit: float
     dataSize: float
+
 
 class Generator:
     def __init__(self):
@@ -169,7 +171,7 @@ class Generator:
             ),
             2
         )
-        cycles_per_bit= round(
+        cycles_per_bit = round(
             random.uniform(
                 Config.TaskConfig.MIN_CYCLE_PER_BIT,
                 Config.TaskConfig.MAX_CYCLE_PER_BIT

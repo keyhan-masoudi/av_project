@@ -16,11 +16,13 @@ def get_traffic_state_name(count: int) -> str:
     Determines the name of the traffic state based on the vehicle count.
     This logic is based on the recognize_traffic_status function in utilsFunctions.py.
     """
-    if count < 10:
+    if count < 15:
         return 'Green'
-    elif count < 20:
+    elif count < 30:
+        return 'Yellow'
+    elif count < 45:
         return 'Orange'
-    elif count < 40:
+    elif count < 60:
         return 'Red'
     else:
         return 'Black'

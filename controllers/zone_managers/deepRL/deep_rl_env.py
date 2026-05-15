@@ -49,7 +49,7 @@ def isDeadlineMissHappening(task, executor, fn_nodes):
 
     real_exec_time = task.real_exec_time_base
 
-    if (executor == task.creator) or (executor == task.creator.critical_processor):
+    if executor == task.creator:
         return ((task.release_time + real_exec_time) > task.deadline), (
                 task.deadline - (task.release_time + real_exec_time))
     elif isinstance(executor, (FixedFogNode, MobileFogNode)):
@@ -65,7 +65,7 @@ def isDeadlineMissHappening(task, executor, fn_nodes):
         closest_fn = find_closest_fn(task.creator.x, task.creator.y, fn_nodes, task.power)
         dataRate = findDataRate(task, executor, closest_fn)
         # print(f"closest_fn:{closest_fn}, x: {closest_fn}")
-        if closest_fn.x == 4214.90 and closest_fn.y == 1932.26:
+        if closest_fn.x == Config.CloudConfig.CLOSEST_FOG_X and closest_fn.y == Config.CloudConfig.CLOSEST_FOG_Y:
             real_exec_time += (task.dataSize / dataRate) + (
                     task.dataSize / Config.CloudConfig.CLOUD_BANDWIDTH)
         else:
@@ -122,6 +122,16 @@ class DeepRLEnvironment(gym.Env):
         done = self.simulator.clock.get_current_time() >= Config.SimulatorConfig.SIMULATION_DURATION
 
         return next_state, reward, done, {}
+
+    def get_action_mask(self, task):
+        mask = [1.0, 1.0, 1.0]
+        if task is not None:
+            local_exec_time = findExecTimeInEachKindOfNode(task, task.creator)
+
+            if (task.release_time + local_exec_time) > task.deadline:
+                mask[0] = 0.0
+
+        return np.array(mask, dtype=np.float32)
 
     def _execute_action(self, task, action):
         """Perform the task offloading based on the action and return the reward."""
@@ -187,7 +197,7 @@ class DeepRLEnvironment(gym.Env):
 
         return chosen_node
 
-    def _compute_reward(self, task, executor): # Wrong function
+    def _compute_reward(self, task, executor):
         """Compute the reward based on execution success, latency, and power efficiency."""
         if executor == task.creator:
             return 1.0  # Local execution is preferred (low cost)
@@ -217,8 +227,6 @@ class DeepRLEnvironment(gym.Env):
             # print(red_bg(f"{reward}, {lateness}"))
         if executor == task.creator:
             return reward, 0
-        elif executor == task.creator.critical_processor:
-            return reward, 3
         elif isinstance(executor, (FixedFogNode, MobileFogNode)):
             return reward, 1
         else:
@@ -273,7 +281,7 @@ class DeepRLEnvironment(gym.Env):
         if task is not None:
             remaining_power = task.creator.remaining_power if task.creator else 0.0
             task_power = task.power
-            vehicle_speed = task.creator.speed if hasattr(task.creator, 'speed') else 0.0
+            # vehicle_speed = task.creator.speed if hasattr(task.creator, 'speed') else 0.0
             time_to_execute = task.exec_time  # in normal mode
             # note: maybe it's needed to add /2 for fog and cloud, but how?? (i think it's okay now and it's considered in reward)
 
@@ -281,7 +289,7 @@ class DeepRLEnvironment(gym.Env):
             remaining_power = 0.0
             task_power = 0.0
             time_to_execute = 0.0
-            vehicle_speed = 0.0
+            # vehicle_speed = 0.0
 
         # exec time ratio
         maxExecTime = 25.0

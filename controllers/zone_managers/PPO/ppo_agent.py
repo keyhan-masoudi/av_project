@@ -22,10 +22,15 @@ class ActorCritic(nn.Module):
 
         self.critic_head = nn.Linear(128, 1)
 
-    def forward(self, state):
+    def forward(self, state, action_mask=None):
         x = self.shared_layers(state)
 
-        action_probs = torch.softmax(self.actor_head(x), dim=-1)
+        logits = self.actor_head(x)
+
+        if action_mask is not None:
+            logits = logits.masked_fill(action_mask == 0, -1e9)
+
+        action_probs = torch.softmax(logits, dim=-1)
 
         state_value = self.critic_head(x)
 
@@ -57,10 +62,14 @@ class PPOAgent:
 
         self.criterion = nn.MSELoss()
 
-    def select_action(self, state):
+    def select_action(self, state, action_mask=None):
         with torch.no_grad():
             state_tensor = torch.FloatTensor(state).to(self.device).unsqueeze(0)
-            action_probs, state_val = self.policy_old(state_tensor)
+
+            mask_tensor = None
+            if action_mask is not None:
+                mask_tensor = torch.FloatTensor(action_mask).to(self.device).unsqueeze(0)
+            action_probs, state_val = self.policy_old(state_tensor, action_mask=mask_tensor)
 
             dist = Categorical(action_probs)
             action = dist.sample()

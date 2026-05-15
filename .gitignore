@@ -1,9 +1,11 @@
 *.csv
 *.xml
-data
+*.xlsx
 SumoOutputGenerator
-SumoDividedByTime
+SumoDividedByTime/output/
 share
 Scripts
 Lib
 checkpoints
+__pycache__
+.idea

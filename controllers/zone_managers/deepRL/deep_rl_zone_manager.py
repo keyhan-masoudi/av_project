@@ -9,12 +9,6 @@ from models.node.fog import FogLayerABC
 from models.task import Task
 from config import Config
 from utils.distance import get_distance
-from models.node.user import UserNode
-
-
-def maskingCondition():
-    # todo: add action masking by our predictions from weather and traffic
-    pass
 
 
 class DeepRLZoneManager(ZoneManagerABC):
@@ -28,8 +22,7 @@ class DeepRLZoneManager(ZoneManagerABC):
         # Initialize Deep RL Environment and Agent
         # note: here removed
         # self.env = DeepRLEnvironment(simulator=None)  # Will be set in simulation
-        # todo: change action dimension
-        self.agent = DeepRLAgent(state_dim=5, action_dim=4)  # 5 state features, 4 actions
+        self.agent = DeepRLAgent(state_dim=5, action_dim=3)  # 5 state features, 3 actions
 
         self.env = None
 
@@ -60,17 +53,17 @@ class DeepRLZoneManager(ZoneManagerABC):
     # note : not important function
     def assign_task(self, task: Task) -> FogLayerABC:
         print("|||||||||||||||||||||||||||||||||||||||||||||||||||||||||||")
-        # state = self.env._get_state(task)
-        # action = self.agent.select_action(state)
-        #
-        # if action == 0:
-        #     candidate_executor = task.creator
-        # elif action == 1:
-        #     candidate_executor = self._get_best_fog_node(task)
-        # else:
-        #     candidate_executor = self.env.simulator.cloud_node
+        state = self.env._get_state(task)
+        action = self.agent.select_action(state)
 
-        return None
+        if action == 0:
+            candidate_executor = task.creator
+        elif action == 1:
+            candidate_executor = self._get_best_fog_node(task)
+        else:
+            candidate_executor = self.env.simulator.cloud_node
+
+        return candidate_executor
 
     def propose_candidate(self, task: Task, current_time: float):
         """
@@ -78,25 +71,29 @@ class DeepRLZoneManager(ZoneManagerABC):
         It just suggests a node and return (ZN, node)
         """
         state = self.env._get_state(task)
+        if hasattr(self.env, "get_action_mask"):
+            action_mask = self.env.get_action_mask(task)
+        else:
+            action_mask = None
 
-        valid_actions_mask = [True] * self.agent.action_dim
-
-        if maskingCondition():
-            valid_actions_mask[3] = False
-
-        action = self.agent.select_action(state, valid_actions_mask)
+        action = self.agent.select_action(state, mask=action_mask)
         if action == 0:
             candidate_executor = task.creator
         elif action == 1:
             candidate_executor = self._get_best_fog_node(task)
-        elif action == 2:
+        else:
             candidate_executor = self.env.simulator.cloud_node
-        else:  # action == 3
-            if isinstance(task.creator, UserNode):
-                candidate_executor = task.creator.critical_processor
-            else: # for mobile fog node
-                candidate_executor = task.creator
         return self, candidate_executor
+
+    # def _get_best_fog_node(self, task):
+    #     """
+    #     Finds the best fog node to offload the task based on available resources.
+    #     """
+    #     # print("nooooo")
+    #     fog_nodes = list(self.fixed_fog_nodes.values()) + list(self.mobile_fog_nodes.values())
+    #     fog_nodes = [node for node in fog_nodes if node.can_offload_task(task)]
+    #     # note: that was min , i changed another one too
+    #     return max(fog_nodes, key=lambda n: n.remaining_power, default=None)
 
     def _get_best_fog_node(self, task):
         creator = task.creator

@@ -46,7 +46,13 @@ class DeepRLZoneManagerSAC(ZoneManagerABC):
         It suggests a node and returns (self, node).
         """
         state = self.env._get_state(task)
-        action = self.agent.select_action(state)
+        if hasattr(self.env, "get_action_mask"):
+            action_mask = self.env.get_action_mask(task)
+        else:
+            action_mask = None
+
+
+        action = self.agent.select_action(state, mask=action_mask)
 
         candidate_executor = None
         if action == 0:
@@ -121,7 +127,12 @@ class DeepRLZoneManagerSAC(ZoneManagerABC):
         the full logic of the zone manager.
         """
         state = self.env._get_state(task)
-        action = self.agent.select_action(state)
+        if hasattr(self.env, "get_action_mask"):
+            action_mask = self.env.get_action_mask(task)
+        else:
+            action_mask = None
+
+        action = self.agent.select_action(state, mask=action_mask)
 
         if action == 0:
             candidate_executor = task.creator

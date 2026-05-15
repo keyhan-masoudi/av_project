@@ -81,8 +81,8 @@ class Partitions:
         return header + "\n".join(classes)
 
 # Example usage
-width = 4300
-height = 3400
+width = 2200
+height = 1600
 radius = 200
 generator = CodeGenerator(width, height, radius)
 code = generator.generate_code()

@@ -53,6 +53,8 @@ class DeepRLZoneManager_DDPG(ZoneManagerABC):
         """
         state = self.env._get_state(task)
 
+        action_mask = self.env.get_action_mask(task)
+
         continuous_action = self.agent.select_action(state)[0]
 
         if continuous_action < -0.33:
@@ -61,6 +63,10 @@ class DeepRLZoneManager_DDPG(ZoneManagerABC):
             discrete_action = 2
         else:
             discrete_action = 1
+
+        if discrete_action == 0 and action_mask[0] == 0:
+            discrete_action = 1
+            continuous_action = 0.5
 
         if discrete_action == 0:
             candidate_executor = task.creator

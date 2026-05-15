@@ -21,10 +21,10 @@ from utils.clock import Clock
 from utils.enums import Layer
 import sys
 import os
+import pickle
 import pandas as pd
 
-
-sys.path.append(os.path.abspath("D:/Abbas/python projects/VANET - Copy/NoiseConfigs"))
+sys.path.append(os.path.abspath(Config.Paths.NoiseConfigsPath))
 
 
 def yellow_bg(text):
@@ -38,8 +38,10 @@ def red_bg(text):
 def blue_bg(text):
     return f"\033[44m{text}\033[0m"
 
+
 def green_bg(text):
     return f"\033[42m{text}\033[0m"
+
 
 # note: check again
 def logAttenuation(attenuationList):
@@ -75,9 +77,11 @@ class Simulator:
         self.retransmission_tasks: Dict[float, List[Task]] = {}
         self.missed_deadline_data: List[Dict] = []
         self.success_deadline_data: List[Dict] = []
+        self.traffic_cache: Dict[int, any] = {}
+        self.noise_controller = FinalChoiceByAttenuationNoise()
 
     def init_simulation(self):
-        self.clock.set_current_time(0)
+        self.clock.set_current_time(Config.SimulatorConfig.SIMULATION_START_TIME)
         self.zone_managers = self.loader.load_zones()
         self.fixed_fog_nodes = self.loader.load_fixed_zones()
         self.assign_fixed_nodes()
@@ -165,11 +169,7 @@ class Simulator:
                     attenuation = calcAttenuation(task, candidate_executor, intersecting_partitions)
                     # check : print(blue_bg(f"{attenuation}, {task.creator.x}, {task.creator.y}, {candidate_executor.x}, {candidate_executor.y}"))
                 elif isinstance(candidate_executor, CloudNode):
-                    # todo : find the nearest fog node and after that add a constraint latency for transmitting by fiber
-                    # print(self.fixed_fog_nodes)
-
                     attenuation = self.calcAttForCloud(task, intersecting_partitions)
-
                 else:
                     attenuation = 0
                     # locally offloading
@@ -177,10 +177,10 @@ class Simulator:
             # logAttenuation(attenuationList)
 
             # todo: make decision to offload a task
-            finalChoiceToOffload, plr = FinalChoiceByAttenuationNoise().makeFinalChoice(attenuationList,
-                                                                                        task,
-                                                                                        partitions,
-                                                                                        Config.NoiseMethod.DEFAULT_METHOD)
+            finalChoiceToOffload, plr = self.noise_controller.makeFinalChoice(attenuationList,
+                                                                              task,
+                                                                              partitions,
+                                                                              Config.NoiseMethod.DEFAULT_METHOD)
             # print(green_bg(f"task.SNR = {task.SNR}"))
             # print(f"plr:{plr}")
             packetLossRandomNumber = random.randint(0, 100)
@@ -194,7 +194,6 @@ class Simulator:
                 if packetLossRandomNumber < plr:
                     self.metrics.inc_packet_loss()
                     # print(blue_bg("----------------------------------------------------------------------------"))
-                    # todo : add retransmission
                     if task in chosen_executor.tasks:
                         chosen_executor.tasks.remove(task)
 
@@ -231,10 +230,6 @@ class Simulator:
                                                                    done=False)  # Store for training
                         # chosen_zone_manager.agent.train()
             else:
-                # note : there is not any device that meet noise problem, so they should retransmit too,
-                #  but without any TIMEOUT, it will retry to exec in next step !
-
-                # note todo: : it's good to make it run in the same time
                 self.metrics.inc_no_device_found_to_run_becauseOf_Noise()
 
                 timeout_time = current_time + 1
@@ -288,21 +283,48 @@ class Simulator:
                 new_rain_status_str = random.choice(allowed_options)
                 p.rainStatus = eval(new_rain_status_str)
 
+    def load_cached_traffic(self):
+        pkl_dest_dir = Config.Paths.pklPath
+        pkl_filename = "traffic_processed_data.pkl"
+        full_pkl_path = os.path.join(pkl_dest_dir, pkl_filename)
+        pkl_path = full_pkl_path
+
+        print(blue_bg(f"Loading cached traffic data from: {pkl_path}"))
+
+        if os.path.exists(pkl_path):
+            try:
+                with open(pkl_path, "rb") as f:
+                    self.traffic_cache = pickle.load(f)
+                print(green_bg("Traffic cache loaded successfully!"))
+            except Exception as e:
+                print(red_bg(f"Error loading Pickle file: {e}"))
+                self.traffic_cache = {}
+        else:
+            print(red_bg("Cache file not found! Please run the generator script first."))
+            self.traffic_cache = {}
+
     def start_simulation(self):
         self.init_simulation()
         partitions = UtilsFunc.load_partitions("generated_hex_partitions")
         neighbors_map = UtilsFunc.find_neighbors(partitions)
 
+        self.load_cached_traffic()
+
         while (current_time := self.clock.get_current_time()) < Config.SimulatorConfig.SIMULATION_DURATION:
-        # while (current_time := self.clock.get_current_time()) < 300:
 
             print(red_bg(f"current_time:{current_time}"))
 
-            # Update traffic status
-            traffic_data = UtilsFunc.recognize_traffic_status(
-                f"D:\Abbas\python projects\VANET - Copy\SumoDividedByTime\Outputs2\dataInTime{int(self.clock.get_current_time())}.csv",
-                partitions
-            )
+            time_int = int(current_time)
+            cached_data_str_keys = self.traffic_cache.get(time_int, {})
+
+            traffic_data = {}
+            for p in partitions:
+                p_name = p.__class__.__name__
+                if p_name in cached_data_str_keys:
+                    traffic_data[p] = cached_data_str_keys[p_name]
+            # print(f"traffic_data:{traffic_data}")
+
+            # todo: change this section
             if int(self.clock.get_current_time()) % 5 == 0:
                 self.update_rain_with_constraints(neighbors_map, partitions)
 
@@ -322,8 +344,10 @@ class Simulator:
                 self.retransmission(zone_managers, current_time, partitions)
 
                 for task in tasks:
+                    # todo: log hard tasks and a counter for this
                     self.metrics.inc_total_tasks()
                     # has_offloaded = False
+                    # todo: separate decision making for Hard and Soft tasks here
 
                     zone_manager_offload_task = self.find_zone_manager_offload_task(zone_managers, task, current_time)
                     # print(blue_bg(f"{len(zone_manager_offload_task)}"))
@@ -342,12 +366,15 @@ class Simulator:
             #     self.metrics.saveToExcel("test.csv")
 
         self.drop_not_completed_tasks()
-        self.save_missed_deadlines_to_excel(f"missed_deadlines_report_{Config.ZoneManagerConfig.DEFAULT_ALGORITHM}_{Config.NoiseMethod.DEFAULT_METHOD}_{Config.NoiseConfig.DEFAULT_THRESHOLD}_{Config.TrafficNoise.DEFAULT_TrafficNoiseLevel}_{Config.AttenuationLevel.DEFAULT_AttenuationLevelName}.xlsx")
-        self.save_success_deadlines_to_excel(f"success_deadlines_report_{Config.ZoneManagerConfig.DEFAULT_ALGORITHM}_{Config.NoiseMethod.DEFAULT_METHOD}_{Config.NoiseConfig.DEFAULT_THRESHOLD}_{Config.TrafficNoise.DEFAULT_TrafficNoiseLevel}_{Config.AttenuationLevel.DEFAULT_AttenuationLevelName}.xlsx")
-        self.metrics.save_to_excel(f"final_metrics_summary_{Config.ZoneManagerConfig.DEFAULT_ALGORITHM}_{Config.NoiseMethod.DEFAULT_METHOD}_{Config.NoiseConfig.DEFAULT_THRESHOLD}_{Config.TrafficNoise.DEFAULT_TrafficNoiseLevel}_{Config.AttenuationLevel.DEFAULT_AttenuationLevelName}.xlsx")
-
+        self.save_missed_deadlines_to_excel(
+            f"missed_deadlines_report_{Config.ZoneManagerConfig.DEFAULT_ALGORITHM}_{Config.NoiseMethod.DEFAULT_METHOD}_{Config.NoiseConfig.DEFAULT_THRESHOLD}_{Config.TrafficNoise.DEFAULT_TrafficNoiseLevel}_{Config.AttenuationLevel.DEFAULT_AttenuationLevelName}_{Config.City.DEFAULT_CITY}.xlsx")
+        self.save_success_deadlines_to_excel(
+            f"success_deadlines_report_{Config.ZoneManagerConfig.DEFAULT_ALGORITHM}_{Config.NoiseMethod.DEFAULT_METHOD}_{Config.NoiseConfig.DEFAULT_THRESHOLD}_{Config.TrafficNoise.DEFAULT_TrafficNoiseLevel}_{Config.AttenuationLevel.DEFAULT_AttenuationLevelName}_{Config.City.DEFAULT_CITY}.xlsx")
+        self.metrics.save_to_excel(
+            f"final_metrics_summary_{Config.ZoneManagerConfig.DEFAULT_ALGORITHM}_{Config.NoiseMethod.DEFAULT_METHOD}_{Config.NoiseConfig.DEFAULT_THRESHOLD}_{Config.TrafficNoise.DEFAULT_TrafficNoiseLevel}_{Config.AttenuationLevel.DEFAULT_AttenuationLevelName}_{Config.City.DEFAULT_CITY}.xlsx")
 
     def load_tasks(self, current_time: float) -> Dict[str, List[Task]]:
+        # todo: Load Hard tasks here
         tasks: Dict[str, List[Task]] = defaultdict(list)
         for creator_id, creator_tasks in self.loader.load_nodes_tasks(current_time).items():
             creator = None
@@ -356,7 +383,6 @@ class Simulator:
             elif creator_id in self.mobile_fog_nodes:
                 creator = self.mobile_fog_nodes[creator_id]
             # assert creator is not None
-            # note: write below code, instead of line 301
             if creator is None:
                 print(f"there is no {creator}\n")
             else:
@@ -389,7 +415,7 @@ class Simulator:
                         min_load = min(loads)
                         max_load = max(loads)
                         self.metrics.inc_task_load_diff(task.id, min_load, max_load)
-                # todo: add local critical
+                # check local hard tasks
                 if isinstance(task.executor, (FixedFogNode, MobileFogNode)):
                     self.metrics.inc_fog_execution()
                 elif task.creator.id == task.executor.id:
@@ -445,10 +471,10 @@ class Simulator:
             )
             attenuation = self.calcAttForCloud(task, intersecting_partitions)
             attenuationList.append((None, cloud_node, attenuation))
-            finalChoiceToOffload, plr = FinalChoiceByAttenuationNoise().makeFinalChoice(attenuationList,
-                                                                                        task,
-                                                                                        partitions,
-                                                                                        Config.NoiseMethod.DEFAULT_METHOD)
+            finalChoiceToOffload, plr = self.noise_controller.makeFinalChoice(attenuationList,
+                                                                              task,
+                                                                              partitions,
+                                                                              Config.NoiseMethod.DEFAULT_METHOD)
 
             # print(f"plr:{plr}")
             packetLossRandomNumber = random.randint(0, 100)
@@ -563,32 +589,3 @@ class Simulator:
             print(green_bg(f"Successfully saved success deadline data to {filename}"))
         except Exception as e:
             print(red_bg(f"Error saving to Excel file: {e}"))
-
-    # def get_next_task(self):
-    #     """Retrieve the next unprocessed task from the current simulation step."""
-    #     current_time = self.clock.get_current_time()
-    #     tasks = self.load_tasks(current_time)  # Get tasks at this step
-    #
-    #     print(f"[DEBUG] Current Time: {current_time}, Total Tasks at this step: {sum(len(t) for t in tasks.values())}")
-    #
-    #     for task_list in tasks.values():
-    #         for task in task_list:
-    #             print(f"[DEBUG] Checking Task {task.id} - Completed: {task.is_completed}, Executor: {task.executor}")
-    #             if not task.is_completed and task.executor is None:
-    #                 print(f"[DEBUG] Found Unprocessed Task: {task.id}")
-    #                 return task  # Return the first unprocessed task
-    #
-    #     print("[DEBUG] No Unprocessed Tasks Found")
-    #     return None  # No available tasks
-
-    # def create_retransmitted_task(task: Task) -> Task:
-    #     new_id = task.id + "_R"
-    #     new_task = Task(
-    #         id=new_id,
-    #         deadline=task.deadline,
-    #         exec_time=task.exec_time,
-    #         power=task.power,
-    #         creator=task.creator,
-    #         dataSize=task.dataSize
-    #     )
-    #     return new_task

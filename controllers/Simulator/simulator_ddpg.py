@@ -1,148 +1,45 @@
-import random
-from collections import defaultdict
 from typing import Dict, List
-
-from NoiseConfigs.noiseConfigGeneralAttribute import NoiseConfigGeneralAttribute
-from NoiseConfigs.utilsFunctions import UtilsFunc
-from NoiseConfigs.noiseConfig import NoiseConfig
+import random
 from config import Config
 from controllers.finalChoiceByAttenuationNoise import FinalChoiceByAttenuationNoise
-from controllers.loader import Loader
-from controllers.metric import MetricsController
-from controllers.zone_managers.base import ZoneManagerABC
 from controllers.zone_managers.DDPG.deep_rl_zone_manager_ddpg import DeepRLZoneManager_DDPG
-from models.node.base import MobileNodeABC, NodeABC
 from models.node.cloud import CloudNode
-from models.node.fog import FixedFogNode
-from models.node.fog import MobileFogNode
-from models.node.user import UserNode
 from models.task import Task
-from utils.clock import Clock
-from utils.enums import Layer
-import sys
-import os
-import pandas as pd
+from NoiseConfigs.utilsFunctions import UtilsFunc
 
+# Import the Base Class
+from controllers.simulator import Simulator, calcAttenuation
 
-sys.path.append(os.path.abspath("D:/Abbas/python projects/VANET - Copy/NoiseConfigs"))
-
-
-def yellow_bg(text):
-    return f"\033[43m{text}\033[0m"
-
-
-def red_bg(text):
-    return f"\033[41m{text}\033[0m"
-
-
-def blue_bg(text):
-    return f"\033[44m{text}\033[0m"
-
-
-def green_bg(text):
-    return f"\033[42m{text}\033[0m"
-
-
-def logAttenuation(attenuationList):
-    sampleList = []
-    for i in range(0, len(attenuationList)):
-        sampleList.append(attenuationList[i])
-    print(yellow_bg("attenuationList") + f":{len(sampleList)}")
-
-
-def calcAttenuation(task, node, intersecting_partitions):
+class SimulatorDDPG(Simulator):
     """
-    node : nearest_node or executor node
+    Inherits everything from Simulator.
+    Overrides only the methods specific to DDPG logic.
     """
-    return UtilsFunc().path_loss_km_ghz(
-        d_km=UtilsFunc().distance(task.creator.x, task.creator.y,
-                                  node.x, node.y) / 1000,
-        f_ghz=UtilsFunc().FREQUENCY_GH,
-        n=UtilsFunc().get_max_urban_status(intersecting_partitions)
-    ) + UtilsFunc().get_max_rain_attenuation(intersecting_partitions)
-
-
-class SimulatorDDPG:
-    def __init__(self, loader: Loader, clock: Clock, cloud: CloudNode):
-        self.metrics: MetricsController = MetricsController()
-        self.loader: Loader = loader
-        self.cloud_node: CloudNode = cloud
-        self.zone_managers: Dict[str, ZoneManagerABC] = {}
-        self.fixed_fog_nodes: Dict[str, FixedFogNode] = {}
-        self.mobile_fog_nodes: Dict[str, MobileFogNode] = {}
-        self.user_nodes: Dict[str, UserNode] = {}
-        self.clock: Clock = clock
-        self.task_zone_managers: Dict[str, ZoneManagerABC] = {}
-        self.retransmission_tasks: Dict[float, List[Task]] = {}
-        self.missed_deadline_data: List[Dict] = []
-        self.success_deadline_data: List[Dict] = []
-
-    def init_simulation(self):
-        self.clock.set_current_time(0)
-        self.zone_managers = self.loader.load_zones()
-        self.fixed_fog_nodes = self.loader.load_fixed_zones()
-        self.assign_fixed_nodes()
-        self.update_mobile_fog_nodes_coordinate()
-        self.update_user_nodes_coordinate()
-        for zm in self.zone_managers.values():
-            if hasattr(zm, "set_simulator"):
-                zm.set_simulator(self)
-
-    def schedule_retransmission(self, task: Task, scheduled_time: float):
-        if scheduled_time not in self.retransmission_tasks:
-            self.retransmission_tasks[scheduled_time] = []
-        self.retransmission_tasks[scheduled_time].append(task)
-
-    def assign_fixed_nodes(self):
-        for z_id, zone_manager in self.zone_managers.items():
-            fixed_nodes: List[FixedFogNode] = []
-            for n_id, fixed_node in self.fixed_fog_nodes.items():
-                if zone_manager.zone.is_in_coverage(fixed_node.x, fixed_node.y):
-                    fixed_nodes.append(fixed_node)
-            zone_manager.add_fixed_fog_nodes(fixed_nodes)
-
-    def logTrafficStatus(self, partitions):
-        for partition in partitions:
-            print(
-                f"Partition at ({partition.centerX}, {partition.centerY}): Traffic Status = {partition.trafficStatus.__class__.__name__} rain Status = {partition.rainStatus.__class__.__name__}")
-
-    def retransmission(self, zone_managers, current_time, partitions):
-        tasks_to_retransmit = []
-        for scheduled_time in list(self.retransmission_tasks.keys()):
-            if scheduled_time <= current_time:
-                tasks_to_retransmit.extend(self.retransmission_tasks.pop(scheduled_time))
-
-        if tasks_to_retransmit:
-            for task in tasks_to_retransmit:
-                possible_zone_managers = self.find_zone_manager_offload_task(zone_managers, task, current_time)
-                if self.choose_executor_and_assign(possible_zone_managers, task, partitions, current_time):
-                    continue
 
     def find_zone_manager_offload_task(self, zone_managers, task, current_time):
+        """
+        Overridden because DDPG returns a 'continuous_action' tuple logic.
+        """
+        # print("-------------------------------------------------------------------------------------")
         zone_manager_offload_task = []
         for zone_manager in zone_managers:
             if zone_manager.can_offload_task(task):
                 if hasattr(zone_manager, "propose_candidate"):
-                    proposed_zone_manager, proposed_executor, continuous_action = zone_manager.propose_candidate(task,
-                                                                                                                 current_time)
+                    proposed_zone_manager, proposed_executor, continuous_action = zone_manager.propose_candidate(task, current_time)
                 else:
                     proposed_zone_manager = zone_manager
                     proposed_executor = zone_manager.offload_task(task, current_time)
                     continuous_action = None
 
-                if proposed_executor and (
-                proposed_zone_manager, proposed_executor, continuous_action) not in zone_manager_offload_task:
-                    zone_manager_offload_task.append((proposed_zone_manager, proposed_executor, continuous_action))
+                candidate = (proposed_zone_manager, proposed_executor, continuous_action)
+                if proposed_executor and candidate not in zone_manager_offload_task:
+                    zone_manager_offload_task.append(candidate)
         return zone_manager_offload_task
 
-    def calcAttForCloud(self, task, intersecting_partitions):
-        nearest_node_id = min(self.fixed_fog_nodes.keys(),
-                              key=lambda node_id: ((self.fixed_fog_nodes[node_id].x - task.creator.x) ** 2 +
-                                                   (self.fixed_fog_nodes[node_id].y - task.creator.y) ** 2) ** 0.5)
-        nearest_node = self.fixed_fog_nodes[nearest_node_id]
-        return calcAttenuation(task, nearest_node, intersecting_partitions)
-
     def choose_executor_and_assign(self, zone_manager_offload_task, task, partitions, current_time):
+        """
+        Overridden to handle DDPG experience replay storage and specific unpacking.
+        """
         if len(zone_manager_offload_task) != 0:
             # print(green_bg("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"))
             attenuationList = []
@@ -165,25 +62,61 @@ class SimulatorDDPG:
 
                 attenuationList.append((zone_manager, candidate_executor, attenuation, continuous_action))
 
-            finalChoiceToOffload, plr = FinalChoiceByAttenuationNoise().makeFinalChoice(attenuationList,
-                                                                                        task,
-                                                                                        partitions,
-                                                                                        Config.NoiseMethod.DEFAULT_METHOD)
+            finalChoiceToOffload, plr = self.noise_controller.makeFinalChoice(attenuationList, task, partitions, Config.NoiseMethod.DEFAULT_METHOD, current_time, self.fixed_fog_nodes)
 
-            packetLossRandomNumber = random.randint(0, 100)
 
             if finalChoiceToOffload:
                 chosen_zone_manager, chosen_executor, _, chosen_continuous_action = finalChoiceToOffload
+                use_bandit, should_offload = self.noise_controller.adaptive_manager.should_use_bandit(plr)
 
-                if packetLossRandomNumber < plr:
-                    self.metrics.inc_packet_loss()
-                    if task in chosen_executor.tasks:
-                        chosen_executor.tasks.remove(task)
-                    timeout_time = current_time + Config.SimulatorConfig.TIMEOUT_TIME
-                    self.schedule_retransmission(task, timeout_time)
+                packet_loss_occurred = False
+                task_will_be_assigned = False
+
+                if not use_bandit and Config.NoiseMethod.DEFAULT_METHOD == Config.NoiseMethod.PROPOSED_METHOD4:
+                    # PLR is 0 or 100 - direct decision without bandit
+                    if plr <= 1.0:
+                        # PLR = 0: Always successful transmission
+                        packet_loss_occurred = False
+                        task_will_be_assigned = True
+                    else:
+                        # PLR = 100: Always packet loss, don't even try
+                        packet_loss_occurred = False
+                        task_will_be_assigned = False
+                        self.metrics.inc_no_device_found_to_run_becauseOf_Noise()
+                        timeout_time = current_time + 1
+                        self.schedule_retransmission(task, timeout_time)
                 else:
+                    # 0 < PLR < 100: Use bandit and simulate packet loss
+                    packetLossRandomNumber = random.randint(0, 100)
+
+                    if packetLossRandomNumber < plr:
+                        # print(green_bg("test"))
+                        # Packet loss occurred
+                        packet_loss_occurred = True
+                        task_will_be_assigned = False
+                        self.metrics.inc_packet_loss()
+                        # print(blue_bg("----------------------------------------------------------------------------"))
+
+                        # Send failure feedback to bandit
+                        # executor_type = 'cloud' if isinstance(chosen_executor, CloudNode) else 'fog'
+                        self.process_task_feedback(
+                            task=task,
+                            is_success=False,
+                            offload_decision=True,
+                            # executor_type=executor_type,
+                            current_time=current_time,
+                            executor=chosen_executor,
+                            zone_manager=chosen_zone_manager
+                        )
+                    else:
+                        # Successful transmission
+                        packet_loss_occurred = False
+                        task_will_be_assigned = True
+
+                if task_will_be_assigned:
+                    # Store zone manager reference
                     self.task_zone_managers[task.id] = chosen_zone_manager
-                    # self.metrics.inc_node_tasks(chosen_executor.id)
+
                     if isinstance(chosen_zone_manager, DeepRLZoneManager_DDPG):
                         state = chosen_zone_manager.env._get_state(task)
                         reward, _ = chosen_zone_manager.env._compute_reward2(task, chosen_executor)
@@ -192,311 +125,55 @@ class SimulatorDDPG:
                             reward = Config.NEGATIVE_REWARD
                             timeout_time = current_time + 1
                             self.schedule_retransmission(task, timeout_time)
+                            task_assigned = False
                         elif reward < Config.NEGATIVE_REWARD:
                             timeout_time = current_time + 1
                             self.schedule_retransmission(task, timeout_time)
+                            task_assigned = False
                         else:
                             chosen_executor.assign_task(task, current_time)
+                            task_assigned = True
 
                         next_state = chosen_zone_manager.env._get_state(task)
                         chosen_zone_manager.agent.store_experience(state, chosen_continuous_action, reward, next_state,
                                                                    done=False)
                         chosen_zone_manager.agent.train()
+
                     else:
                         chosen_executor.assign_task(task, current_time)
-            else:
-                self.metrics.inc_no_device_found_to_run_becauseOf_Noise()
-                timeout_time = current_time + 1
-                self.schedule_retransmission(task, timeout_time)
-        else:
-            if Config.ZoneManagerConfig.DEFAULT_ALGORITHM == Config.ZoneManagerConfig.ALGORITHM_ONLY_FOG:
-                self.schedule_retransmission(task, 1)
-            elif Config.ZoneManagerConfig.DEFAULT_ALGORITHM == Config.ZoneManagerConfig.ALGORITHM_ONLY_CLOUD:
-                self.offload_to_cloud(task, current_time, partitions, self.cloud_node)
-            else:
-                # print(green_bg("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"))
-                if task.creator.can_offload_task(task):
-                    task.creator.assign_task(task, current_time)
-                    # self.metrics.inc_local_execution()
-                else:
-                    self.offload_to_cloud(task, current_time, partitions, self.cloud_node)
+                        task_assigned = True
 
-    def update_rain_with_constraints(self, neighbors_map, partitions):
-        """
-        Updates the rain status of each partition based on its neighbors' status
-        to ensure the difference is not more than 2 units.
-        """
-        for p in partitions:
-            neighbors = neighbors_map.get(p, [])
-            if not neighbors:
-                # If a partition has no neighbors, it can change freely
-                p.change_rainStatus()
-                continue
+                    if use_bandit and task_assigned:
+                        # executor_type = 'cloud' if isinstance(chosen_executor, CloudNode) else 'fog'
+                        self.process_task_feedback(
+                            task=task,
+                            is_success=True,
+                            offload_decision=True,
+                            # executor_type=executor_type,
+                            current_time=current_time,
+                            executor=chosen_executor,
+                            zone_manager=chosen_zone_manager
+                        )
 
-            # Find the min and max rain unit among neighbors
-            neighbor_units = [
-                NoiseConfigGeneralAttribute.Rain_class_to_unit[n.rainStatus.__class__.__name__]
-                for n in neighbors
-            ]
-            min_neighbor_unit = min(neighbor_units)
-            max_neighbor_unit = max(neighbor_units)
-
-            # Determine the allowed range for the new unit of the current partition 'p'
-            # The new unit must be at most 2 units away from the furthest neighbor.
-            min_allowed_unit = max(0, max_neighbor_unit - 2)
-            max_allowed_unit = min(len(NoiseConfigGeneralAttribute.Rain_options) - 1, min_neighbor_unit + 2)
-
-            # Create a list of valid rain options
-            allowed_options = []
-            if min_allowed_unit <= max_allowed_unit:
-                for unit in range(min_allowed_unit, max_allowed_unit + 1):
-                    allowed_options.append(NoiseConfigGeneralAttribute.Rain_options[unit])
-
-            # If there are valid options, choose one randomly and update
-            if allowed_options:
-                new_rain_status_str = random.choice(allowed_options)
-                p.rainStatus = eval(new_rain_status_str)
-
-    def start_simulation(self):
-        self.init_simulation()
-        partitions = UtilsFunc.load_partitions("generated_hex_partitions")
-        neighbors_map = UtilsFunc.find_neighbors(partitions)
-
-        while (current_time := self.clock.get_current_time()) < Config.SimulatorConfig.SIMULATION_DURATION:
-            print(red_bg(f"current_time:{current_time}"))
-
-            traffic_data = UtilsFunc.recognize_traffic_status(
-                f"D:\Abbas\python projects\VANET - Copy\SumoDividedByTime\Outputs2\dataInTime{int(self.clock.get_current_time())}.csv",
-                partitions
-            )
-            if int(self.clock.get_current_time()) % 5 == 0:
-                self.update_rain_with_constraints(neighbors_map, partitions)
-
-            for partition in partitions:
-                partition.update_traffic_status(traffic_data)
-
-            nodes_tasks = self.load_tasks(current_time)
-            user_possible_zones = self.assign_mobile_nodes_to_zones(self.user_nodes, layer=Layer.USER)
-            mobile_possible_zones = self.assign_mobile_nodes_to_zones(self.mobile_fog_nodes, layer=Layer.FOG)
-            merged_possible_zones: Dict[str, List[ZoneManagerABC]] = {**user_possible_zones, **mobile_possible_zones}
-
-            for creator_id, tasks in nodes_tasks.items():
-                zone_managers = merged_possible_zones.get(creator_id, [])
-                self.retransmission(zone_managers, current_time, partitions)
-
-                for task in tasks:
-                    self.metrics.inc_total_tasks()
-                    zone_manager_offload_task = self.find_zone_manager_offload_task(zone_managers, task, current_time)
-                    self.choose_executor_and_assign(zone_manager_offload_task, task, partitions, current_time)
-
-            self.update_graph()
-            self.execute_tasks_for_one_step()
-            self.metrics.flush()
-            # self.metrics.log_metrics()
-            self.metrics.add_data(current_time)
-
-        self.drop_not_completed_tasks()
-        self.save_missed_deadlines_to_excel(f"missed_deadlines_report_{Config.ZoneManagerConfig.DEFAULT_ALGORITHM}_{Config.NoiseMethod.DEFAULT_METHOD}_{Config.NoiseConfig.DEFAULT_THRESHOLD}_{Config.TrafficNoise.DEFAULT_TrafficNoiseLevel}_{Config.AttenuationLevel.DEFAULT_AttenuationLevelName}.xlsx")
-        self.save_success_deadlines_to_excel(f"success_deadlines_report_{Config.ZoneManagerConfig.DEFAULT_ALGORITHM}_{Config.NoiseMethod.DEFAULT_METHOD}_{Config.NoiseConfig.DEFAULT_THRESHOLD}_{Config.TrafficNoise.DEFAULT_TrafficNoiseLevel}_{Config.AttenuationLevel.DEFAULT_AttenuationLevelName}.xlsx")
-        self.metrics.save_to_excel(f"final_metrics_summary_{Config.ZoneManagerConfig.DEFAULT_ALGORITHM}_{Config.NoiseMethod.DEFAULT_METHOD}_{Config.NoiseConfig.DEFAULT_THRESHOLD}_{Config.TrafficNoise.DEFAULT_TrafficNoiseLevel}_{Config.AttenuationLevel.DEFAULT_AttenuationLevelName}.xlsx")
-
-    def load_tasks(self, current_time: float) -> Dict[str, List[Task]]:
-        tasks: Dict[str, List[Task]] = defaultdict(list)
-        for creator_id, creator_tasks in self.loader.load_nodes_tasks(current_time).items():
-            creator = None
-            if creator_id in self.user_nodes:
-                creator = self.user_nodes[creator_id]
-            elif creator_id in self.mobile_fog_nodes:
-                creator = self.mobile_fog_nodes[creator_id]
-
-            if creator is None:
-                print(f"Creator with id {creator_id} not found.")
-            else:
-                for task in creator_tasks:
-                    task.creator = creator
-                    tasks[creator_id].append(task)
-        return tasks
-
-    def execute_tasks_for_one_step(self):
-        executed_tasks: List[Task] = []
-        merged_nodes: Dict[str, NodeABC] = {
-            **self.mobile_fog_nodes,
-            **self.user_nodes,
-            **self.fixed_fog_nodes,
-            self.cloud_node.id: self.cloud_node,
-        }
-        for node_id, node in merged_nodes.items():
-            tasks = node.execute_tasks(self.clock.get_current_time(), self.fixed_fog_nodes)
-            executed_tasks.extend(tasks)
-            for task in tasks:
-                zone_manager = self.task_zone_managers.get(task.id)
-                if zone_manager:
-                    zone_manager.update(current_task=task)
-                    all_fog_nodes = {**zone_manager.fixed_fog_nodes, **zone_manager.mobile_fog_nodes}
-                    loads = [len(node.tasks) for node in all_fog_nodes.values() if node.can_offload_task(task)]
-                    if loads:
-                        min_load = min(loads)
-                        max_load = max(loads)
-                        self.metrics.inc_task_load_diff(task.id, min_load, max_load)
-
-                if isinstance(task.executor, (FixedFogNode, MobileFogNode)):
-                    self.metrics.inc_fog_execution()
-                elif task.creator.id == task.executor.id:
-                    self.metrics.inc_local_execution()
-                elif isinstance(task.executor, CloudNode):
-                    self.metrics.inc_cloud_tasks()
-
-                if task.is_deadline_missed:
-                    # print(blue_bg(
-                    #     f"{task.id}: release_time:{task.release_time}, deadline:{task.deadline}, exec_time:{task.exec_time}, finish_time:{task.finish_time}, {task.executor.id}, {task.dataSize}, diff:{task.finish_time - task.deadline}"))
-                    missed_info = {
-                        'task_id': task.id,
-                        'release_time': task.release_time,
-                        'deadline': task.deadline,
-                        'exec_time': task.exec_time,
-                        'finish_time': task.finish_time,
-                        'executor_id': task.executor.id,
-                        'data_size': task.dataSize,
-                        'deadline_diff': task.finish_time - task.deadline
-                    }
-                    self.missed_deadline_data.append(missed_info)
-                    self.metrics.inc_deadline_miss()
-                else:
-                    success_task_info = {
-                        'task_id': task.id,
-                        'release_time': task.release_time,
-                        'deadline': task.deadline,
-                        'exec_time': task.exec_time,
-                        'finish_time': task.finish_time,
-                        'executor_id': task.executor.id,
-                        'data_size': task.dataSize,
-                        'deadline_diff': task.finish_time - task.deadline
-                    }
-                    self.success_deadline_data.append(success_task_info)
-                    self.metrics.inc_completed_task()
-
-    def update_graph(self):
-        self.clock.tick()
-        self.update_user_nodes_coordinate()
-        self.update_mobile_fog_nodes_coordinate()
-
-    def offload_to_cloud(self, task: Task, current_time: float, partitions, cloud_node):
-        if self.cloud_node.can_offload_task(task):
-            attenuationList = []
-            intersecting_partitions = UtilsFunc().find_line_intersections(
-                (task.creator.x, task.creator.y),
-                (self.cloud_node.x, self.cloud_node.y),
-                partitions
-            )
-            attenuation = self.calcAttForCloud(task, intersecting_partitions)
-            attenuationList.append((None, cloud_node, attenuation, None))
-
-            finalChoiceToOffload, plr = FinalChoiceByAttenuationNoise().makeFinalChoice(attenuationList,
-                                                                                        task,
-                                                                                        partitions,
-                                                                                        Config.NoiseMethod.DEFAULT_METHOD)
-
-            packetLossRandomNumber = random.randint(0, 100)
-
-            if finalChoiceToOffload:
-                chosen_zone_manager, chosen_executor, _, _ = finalChoiceToOffload
-
-                if packetLossRandomNumber < plr:
-                    self.metrics.inc_packet_loss()
+                if packet_loss_occurred:
                     if task in chosen_executor.tasks:
                         chosen_executor.tasks.remove(task)
+
                     timeout_time = current_time + Config.SimulatorConfig.TIMEOUT_TIME
                     self.schedule_retransmission(task, timeout_time)
-                else:
-                    self.task_zone_managers[task.id] = chosen_zone_manager
-                    # self.metrics.inc_node_tasks(chosen_executor.id)
-                    self.cloud_node.assign_task(task, current_time)
             else:
+                self.process_task_feedback(
+                    task=task,
+                    is_success=False,
+                    offload_decision=False,
+                    # executor_type=executor_type,
+                    current_time=current_time
+                )
                 self.metrics.inc_no_device_found_to_run_becauseOf_Noise()
                 timeout_time = current_time + 1
                 self.schedule_retransmission(task, timeout_time)
         else:
-            self.schedule_retransmission(task, 1)
-
-    def assign_mobile_nodes_to_zones(
-            self,
-            mobile_nodes: dict[str, MobileNodeABC],
-            layer: Layer
-    ) -> Dict[str, List[ZoneManagerABC]]:
-        nodes_possible_zones: Dict[str, List[ZoneManagerABC]] = defaultdict(list)
-        for z_id, zone_manager in self.zone_managers.items():
-            nodes: List[MobileNodeABC] = []
-            for n_id, mobile_node in mobile_nodes.items():
-                if zone_manager.zone.is_in_coverage(mobile_node.x, mobile_node.y):
-                    nodes.append(mobile_node)
-                    nodes_possible_zones[n_id].append(zone_manager)
-            if layer == Layer.FOG:
-                zone_manager.set_mobile_fog_nodes(nodes)
-        return nodes_possible_zones
-
-    def update_mobile_fog_nodes_coordinate(self) -> None:
-        new_nodes_data = self.loader.load_mobile_fog_nodes(self.clock.get_current_time())
-        self.mobile_fog_nodes = self.update_nodes_coordinate(self.mobile_fog_nodes, new_nodes_data)
-
-    def update_user_nodes_coordinate(self) -> None:
-        new_nodes_data = self.loader.load_user_nodes(self.clock.get_current_time())
-        self.user_nodes = self.update_nodes_coordinate(self.user_nodes, new_nodes_data)
-
-    @staticmethod
-    def update_nodes_coordinate(old_nodes: dict[str, MobileNodeABC], new_nodes: dict[str, MobileNodeABC]):
-        data: Dict[str, MobileNodeABC] = {}
-        for n_id, new_node in new_nodes.items():
-            if n_id not in old_nodes:
-                node = new_node
+            if task.creator.can_offload_task(task):
+                task.creator.assign_task(task, current_time)
             else:
-                node = old_nodes[n_id]
-                node.x = new_node.x
-                node.y = new_node.y
-                node.angle = new_node.angle
-                node.speed = new_node.speed
-            data[n_id] = node
-        return data
-
-    def drop_not_completed_tasks(self) -> List[Task]:
-        left_tasks: list[Task] = []
-        merged_nodes: Dict[str, NodeABC] = {
-            **self.mobile_fog_nodes,
-            **self.user_nodes,
-            self.cloud_node.id: self.cloud_node,
-        }
-
-        for node_id, node in merged_nodes.items():
-            left_tasks.extend(node.tasks)
-            for i in range(len(node.tasks)):
-                self.metrics.inc_deadline_miss()
-        return left_tasks
-
-    def save_missed_deadlines_to_excel(self, filename: str = "missed_deadlines.xlsx"):
-
-        output_dir = "Results"
-        if not os.path.exists(output_dir):
-            os.makedirs(output_dir)
-            print(f"Directory '{output_dir}' created.")
-        full_path = os.path.join(output_dir, filename)
-
-        df = pd.DataFrame(self.missed_deadline_data)
-        try:
-            df.to_excel(full_path, index=False)
-            print(green_bg(f"Successfully saved missed deadline data to {filename}"))
-        except Exception as e:
-            print(red_bg(f"Error saving to Excel file: {e}"))
-
-    def save_success_deadlines_to_excel(self, filename: str = "success_deadlines.xlsx"):
-        output_dir = "Results_Success"
-        if not os.path.exists(output_dir):
-            os.makedirs(output_dir)
-            print(f"Directory '{output_dir}' created.")
-        full_path = os.path.join(output_dir, filename)
-
-        df = pd.DataFrame(self.success_deadline_data)
-
-        try:
-            df.to_excel(full_path, index=False)
-            print(green_bg(f"Successfully saved success deadline data to {filename}"))
-        except Exception as e:
-            print(red_bg(f"Error saving to Excel file: {e}"))
+                self.offload_to_cloud(task, current_time, partitions, self.cloud_node)

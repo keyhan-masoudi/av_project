@@ -23,40 +23,10 @@ class FinalChoiceByAttenuationNoise:
 
     def makeFinalChoice(self, attenuationList, task, partitions, method):
         if len(attenuationList) > 0:
-            if method == Config.NoiseMethod.PROPOSED_METHOD:
-                # check if all values are 0 offload it locally
-                if self.areAttenuationsZero(attenuationList):
-                    task.SNR = 0
-                    return attenuationList[0], 0
-                choiceByCheckingNoise = self.checkThreshold(attenuationList, task, partitions, considerDistance=False)
-                # if choiceByCheckingNoise[0]:
-                #     print(red_bg(f"choiceByCheckingNoise: {choiceByCheckingNoise[0][1].id, choiceByCheckingNoise[1]}"))
-                # else:
-                #     print(red_bg(f"choiceByCheckingNoise: {choiceByCheckingNoise[0], choiceByCheckingNoise[1]}"))
-                return choiceByCheckingNoise
-
-            elif method == Config.NoiseMethod.PROPOSED_METHOD2:
-                if self.areAttenuationsZero(attenuationList):
-                    task.SNR = 0
-                    return attenuationList[0], 0
-                choiceByCheckingNoise = self.checkThreshold(attenuationList, task, partitions, considerDistance=True)
-                # print(red_bg(self.checkThreshold(attenuationList, task, partitions)))
-                return choiceByCheckingNoise
-
-            elif method == Config.NoiseMethod.PROPOSED_METHOD3:
-                if self.areAttenuationsZero(attenuationList):
-                    task.SNR = 0
-                    return attenuationList[0], 0
-                choiceByCheckingNoise = self.checkThreshold2(attenuationList, task, partitions)
-                # print(red_bg(self.checkThreshold(attenuationList, task, partitions)))
-                return choiceByCheckingNoise
-
+            if method == Config.NoiseMethod.FIRST_CHOICE:
+                return self.firstChoiceMethod(attenuationList, task, partitions)
             elif method == Config.NoiseMethod.RANDOM_CHOICE:
                 return self.randomMethod(attenuationList, task, partitions)
-
-            elif method == Config.NoiseMethod.FIRST_CHOICE:
-                return self.firstChoiceMethod(attenuationList, task, partitions)
-
             elif method == Config.NoiseMethod.MIN_DISTANCE:
                 return self.minDistanceMethod(attenuationList, task, partitions)
 

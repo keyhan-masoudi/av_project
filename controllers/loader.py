@@ -4,7 +4,7 @@ from typing import Type
 from NoiseConfigs.utilsFunctions import UtilsFunc
 from controllers.zone_managers.base import ZoneManagerABC
 from controllers.zone_managers.heuristic import HeuristicZoneManager
-from controllers.zone_managers.heuristic2 import HeuristicZoneManager2
+# from controllers.zone_managers.heuristic2 import HeuristicZoneManager2
 from controllers.zone_managers.random import RandomZoneManager
 # from controllers.zone_managers.hrl import HRLZoneManager
 from controllers.zone_managers.only_cloud import OnlyCloudZoneManager
@@ -22,11 +22,9 @@ class Loader:
     ALGORITHM_MAP: Dict[str, Type[ZoneManagerABC]] = {
         Config.ZoneManagerConfig.ALGORITHM_RANDOM: RandomZoneManager,
         Config.ZoneManagerConfig.ALGORITHM_HEURISTIC: HeuristicZoneManager,
-        # Config.ZoneManagerConfig.ALGORITHM_HRL: HRLZoneManager,
         Config.ZoneManagerConfig.ALGORITHM_ONLY_CLOUD: OnlyCloudZoneManager,
         Config.ZoneManagerConfig.ALGORITHM_ONLY_FOG: OnlyFogZoneManager,
         Config.ZoneManagerConfig.ALGORITHM_DEEP_RL: DeepRLZoneManager,
-        Config.ZoneManagerConfig.ALGORITHM_HEURISTIC2: HeuristicZoneManager2,
         Config.ZoneManagerConfig.ALGORITHM_MADDPG: DeepRLZoneManagerMADDGP,
         Config.ZoneManagerConfig.ALGORITHM_DDPG: DeepRLZoneManager_DDPG,
         Config.ZoneManagerConfig.ALGORITHM_PPO: DeepRLZoneManagerPPO,

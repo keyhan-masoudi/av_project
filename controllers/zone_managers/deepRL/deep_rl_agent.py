@@ -54,37 +54,25 @@ class DeepRLAgent:
         self.optimizer = optim.Adam(self.model.parameters(), lr=lr)
         self.criterion = nn.MSELoss()
 
-    def select_action(self, state, valid_actions_mask):
+    def select_action(self, state, mask=None):
         """
-        Select an action using ε-greedy strategy with action masking.
-
-        :param state: The current environment state
-        :param valid_actions_mask: A boolean array (e.g., [True, True, True, False])
-                                   indicating which actions are valid.
+        Select an action using ε-greedy strategy.
         """
-        # 1. Find the indices of valid actions
-        # e.g., [True, True, True, False] -> [0, 1, 2]
-        valid_action_indices = np.where(valid_actions_mask)[0]
-
-        # 2. Exploration: Pick a random action *only from the valid ones*
         if random.random() < self.epsilon:
-            return random.choice(valid_action_indices)
+            if mask is not None:
+                mask_np = np.array(mask)
+                valid_actions = np.where(mask_np == 1.0)[0]
+                if len(valid_actions) > 0:
+                    return np.random.choice(valid_actions).item()
+            return random.randint(0, self.action_dim - 1)
 
-        # 3. Exploitation: Use the mask to ignore invalid Q-values
         state_tensor = torch.FloatTensor(state).unsqueeze(0).to(self.device)
         with torch.no_grad():
             q_values = self.model(state_tensor)
-
-            # --- START OF MASKING LOGIC ---
-            # Create a tensor from the boolean mask
-            mask_tensor = torch.BoolTensor(valid_actions_mask).unsqueeze(0).to(self.device)
-
-            # Where the mask is False (invalid), set Q-value to negative infinity
-            # This ensures argmax will *never* pick an invalid action.
-            masked_q_values = q_values.masked_fill(~mask_tensor, -float('inf'))
-            # --- END OF MASKING LOGIC ---
-
-        return torch.argmax(masked_q_values).item()
+            if mask is not None:
+                mask_tensor = torch.FloatTensor(mask).to(self.device)
+                q_values = q_values.masked_fill(mask_tensor == 0, -1e9)
+        return torch.argmax(q_values).item()  # Exploit
 
     def store_experience(self, state, action, reward, next_state, done):
         """

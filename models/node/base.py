@@ -35,7 +35,7 @@ def findExecTimeInEachKindOfNode(task, executor=None):
     taskExecutor = task.executor
     if executor:
         taskExecutor = executor
-    # todo: add critical local
+    # todo: remove critical local
     if isinstance(taskExecutor, UserNode):
         # print("UserNode()")
         return task.real_exec_time(executor=taskExecutor)
@@ -203,7 +203,7 @@ class NodeABC(ModelBaseABC, abc.ABC):
                     closest_fn = find_closest_fn(task.creator.x, task.creator.y, fixed_fog_nodes, task.power)
                     dataRate = findDataRate(task, task.executor, closest_fn)
 
-                    if closest_fn.x == 4214.90 and closest_fn.y == 1932.26:
+                    if closest_fn.x == Config.CloudConfig.CLOSEST_FOG_X and closest_fn.y == Config.CloudConfig.CLOSEST_FOG_Y:
                         real_exec_time += (task.dataSize / dataRate) + (
                                 task.dataSize / Config.CloudConfig.CLOUD_BANDWIDTH)
                         # print(blue_bg(f"executor: {task.executor.id}::: delay: {(task.dataSize / dataRate) + (task.dataSize / Config.CloudConfig.CLOUD_BANDWIDTH)}, dataRate: {dataRate}"))

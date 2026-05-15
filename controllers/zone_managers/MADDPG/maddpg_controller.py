@@ -44,12 +44,16 @@ class MADDPGController:
                                      field_names=["global_states", "global_actions", "rewards", "global_next_states",
                                                   "dones"])
 
-    def select_actions(self, states):
+    def select_actions(self, states, masks=None):
         actions = []
         for i, state in enumerate(states):
             state_tensor = torch.FloatTensor(state).unsqueeze(0).to(self.device)
+            mask_tensor = None
+            if masks is not None:
+                mask_tensor = torch.FloatTensor(masks[i]).unsqueeze(0).to(self.device)
+
             with torch.no_grad():
-                action_probs = self.agents_actors[i](state_tensor)
+                action_probs = self.agents_actors[i](state_tensor, mask=mask_tensor)
 
             if random.random() < self.exploration_noise:
                 action = torch.distributions.Categorical(action_probs).sample()

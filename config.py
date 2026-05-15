@@ -1,9 +1,32 @@
 class Config:
-    CHUNK_SIZE = 1200
+    CHUNK_SIZE = 1300
     NEGATIVE_REWARD = -10
 
+    class City:
+        MELBOURNE = "Melbourne"
+        HAMBURG = "Hamburg"
+
+        MAX_X_MEL = 2200
+        MAX_Y_MEL = 1600
+
+        DEFAULT_CITY = MELBOURNE
+
+    class Directory:
+        ZON_HAM = "./data/hamburg.zon.xml"
+        FN_HAM = "./data/hamburg.fn.xml"
+        ZON_MEL = "./data/melbourne.zon.xml"
+        FN_MEL = "./data/melbourne.fn.xml"
+
+        DEFAULT_ZON = ZON_HAM
+        DEFAULT_FN = FN_HAM
+
+    class Paths:
+        NoiseConfigsPath = "D:/av_project/NoiseConfigs"
+        pklPath = r"D:\av_project\SumoDividedByTime"
+
     class SimulatorConfig:
-        SIMULATION_DURATION = 1200
+        SIMULATION_START_TIME = 300
+        SIMULATION_DURATION = 1300
         TIMEOUT_TIME = 2
         BANDWIDTH = 150
 
@@ -17,6 +40,8 @@ class Config:
         DEFAULT_COMPUTATION_POWER = 3500
         CLOUD_NODE_FREQUENCY = 5
         POWER_LIMIT = 0.99
+        CLOSEST_FOG_X = 4214.90
+        CLOSEST_FOG_Y = 1932.26
 
     class FixedFogNodeConfig:
         # todo: add number of core
@@ -56,7 +81,7 @@ class Config:
         ALGORITHM_ONLY_CLOUD = "Only Cloud"
         ALGORITHM_ONLY_FOG = "Only Fog"
         ALGORITHM_DEEP_RL = "DeepRL"
-        ALGORITHM_HEURISTIC2 = "Heuristic2"
+        # ALGORITHM_HEURISTIC2 = "Heuristic2"
         ALGORITHM_MADDPG = "MADDPG"
         ALGORITHM_DDPG = "DDPG"
         ALGORITHM_PPO = "PPO"
@@ -65,9 +90,9 @@ class Config:
         DEFAULT_ALGORITHM = ALGORITHM_RANDOM
 
     class NoiseMethod:
-        PROPOSED_METHOD = "Proposed Method"
-        PROPOSED_METHOD2 = "Proposed Method2"
-        PROPOSED_METHOD3 = "Proposed Method3"
+        # PROPOSED_METHOD = "Proposed Method"
+        # PROPOSED_METHOD2 = "Proposed Method2"
+        # PROPOSED_METHOD3 = "Proposed Method3"
         FIRST_CHOICE = "First Choice"
         RANDOM_CHOICE = "Random Choice"
         MIN_DISTANCE = "Min Distance"
@@ -81,17 +106,17 @@ class Config:
         TX: float = 27
         RX: float = -5
 
-    class TaskConfig:
+    # class TaskConfig:
         # note: PACKET_COST_PER_METER = 0.001
-        PACKET_COST_PER_METER = 0.001
+        # PACKET_COST_PER_METER = 0.001
         # PACKET_COST_PER_METER = 0.005
 
         # note: TASK_COST_PER_METER = 0.005
         # TASK_COST_PER_METER = 0.01
-        TASK_COST_PER_METER = 0.005
-
-        MIGRATION_OVERHEAD = 0.01
-        CLOUD_PROCESSING_OVERHEAD = 0.5
+        # TASK_COST_PER_METER = 0.005
+        #
+        # MIGRATION_OVERHEAD = 0.01
+        # CLOUD_PROCESSING_OVERHEAD = 0.5
 
     class NoiseConfig:
         T1 = 25
