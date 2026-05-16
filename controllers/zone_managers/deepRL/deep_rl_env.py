@@ -27,17 +27,17 @@ def get_vehicle_position(csv_file, target_id):
     return None, None
 
 
-def checkMigration(executor, task, finishTime):
-    finishTime = math.floor(finishTime)
-    if finishTime > 1200:
-        return False
-    fileName = f"E:\pythonProject\VANET\SumoDividedByTime\Outputs2\dataInTime{int(finishTime)}.csv"
-    creatorX, creatorY = get_vehicle_position(fileName, task.creator_id)
-    if (creatorX is None) or (creatorY is None):
-        return True
-    if executor.radius > np.sqrt((creatorX - executor.x) ** 2 + (creatorY - executor.y) ** 2):
-        return False
-    return True
+# def checkMigration(executor, task, finishTime):
+#     finishTime = math.floor(finishTime)
+#     if finishTime > 1200:
+#         return False
+#     fileName = f"E:\pythonProject\VANET\SumoDividedByTime\Outputs2\dataInTime{int(finishTime)}.csv"
+#     creatorX, creatorY = get_vehicle_position(fileName, task.creator_id)
+#     if (creatorX is None) or (creatorY is None):
+#         return True
+#     if executor.radius > np.sqrt((creatorX - executor.x) ** 2 + (creatorY - executor.y) ** 2):
+#         return False
+#     return True
 
 
 def calculate_distance(x1, y1, x2, y2):

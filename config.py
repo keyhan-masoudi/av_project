@@ -1,6 +1,7 @@
 class Config:
-    CHUNK_SIZE = 1300
+    CHUNK_SIZE = 3600
     NEGATIVE_REWARD = -10
+    HEX_RADIUS = 200
 
     class City:
         MELBOURNE = "Melbourne"

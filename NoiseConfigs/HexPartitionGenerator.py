@@ -1,6 +1,8 @@
 import math
 import random
 from noiseConfigGeneralAttribute import NoiseConfigGeneralAttribute
+from config import Config
+
 
 class CodeGenerator:
     def __init__(self, width, height, radius):
@@ -80,10 +82,11 @@ class Partitions:
 
         return header + "\n".join(classes)
 
+
 # Example usage
 width = 2200
 height = 1600
-radius = 200
+radius = Config.HEX_RADIUS
 generator = CodeGenerator(width, height, radius)
 code = generator.generate_code()
 

@@ -2,7 +2,7 @@
 *.xml
 *.xlsx
 SumoOutputGenerator
-SumoDividedByTime/output/
+SumoDividedByTime/Outputs2/
 share
 Scripts
 Lib

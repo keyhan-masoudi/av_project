@@ -62,56 +62,31 @@ class SimulatorDDPG(Simulator):
 
                 attenuationList.append((zone_manager, candidate_executor, attenuation, continuous_action))
 
-            finalChoiceToOffload, plr = self.noise_controller.makeFinalChoice(attenuationList, task, partitions, Config.NoiseMethod.DEFAULT_METHOD, current_time, self.fixed_fog_nodes)
+            finalChoiceToOffload, plr = self.noise_controller.makeFinalChoice(attenuationList, task, partitions, Config.NoiseMethod.DEFAULT_METHOD)
 
 
             if finalChoiceToOffload:
                 chosen_zone_manager, chosen_executor, _, chosen_continuous_action = finalChoiceToOffload
-                use_bandit, should_offload = self.noise_controller.adaptive_manager.should_use_bandit(plr)
 
                 packet_loss_occurred = False
                 task_will_be_assigned = False
 
-                if not use_bandit and Config.NoiseMethod.DEFAULT_METHOD == Config.NoiseMethod.PROPOSED_METHOD4:
-                    # PLR is 0 or 100 - direct decision without bandit
-                    if plr <= 1.0:
-                        # PLR = 0: Always successful transmission
-                        packet_loss_occurred = False
-                        task_will_be_assigned = True
-                    else:
-                        # PLR = 100: Always packet loss, don't even try
-                        packet_loss_occurred = False
-                        task_will_be_assigned = False
-                        self.metrics.inc_no_device_found_to_run_becauseOf_Noise()
-                        timeout_time = current_time + 1
-                        self.schedule_retransmission(task, timeout_time)
+
+                # 0 < PLR < 100: Use bandit and simulate packet loss
+                packetLossRandomNumber = random.randint(0, 100)
+
+                if packetLossRandomNumber < plr:
+                    # print(green_bg("test"))
+                    # Packet loss occurred
+                    packet_loss_occurred = True
+                    task_will_be_assigned = False
+                    self.metrics.inc_packet_loss()
+                    # print(blue_bg("----------------------------------------------------------------------------"))
+
                 else:
-                    # 0 < PLR < 100: Use bandit and simulate packet loss
-                    packetLossRandomNumber = random.randint(0, 100)
-
-                    if packetLossRandomNumber < plr:
-                        # print(green_bg("test"))
-                        # Packet loss occurred
-                        packet_loss_occurred = True
-                        task_will_be_assigned = False
-                        self.metrics.inc_packet_loss()
-                        # print(blue_bg("----------------------------------------------------------------------------"))
-
-                        # Send failure feedback to bandit
-                        # executor_type = 'cloud' if isinstance(chosen_executor, CloudNode) else 'fog'
-                        self.process_task_feedback(
-                            task=task,
-                            is_success=False,
-                            offload_decision=True,
-                            # executor_type=executor_type,
-                            current_time=current_time,
-                            executor=chosen_executor,
-                            zone_manager=chosen_zone_manager
-                        )
-                    else:
-                        # Successful transmission
-                        packet_loss_occurred = False
-                        task_will_be_assigned = True
+                    # Successful transmission
+                    packet_loss_occurred = False
+                    task_will_be_assigned = True
 
                 if task_will_be_assigned:
                     # Store zone manager reference
@@ -143,18 +118,6 @@ class SimulatorDDPG(Simulator):
                         chosen_executor.assign_task(task, current_time)
                         task_assigned = True
 
-                    if use_bandit and task_assigned:
-                        # executor_type = 'cloud' if isinstance(chosen_executor, CloudNode) else 'fog'
-                        self.process_task_feedback(
-                            task=task,
-                            is_success=True,
-                            offload_decision=True,
-                            # executor_type=executor_type,
-                            current_time=current_time,
-                            executor=chosen_executor,
-                            zone_manager=chosen_zone_manager
-                        )
-
                 if packet_loss_occurred:
                     if task in chosen_executor.tasks:
                         chosen_executor.tasks.remove(task)
@@ -162,13 +125,6 @@ class SimulatorDDPG(Simulator):
                     timeout_time = current_time + Config.SimulatorConfig.TIMEOUT_TIME
                     self.schedule_retransmission(task, timeout_time)
             else:
-                self.process_task_feedback(
-                    task=task,
-                    is_success=False,
-                    offload_decision=False,
-                    # executor_type=executor_type,
-                    current_time=current_time
-                )
                 self.metrics.inc_no_device_found_to_run_becauseOf_Noise()
                 timeout_time = current_time + 1
                 self.schedule_retransmission(task, timeout_time)
