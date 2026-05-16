@@ -9,16 +9,14 @@ class CloudNode(NodeABC):
     power = Config.CloudConfig.DEFAULT_COMPUTATION_POWER
     remaining_power = Config.CloudConfig.DEFAULT_COMPUTATION_POWER
 
-
     @property
     def max_tasks_queue_len(self) -> int:
         return Config.CloudConfig.MAX_TASK_QUEUE_LEN
 
     @property
-    def used_power_limit(self) -> float:
-        return Config.CloudConfig.POWER_LIMIT
+    def num_cores(self) -> int:
+        return Config.CloudConfig.NUM_CORE
 
     @property
     def layer(self) -> Layer:
         return Layer.CLOUD
-

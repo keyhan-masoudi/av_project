@@ -15,5 +15,5 @@ class UserNode(MobileNodeABC):
         return Layer.USER
 
     @property
-    def used_power_limit(self) -> float:
-        return Config.UserNodeConfig.POWER_LIMIT
+    def num_cores(self) -> int:
+        return Config.UserNodeConfig.NUM_CORE

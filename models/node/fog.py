@@ -33,8 +33,8 @@ class FixedFogNode(FogLayerABC):
         return Config.FixedFogNodeConfig.MAX_TASK_QUEUE_LEN
 
     @property
-    def used_power_limit(self) -> float:
-        return Config.FixedFogNodeConfig.POWER_LIMIT
+    def num_cores(self) -> int:
+        return Config.FixedFogNodeConfig.NUM_CORE
 
 
 class MobileFogNode(FogLayerABC, MobileNodeABC):
@@ -49,5 +49,6 @@ class MobileFogNode(FogLayerABC, MobileNodeABC):
         return Config.MobileFogNodeConfig.MAX_TASK_QUEUE_LEN
 
     @property
-    def used_power_limit(self) -> float:
-        return Config.MobileFogNodeConfig.POWER_LIMIT
+    def num_cores(self) -> int:
+        return Config.MobileFogNodeConfig.NUM_CORE
+

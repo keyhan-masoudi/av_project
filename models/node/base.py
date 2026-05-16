@@ -197,7 +197,7 @@ class NodeABC(ModelBaseABC, abc.ABC):
                     dataRate = findDataRate(task, task.executor, 0)
 
                     real_exec_time += task.dataSize / dataRate
-                    # print(blue_bg(f"executor: {task.executor.id}::: delay: {task.dataSize / dataRate}, dataRate: {dataRate}"))
+                    # print(blue_bg(f"executor: {task.executor.id}:::{task.id} delay: {task.dataSize / dataRate}, dataRate: {dataRate}"))
                 elif self.layer == Layer.CLOUD:
 
                     closest_fn = find_closest_fn(task.creator.x, task.creator.y, fixed_fog_nodes, task.power)
@@ -210,7 +210,7 @@ class NodeABC(ModelBaseABC, abc.ABC):
                     else:
                         real_exec_time += (task.dataSize / dataRate) + 2 * (
                                 task.dataSize / Config.CloudConfig.CLOUD_BANDWIDTH)
-                        # print(blue_bg(f"executor: {task.executor.id}::: firstStepDelay: {(task.dataSize / dataRate)}, delay: {(task.dataSize / dataRate) + 2 * (task.dataSize / Config.CloudConfig.CLOUD_BANDWIDTH)}, dataRate: {dataRate}"))
+                        # print(blue_bg(f"executor: {task.executor.id}:::{task.id} firstStepDelay: {(task.dataSize / dataRate)}, delay: {(task.dataSize / dataRate) + 2 * (task.dataSize / Config.CloudConfig.CLOUD_BANDWIDTH)}, dataRate: {dataRate}"))
 
                         # real_exec_time += Config.TaskConfig.CLOUD_PROCESSING_OVERHEAD
 
@@ -244,8 +244,8 @@ class NodeABC(ModelBaseABC, abc.ABC):
 
     @property
     @abc.abstractmethod
-    def used_power_limit(self) -> float:
-        """The maximum power that the node can use to execute its tasks."""
+    def num_cores(self) -> int:
+        """The number of processing cores available in this node."""
         raise NotImplementedError
 
 
@@ -294,8 +294,8 @@ class CriticalUserNode(NodeABC):
         return Layer.CriticalUser
 
     @property
-    def used_power_limit(self) -> float:
-        return Config.CriticalUserNodeConfig.POWER_LIMIT
+    def num_cores(self) -> int:
+        return Config.CriticalUserNodeConfig.NUM_CORE
 
 @dataclass
 class MobileNodeABC(NodeABC, abc.ABC):
@@ -306,6 +306,7 @@ class MobileNodeABC(NodeABC, abc.ABC):
 
     speed: float = 0
     angle: float = 0
+    weather: str = ""
 
     # This will hold the internal critical processor
     critical_processor: CriticalUserNode = field(init=False)
