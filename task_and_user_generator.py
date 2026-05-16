@@ -11,7 +11,7 @@ import matplotlib.pyplot as plt
 
 
 class Config:
-    CHUNK_SIZE = 1300  # Chunk size in seconds
+    CHUNK_SIZE = 3600  # Chunk size in seconds
 
     class TaskConfig:
         # MIN_EXEC_TIME: float = 12.5  # Slightly increased execution times
@@ -56,6 +56,7 @@ class Vehicle:
     type: str
     lane: str
     frequency: float
+    weather: float
 
 
 @dataclass
@@ -113,6 +114,7 @@ class Generator:
                 v_elem.set('type', vehicle.type)
                 v_elem.set('power', f"{vehicle.power:.2f}")
                 v_elem.set('frequency', f"{vehicle.frequency:.2f}")
+                v_elem.set('weather', f"{vehicle.weather}")
 
         xml_str = minidom.parseString(Et.tostring(root)).toprettyxml(indent="    ")
         with open(f"./data/vehicles/chunk_{self.current_chunk}.xml", 'w', encoding='utf-8') as f:
@@ -218,6 +220,7 @@ class Generator:
                 speed=float(vehicle.get('speed')),
                 lane=vehicle.get('lane'),
                 type=vehicle.get('type'),
+                weather=1,
             )
 
             if v_id in seen_ids_power:
