@@ -99,6 +99,7 @@ class MobileNodeSumoXMLParser(SumoXMLParserABC):
                     remaining_power=float(vehicle.get('power')),
                     radius=float(vehicle.get('radius', Config.MobileFogNodeConfig.DEFAULT_RADIUS)),
                     frequency=float(vehicle.get('frequency')),
+                    weather=float(vehicle.get('weather'))
                 )
                 if vehicle.get('type') == "LKW_special":  # Mobile Fog Nodes
                     parsed_data["power"] = Config.MobileFogNodeConfig.DEFAULT_COMPUTATION_POWER
