@@ -18,6 +18,7 @@ class Task(ModelBaseABC):
     creator_id: str  # Thd id of the node who created the task.
     dataSize: float
     cycles_per_bit: float
+    remaining_time: float
 
     start_time: float = 0  # The time that this task was offloaded to a node (either local or external).
     finish_time: float = 0  # The time that this task was finished in the offloaded node.
@@ -29,7 +30,6 @@ class Task(ModelBaseABC):
 
     def real_exec_time(self, executor=None) -> float:
         # print(f"self.executor : {self.executor}\nexecutor : {executor}")
-        # todo: change this part
         taskExecutor = self.executor
         if taskExecutor is None:
             taskExecutor = executor
