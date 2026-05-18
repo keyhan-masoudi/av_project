@@ -1,3 +1,4 @@
+import glob
 import random
 from collections import defaultdict
 from typing import Dict, List
@@ -78,6 +79,7 @@ class Simulator:
         self.missed_deadline_data: List[Dict] = []
         self.success_deadline_data: List[Dict] = []
         self.traffic_cache: Dict[int, any] = {}
+        self.traffic_predictions = defaultdict(dict)
         self.noise_controller = FinalChoiceByAttenuationNoise()
 
     def init_simulation(self):
@@ -87,6 +89,10 @@ class Simulator:
         self.assign_fixed_nodes()
         self.update_mobile_fog_nodes_coordinate()
         self.update_user_nodes_coordinate()
+        # check this line, i think there is no need for this attribute
+        # self.historical_traffic_features.clear()
+        self.traffic_predictions.clear()
+        self.load_all_predictions_from_csv("DATA/prediction_data")
         # For zone managers that use deep RL, the simulator reference is set.
         for zm in self.zone_managers.values():
             if hasattr(zm, "set_simulator"):
@@ -194,6 +200,7 @@ class Simulator:
                 if packetLossRandomNumber < plr:
                     self.metrics.inc_packet_loss()
                     # print(blue_bg("----------------------------------------------------------------------------"))
+                    # print(blue_bg(f"task{task.id}: exec:{chosen_executor.id}, plr:{plr}"))
                     if task in chosen_executor.tasks:
                         chosen_executor.tasks.remove(task)
 
@@ -283,6 +290,42 @@ class Simulator:
                 new_rain_status_str = random.choice(allowed_options)
                 p.rainStatus = eval(new_rain_status_str)
 
+    def load_all_predictions_from_csv(self, directory_path: str):
+        """
+        Scans a directory for prediction CSVs and loads them all into memory.
+        This is called once at the start of the simulation.
+        """
+        print(f"--- Pre-loading all predictions from '{directory_path}' ---")
+
+        # Find all prediction files in the specified directory
+        csv_files = glob.glob(os.path.join(directory_path, "prediction_output_*.csv"))
+
+        if not csv_files:
+            print(f"Warning: No prediction files found in '{directory_path}'.")
+            print("Traffic prediction will be unavailable.")
+            return
+
+        total_rows = 0
+        for f_path in csv_files:
+            try:
+                # Read the CSV file
+                df = pd.read_csv(f_path)
+                # Iterate over its rows and store them in our dictionary
+                for row in df.itertuples():
+                    # Assumes CSV columns are 'time', 'hex_id', and 'label'
+                    self.traffic_predictions[row.time][row.hex_id] = row.label
+                    total_rows += 1
+            except Exception as e:
+                print(f"Error loading prediction file {f_path}: {e}")
+
+        if total_rows > 0:
+            min_t = min(self.traffic_predictions.keys())
+            max_t = max(self.traffic_predictions.keys())
+            print(f"Successfully loaded {total_rows} prediction rows from {len(csv_files)} files.")
+            print(f"Pre-loaded data covers timesteps from {min_t} to {max_t}.")
+        else:
+            print("Warning: No data was loaded from prediction files.")
+
     def load_cached_traffic(self):
         pkl_dest_dir = Config.Paths.pklPath
         pkl_filename = "traffic_processed_data.pkl"
@@ -308,6 +351,9 @@ class Simulator:
         partitions = UtilsFunc.load_partitions("generated_hex_partitions")
         neighbors_map = UtilsFunc.find_neighbors(partitions)
 
+        PREDICTION_UPDATE_INTERVAL = 10
+        PREDICTOR_Y_NEEDED = 12
+
         self.load_cached_traffic()
 
         while (current_time := self.clock.get_current_time()) < Config.SimulatorConfig.SIMULATION_DURATION:
@@ -323,6 +369,11 @@ class Simulator:
                 if p_name in cached_data_str_keys:
                     traffic_data[p] = cached_data_str_keys[p_name]
             # print(f"traffic_data:{traffic_data}")
+
+            # --- 2. Store Current Features for Predictor History ---
+            # --- 4. Clean up old predictions ---
+            keys_to_delete = [t for t in self.traffic_predictions if t < current_time]
+            for t in keys_to_delete: del self.traffic_predictions[t]
 
             # todo: change this section
             if int(self.clock.get_current_time()) % 5 == 0:
@@ -415,7 +466,7 @@ class Simulator:
                         min_load = min(loads)
                         max_load = max(loads)
                         self.metrics.inc_task_load_diff(task.id, min_load, max_load)
-                # check local hard tasks
+                # todo: check local hard tasks
                 if isinstance(task.executor, (FixedFogNode, MobileFogNode)):
                     self.metrics.inc_fog_execution()
                 elif task.creator.id == task.executor.id:
