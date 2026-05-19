@@ -1,11 +1,15 @@
+from __future__ import annotations
 from dataclasses import dataclass
+from typing import TYPE_CHECKING
 
 import numpy as np
 
 from config import Config
 from models.base import ModelBaseABC
-from models.node.base import MobileNodeABC, NodeABC
 from utils.enums import Layer
+
+if TYPE_CHECKING:
+    from models.node.base import MobileNodeABC, NodeABC
 
 
 @dataclass
@@ -56,3 +60,10 @@ class Task(ModelBaseABC):
     @property
     def is_completed(self) -> bool:
         return self.finish_time > 0
+
+    def __lt__(self, other):
+        if self.deadline == other.deadline:
+            if self.release_time == other.release_time:
+                return self.dataSize < other.dataSize
+            return self.release_time < other.release_time
+        return self.deadline < other.deadline
