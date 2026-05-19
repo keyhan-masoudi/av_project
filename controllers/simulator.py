@@ -92,7 +92,7 @@ class Simulator:
         # check this line, i think there is no need for this attribute
         # self.historical_traffic_features.clear()
         self.traffic_predictions.clear()
-        self.load_all_predictions_from_csv("DATA/prediction_data")
+        self.load_all_predictions_from_csv("data/prediction_data")
         # For zone managers that use deep RL, the simulator reference is set.
         for zm in self.zone_managers.values():
             if hasattr(zm, "set_simulator"):
@@ -222,13 +222,13 @@ class Simulator:
                             timeout_time = current_time + 1
                             self.schedule_retransmission(task, timeout_time)
                         else:
-                            chosen_executor.assign_task(task, current_time)
+                            chosen_executor.assign_task(task, current_time, self.fixed_fog_nodes)
                             # print(yellow_bg(f"chosen_executor: {chosen_executor.id}"))
 
                         # if reward < 0:
                         #     print(red_bg(f"reward: --- {reward} --- {task.id}, {chosen_executor.id}"))
                     else:
-                        chosen_executor.assign_task(task, current_time)
+                        chosen_executor.assign_task(task, current_time, self.fixed_fog_nodes)
                     # if reward < 0:
                     #     print(chosen_executor.remaining_power)
                     if isinstance(chosen_zone_manager, DeepRLZoneManager):
@@ -249,7 +249,7 @@ class Simulator:
             else:
                 # print(green_bg("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"))
                 if task.creator.can_offload_task(task):
-                    task.creator.assign_task(task, current_time)
+                    task.creator.assign_task(task, current_time, self.fixed_fog_nodes)
                     # self.metrics.inc_local_execution()
                 else:
                     self.offload_to_cloud(task, current_time, partitions, self.cloud_node)
@@ -371,6 +371,7 @@ class Simulator:
             # print(f"traffic_data:{traffic_data}")
 
             # --- 2. Store Current Features for Predictor History ---
+            print(red_bg(self.traffic_predictions))
             # --- 4. Clean up old predictions ---
             keys_to_delete = [t for t in self.traffic_predictions if t < current_time]
             for t in keys_to_delete: del self.traffic_predictions[t]
@@ -403,6 +404,9 @@ class Simulator:
                     zone_manager_offload_task = self.find_zone_manager_offload_task(zone_managers, task, current_time)
                     # print(blue_bg(f"{len(zone_manager_offload_task)}"))
                     self.choose_executor_and_assign(zone_manager_offload_task, task, partitions, current_time)
+
+            target_id = "PKW105"
+            self.print_node_schedule_status(current_time, target_id)
 
             self.update_graph()
             self.execute_tasks_for_one_step()
@@ -545,7 +549,7 @@ class Simulator:
                     self.task_zone_managers[task.id] = chosen_zone_manager
                     # self.metrics.inc_node_tasks(chosen_executor.id)
 
-                    self.cloud_node.assign_task(task, current_time)
+                    self.cloud_node.assign_task(task, current_time, self.fixed_fog_nodes)
 
             else:
                 self.metrics.inc_no_device_found_to_run_becauseOf_Noise()
@@ -640,3 +644,52 @@ class Simulator:
             print(green_bg(f"Successfully saved success deadline data to {filename}"))
         except Exception as e:
             print(red_bg(f"Error saving to Excel file: {e}"))
+
+    def print_node_schedule_status(self, current_time: float, target_node_id: str):
+        """Prints the scheduling status and core loads of a specific node."""
+        merged_nodes = {
+            **self.mobile_fog_nodes,
+            **self.user_nodes,
+            **self.fixed_fog_nodes,
+            self.cloud_node.id: self.cloud_node,
+        }
+
+        node = merged_nodes.get(target_node_id)
+        if not node:
+            return
+
+        print(f"\n{'=' * 65}")
+        print(f"🕒 Time Step: {current_time:.2f} | 🚗 Node ID: {target_node_id}")
+        print(f"{'=' * 65}")
+
+        if not hasattr(node, 'num_cores') or not hasattr(node, 'cores'):
+            print("⚠️ This node does not support multi-core scheduling!")
+            return
+
+        print("🖥️  Core Scheduling Status:")
+        for i in range(node.num_cores):
+            core_heap = node.cores[i]
+            load = node.core_loads[i]
+
+            bar_length = min(int(load * 2), 20)
+            bar = "█" * bar_length + "░" * (20 - bar_length)
+
+            print(f"\n  [Core {i}] Load: {load:.2f} |{bar}|")
+
+            if not core_heap:
+                print("      └_ 💤 Core is idle (No tasks in queue).")
+            else:
+                sorted_tasks = sorted(core_heap, key=lambda x: x[0])
+                for idx, (deadline, rel_time, task) in enumerate(sorted_tasks):
+                    print(f"      ├_ Task ID: {task.id} (Creator: {task.creator_id})")
+                    progress = 0
+                    if hasattr(task, 'total_exec_time') and task.total_exec_time > 0:
+                        progress = ((task.total_exec_time - task.remaining_time) / task.total_exec_time) * 100
+
+                    print(
+                        f"      │  ├_ Exec Time: {task.remaining_time:.2f}s remaining of {task.total_exec_time:.2f}s ({progress:.1f}% done)")
+                    print(f"      │  ├_ Release Time: {task.release_time:.2f}")
+                    print(f"      │  ├_ Deadline: {task.deadline:.2f}")
+                    print(f"      │  └_ Assigned Start Time: {task.start_time:.2f}")
+
+        print(f"{'=' * 65}\n")
