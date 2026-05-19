@@ -47,7 +47,6 @@ class Config:
         """Periodic hard tasks HT_1..HT_3 per vehicle (P, S KB range, C range, lambda)."""
         EXEC_TIME_DIVISOR: float = 1e6
         HARD_TASK_POWER: float = 0.0
-        VEHICLE_TYPES: tuple = ("PKW_special",)
 
         # α(TL): traffic impact factor for TL in {1..5}.
         ALPHA_BY_TRAFFIC_LEVEL: dict = {
@@ -129,6 +128,8 @@ class Generator:
         self.current_tasks = []
         self.current_hard_tasks = []
         self.hard_task_counters = defaultdict(int)
+        # Per-vehicle next release step keyed by period; cleared when vehicle leaves.
+        self.hard_task_release_schedule: dict[str, dict[int, float]] = {}
         self.tasks_count_per_step = defaultdict(int)
         self.average_speed_per_step = defaultdict(float)
         self.total_task_power_per_step = defaultdict(float)
@@ -239,25 +240,32 @@ class Generator:
     def _clamp_level(value: float) -> int:
         return max(1, min(5, int(round(value))))
 
+    def _init_hard_task_schedule(self, vehicle_id: str, entry_step: int) -> None:
+        """Start periodic releases when a vehicle enters the simulation."""
+        self.hard_task_release_schedule[vehicle_id] = {
+            task_spec["period"]: float(entry_step)
+            for task_spec in Config.HardTaskConfig.TASKS
+        }
+
     def generate_hard_tasks_for_vehicle(
             self,
             step: int,
             vehicle: Vehicle,
             lane_vehicle_count: int,
     ) -> list[Task]:
-        """Generate periodic hard tasks HT_1..HT_3 released at this step."""
-        if vehicle.type not in Config.HardTaskConfig.VEHICLE_TYPES:
-            return []
+        """Generate periodic hard tasks while the vehicle is present in the system."""
+        if vehicle.id not in self.hard_task_release_schedule:
+            self._init_hard_task_schedule(vehicle.id, step)
 
         traffic_level = self._traffic_level(lane_vehicle_count)
         weather_level = self._clamp_level(vehicle.weather)
         scaling = self._environment_scaling(traffic_level, weather_level)
-        frequency = CNF.Config.CriticalUserNodeConfig.USER_NODE_FREQUENCY
+        schedule = self.hard_task_release_schedule[vehicle.id]
         hard_tasks = []
 
         for task_spec in Config.HardTaskConfig.TASKS:
             period = task_spec["period"]
-            if step % period != 0:
+            if step < schedule[period] - 1e-9:
                 continue
 
             size_baseline = random.uniform(task_spec["size_min"], task_spec["size_max"])
@@ -267,10 +275,11 @@ class Generator:
             cycles_per_bit = round(cycles_baseline * scaling * sensitivity, 2)
             exec_time = (
                 data_size * cycles_per_bit
-            ) / (frequency * Config.HardTaskConfig.EXEC_TIME_DIVISOR)
+            ) / (vehicle.frequency * Config.HardTaskConfig.EXEC_TIME_DIVISOR)
             task_index = self.hard_task_counters[vehicle.id]
             task_id = f"{vehicle.id}_{task_index}"
             self.hard_task_counters[vehicle.id] += 1
+            schedule[period] += period
 
             hard_tasks.append(Task(
                 id=task_id,
@@ -283,6 +292,12 @@ class Generator:
             ))
 
         return hard_tasks
+
+    def _clear_departed_vehicle_schedules(self, present_vehicle_ids: set[str]) -> None:
+        """Drop schedules for vehicles that left so re-entry starts a new periodic cycle."""
+        departed_ids = set(self.hard_task_release_schedule) - present_vehicle_ids
+        for vehicle_id in departed_ids:
+            del self.hard_task_release_schedule[vehicle_id]
 
     def calculate_metrics(self, step: float, vehicles: list[Vehicle], tasks: list[Task]):
         """Calculate metrics for the current timestep."""
@@ -412,6 +427,8 @@ class Generator:
                     lane_counter[vehicle_obj.lane],
                 )
             )
+
+        self._clear_departed_vehicle_schedules({vehicle.id for vehicle in current_vehicles})
 
         # Calculate metrics before saving the chunk.
         self.calculate_metrics(step, current_vehicles, current_tasks)
