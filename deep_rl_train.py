@@ -18,6 +18,7 @@ def train_rl_agent(episodes=500, batch_size=32, update_target_every=10):
         mobile_file="./data/vehicles",
         task_file="./data/tasks",
         checkpoint_path="./checkpoints",
+        hard_task_file="./data/hard_tasks",
     )
 
     cloud = CloudNode(

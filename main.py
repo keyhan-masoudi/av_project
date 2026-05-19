@@ -66,6 +66,7 @@ def run_one(params):
         mobile_file="./data/vehicles",
         task_file="./data/tasks",
         checkpoint_path="./checkpoints",
+        hard_task_file="./data/hard_tasks",
     )
     cloud = CloudNode(
         id="CLOUD0",

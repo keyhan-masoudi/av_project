@@ -1,7 +1,7 @@
 import glob
 import random
 from collections import defaultdict
-from typing import Dict, List
+from typing import Dict, List, Optional
 
 from NoiseConfigs.noiseConfigGeneralAttribute import NoiseConfigGeneralAttribute
 from NoiseConfigs.utilsFunctions import UtilsFunc
@@ -384,26 +384,25 @@ class Simulator:
                 partition.update_traffic_status(traffic_data)
             # self.logTrafficStatus(partitions)
 
-            nodes_tasks = self.load_tasks(current_time)
+            soft_tasks = self.load_soft_tasks(current_time)
+            self.load_hard_tasks(current_time)
             user_possible_zones = self.assign_mobile_nodes_to_zones(self.user_nodes, layer=Layer.USER)
             mobile_possible_zones = self.assign_mobile_nodes_to_zones(self.mobile_fog_nodes, layer=Layer.FOG)
 
             merged_possible_zones: Dict[str, List[ZoneManagerABC]] = {**user_possible_zones, **mobile_possible_zones}
 
-            for creator_id, tasks in nodes_tasks.items():
+            for creator_id, tasks in soft_tasks.items():
                 zone_managers = merged_possible_zones.get(creator_id, [])
-                # print(f"zoneManagers : {zone_managers}")
                 self.retransmission(zone_managers, current_time, partitions)
 
                 for task in tasks:
-                    # todo: log hard tasks and a counter for this
                     self.metrics.inc_total_tasks()
-                    # has_offloaded = False
-                    # todo: separate decision making for Hard and Soft tasks here
-
-                    zone_manager_offload_task = self.find_zone_manager_offload_task(zone_managers, task, current_time)
-                    # print(blue_bg(f"{len(zone_manager_offload_task)}"))
-                    self.choose_executor_and_assign(zone_manager_offload_task, task, partitions, current_time)
+                    zone_manager_offload_task = self.find_zone_manager_offload_task(
+                        zone_managers, task, current_time
+                    )
+                    self.choose_executor_and_assign(
+                        zone_manager_offload_task, task, partitions, current_time
+                    )
 
             target_id = "PKW105"
             self.print_node_schedule_status(current_time, target_id)
@@ -428,24 +427,60 @@ class Simulator:
         self.metrics.save_to_excel(
             f"final_metrics_summary_{Config.ZoneManagerConfig.DEFAULT_ALGORITHM}_{Config.NoiseMethod.DEFAULT_METHOD}_{Config.NoiseConfig.DEFAULT_THRESHOLD}_{Config.TrafficNoise.DEFAULT_TrafficNoiseLevel}_{Config.AttenuationLevel.DEFAULT_AttenuationLevelName}_{Config.City.DEFAULT_CITY}.xlsx")
 
-    def load_tasks(self, current_time: float) -> Dict[str, List[Task]]:
-        # todo: Load Hard tasks here
+    def _resolve_task_creator(self, creator_id: str) -> Optional[MobileNodeABC]:
+        if creator_id in self.user_nodes:
+            return self.user_nodes[creator_id]
+        if creator_id in self.mobile_fog_nodes:
+            return self.mobile_fog_nodes[creator_id]
+        return None
+
+    def load_soft_tasks(self, current_time: float) -> Dict[str, List[Task]]:
+        """Load soft tasks and attach their creators for the offload path."""
         tasks: Dict[str, List[Task]] = defaultdict(list)
         for creator_id, creator_tasks in self.loader.load_nodes_tasks(current_time).items():
-            creator = None
-            if creator_id in self.user_nodes:
-                creator = self.user_nodes[creator_id]
-            elif creator_id in self.mobile_fog_nodes:
-                creator = self.mobile_fog_nodes[creator_id]
-            # assert creator is not None
+            creator = self._resolve_task_creator(creator_id)
             if creator is None:
-                print(f"there is no {creator}\n")
-            else:
-                for task in creator_tasks:
-                    task.creator = creator
-                    tasks[creator_id].append(task)
-
+                print(f"there is no creator for soft task: {creator_id}\n")
+                continue
+            for task in creator_tasks:
+                task.creator = creator
+                tasks[creator_id].append(task)
         return tasks
+
+    def load_hard_tasks(self, current_time: float) -> int:
+        """Load hard tasks into each vehicle's critical processor for local EDF scheduling."""
+        loaded_count = 0
+        for creator_id, creator_tasks in self.loader.load_nodes_hard_tasks(current_time).items():
+            creator = self._resolve_task_creator(creator_id)
+            if creator is None:
+                print(f"there is no creator for hard task: {creator_id}\n")
+                continue
+            for task in creator_tasks:
+                self._assign_hard_task_to_critical_processor(task, creator, current_time)
+                self.metrics.inc_total_tasks()
+                loaded_count += 1
+        return loaded_count
+
+    @staticmethod
+    def _assign_hard_task_to_critical_processor(
+            task: Task,
+            creator: MobileNodeABC,
+            current_time: float,
+    ) -> None:
+        """Enqueue a pre-generated periodic task on the vehicle's critical processor."""
+        critical = creator.critical_processor
+        task.creator = creator
+        task.creator_id = f"#{critical.id}"
+        task.release_time = current_time
+        task.remaining_time = task.exec_time
+        task.start_time = current_time
+        task.is_hard = True
+        critical.periodic_jobs_active.append(task)
+
+    def load_tasks(self, current_time: float) -> Dict[str, List[Task]]:
+        """Load soft tasks; hard tasks are loaded via load_hard_tasks()."""
+        self.load_hard_tasks(current_time)
+        return self.load_soft_tasks(current_time)
 
     def execute_tasks_for_one_step(self):
         executed_tasks: List[Task] = []
@@ -470,8 +505,9 @@ class Simulator:
                         min_load = min(loads)
                         max_load = max(loads)
                         self.metrics.inc_task_load_diff(task.id, min_load, max_load)
-                # todo: check local hard tasks
-                if isinstance(task.executor, (FixedFogNode, MobileFogNode)):
+                if task.is_hard:
+                    self.metrics.inc_local_execution()
+                elif isinstance(task.executor, (FixedFogNode, MobileFogNode)):
                     self.metrics.inc_fog_execution()
                 elif task.creator.id == task.executor.id:
                     self.metrics.inc_local_execution()
@@ -597,6 +633,9 @@ class Simulator:
                 node.y = new_node.y
                 node.angle = new_node.angle
                 node.speed = new_node.speed
+                if hasattr(node, "critical_processor"):
+                    node.critical_processor.x = new_node.x
+                    node.critical_processor.y = new_node.y
             data[n_id] = node
         return data
 
@@ -610,8 +649,14 @@ class Simulator:
 
         for node_id, node in merged_nodes.items():
             left_tasks.extend(node.tasks)
-            for i in range(len(node.tasks)):
+            for _ in range(len(node.tasks)):
                 self.metrics.inc_deadline_miss()
+            if hasattr(node, "critical_processor"):
+                critical = node.critical_processor
+                left_tasks.extend(critical.periodic_jobs_active)
+                left_tasks.extend(critical.tasks)
+                for _ in range(len(critical.periodic_jobs_active) + len(critical.tasks)):
+                    self.metrics.inc_deadline_miss()
         return left_tasks
 
     def save_missed_deadlines_to_excel(self, filename: str = "missed_deadlines.xlsx"):
