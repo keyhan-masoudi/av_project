@@ -42,7 +42,7 @@ class Config:
         CLOUD_NODE_FREQUENCY = 5
         CLOSEST_FOG_X = 4214.90
         CLOSEST_FOG_Y = 1932.26
-        NUM_CORE = 10
+        NUM_CORE = 64
 
 
     class FixedFogNodeConfig:
@@ -50,7 +50,7 @@ class Config:
         MAX_TASK_QUEUE_LEN = 400
         DEFAULT_COMPUTATION_POWER = 500
         Fixed_NODE_FREQUENCY = 2
-        NUM_CORE = 4
+        NUM_CORE = 32
 
     class MobileFogNodeConfig:
         # todo: add number of core
@@ -58,7 +58,7 @@ class Config:
         MAX_TASK_QUEUE_LEN = 150
         DEFAULT_COMPUTATION_POWER = 200
         MOBILE_NODE_FREQUENCY = 1.5
-        NUM_CORE = 1
+        NUM_CORE = 24
 
     class UserNodeConfig:
         MAX_TASK_QUEUE_LEN = 10
@@ -66,7 +66,7 @@ class Config:
         USER_NODE_FREQUENCY = 0.5
         LOCAL_OFFLOAD_POWER_OVERHEAD = 1
         LOCAL_EXECUTE_TIME_OVERHEAD = 1
-        NUM_CORE = 1
+        NUM_CORE = 8
 
     class CriticalUserNodeConfig:
         MAX_TASK_QUEUE_LEN = 10
