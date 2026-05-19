@@ -143,7 +143,8 @@ class TaskSumoXMLParser(SumoXMLParserABC):
                         power=float(task.get('power')),
                         creator_id=task.get('creator'),
                         dataSize=float(task.get('dataSize')),
-                        cycles_per_bit=float(task.get('cycles_per_bit'))
+                        cycles_per_bit=float(task.get('cycles_per_bit')),
+                        remaining_time=-1.0
                     )
                 )
             data[step] = tasks
