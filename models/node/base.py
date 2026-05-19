@@ -65,7 +65,7 @@ def findExecTimeInEachKindOfNode(task, executor=None):
         return task.real_exec_time(executor=taskExecutor) / (
                 Config.MobileFogNodeConfig.MOBILE_NODE_FREQUENCY / Config.UserNodeConfig.USER_NODE_FREQUENCY)
     else:
-        print("errrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrorr")
+        print(f"errrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrorr: {taskExecutor}")
         return -1
 
 
@@ -192,6 +192,8 @@ class NodeABC(ModelBaseABC, abc.ABC):
                     return (task.dataSize / dataRate) + 2 * (
                             task.dataSize / Config.CloudConfig.CLOUD_BANDWIDTH)
                     # print(blue_bg(f"executor: {task.executor.id}:::{task.id} firstStepDelay: {(task.dataSize / dataRate)}, delay: {(task.dataSize / dataRate) + 2 * (task.dataSize / Config.CloudConfig.CLOUD_BANDWIDTH)}, dataRate: {dataRate}"))
+        else:
+            return 0.0
 
     def assign_task(self, task, current_time: float, fixed_fog_nodes) -> None:
         """Offload a task in the current node."""
@@ -200,9 +202,9 @@ class NodeABC(ModelBaseABC, abc.ABC):
         # 1. Initialize task execution parameters
         # Calculate the TOTAL discrete time steps this task needs to complete
         self.tasks.append(task)
+        task.executor = self
         task.total_exec_time = findExecTimeInEachKindOfNode(task)
         task.remaining_time = task.total_exec_time
-        task.executor = self
 
         delay = self.get_transmission_time(task, fixed_fog_nodes)
         task.start_time = current_time + delay
@@ -213,59 +215,48 @@ class NodeABC(ModelBaseABC, abc.ABC):
 
     def execute_tasks(self, current_time: float, fixed_fog_nodes) -> list:
         """
-        Executes tasks on all cores for one time step using Preemptive EDF.
-        Relies on a heap to manage task priority by deadline.
-        - Always runs the task with the earliest deadline.
-        - Skips tasks whose start_time > current_time.
-        - If a task finishes before the tick ends, continues with the next ready task.
+            Executes tasks on all cores for one time step using Preemptive EDF.
+            Relies on a heap to manage task priority by deadline.
+            - Always runs the task with the earliest deadline.
+            - Skips tasks whose start_time > current_time.
+            - If a task finishes before the tick ends, continues with the next ready task.
         """
         finished_tasks_this_step = []
         WORK_PER_TICK = 1.0
 
         for i in range(self.num_cores):
             remaining_work_this_tick = WORK_PER_TICK
-            core_heap = self.cores[i]  # Min-heap sorted by (deadline, ..., task)
-
-            # Temporary store for not-yet-ready tasks (start_time > current_time)
+            core_heap = self.cores[i]
             temp_unready_tasks = []
 
-            # Keep executing tasks until tick time runs out
             while remaining_work_this_tick > 0:
                 if not core_heap:
-                    break  # No tasks to execute
+                    break
 
-                # Pop the task with the earliest deadline
-                deadline, _, task = heapq.heappop(core_heap)
+                deadline, rel_time, task = heapq.heappop(core_heap)
 
-                # Skip tasks not yet started
                 if task.start_time > current_time:
-                    temp_unready_tasks.append((deadline, _, task))
+                    temp_unready_tasks.append((deadline, rel_time, task))
                     continue
 
-                # Mark the actual start time once
-                if not hasattr(task, 'actual_start_time'):
-                    task.actual_start_time = current_time
-
-                # Calculate how much work to do
                 work_to_do = min(remaining_work_this_tick, task.remaining_time)
                 task.remaining_time -= work_to_do
                 self.core_loads[i] -= work_to_do
                 remaining_work_this_tick -= work_to_do
 
-                # If the task finished, record it
                 if task.remaining_time <= 0:
                     task.finish_time = current_time + (WORK_PER_TICK - remaining_work_this_tick)
                     finished_tasks_this_step.append(task)
                     self.finished_tasks.append(task)
-                    # Continue to use remaining tick power if available
+
+                    if task in self.tasks:
+                        self.tasks.remove(task)
+
                     continue
                 else:
-                    # Task still needs work — push it back
-                    heapq.heappush(core_heap, (deadline, _, task))
-                    # Tick fully consumed (no more time to run next task)
+                    heapq.heappush(core_heap, (deadline, rel_time, task))
                     break
 
-            # Reinsert unready tasks
             for item in temp_unready_tasks:
                 heapq.heappush(core_heap, item)
 
@@ -307,6 +298,7 @@ class CriticalUserNode(NodeABC):
         Note: Properties depending on the parent (like id, radius)
         must be set in 'set_parent_node'.
         """
+        self.periodic_counter = 0
         self.power = Config.CriticalUserNodeConfig.DEFAULT_COMPUTATION_POWER
         self.frequency = Config.CriticalUserNodeConfig.USER_NODE_FREQUENCY
         self.remaining_power = self.power
@@ -338,7 +330,10 @@ class CriticalUserNode(NodeABC):
                 bits = data_kb * 1024
                 exec_time = (bits * cycles_per_bit) / self.frequency
                 deadline = current_time + period
+                self.periodic_counter += 1
+                task_id = f"P_{self.id}_{self.periodic_counter}"
                 task = Task(
+                    id=task_id,
                     release_time=current_time,
                     deadline=deadline,
                     exec_time=exec_time,
@@ -456,6 +451,8 @@ class MobileNodeABC(NodeABC, abc.ABC):
         Initializes the normal processor and then creates and links
         its internal critical processor.
         """
+        super().__post_init__()
+
         # 1. Initialize self (normal processor)
         self.power = Config.UserNodeConfig.DEFAULT_COMPUTATION_POWER
         self.frequency = Config.UserNodeConfig.USER_NODE_FREQUENCY
