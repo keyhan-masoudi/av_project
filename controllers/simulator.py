@@ -99,6 +99,9 @@ class Simulator:
                 zm.set_simulator(self)
 
     def schedule_retransmission(self, task: Task, scheduled_time: float):
+        if task.is_hard:
+            return
+
         if scheduled_time not in self.retransmission_tasks:
             self.retransmission_tasks[scheduled_time] = []
         self.retransmission_tasks[scheduled_time].append(task)
@@ -124,11 +127,20 @@ class Simulator:
 
         if tasks_to_retransmit:
             for task in tasks_to_retransmit:
-                possible_zone_managers = self.find_zone_manager_offload_task(zone_managers, task, current_time)
+                if task.is_hard:
+                    if task.creator is not None:
+                        self._assign_hard_task_locally(task, task.creator, current_time)
+                    continue
+                possible_zone_managers = self.find_zone_manager_offload_task(
+                    zone_managers, task, current_time
+                )
                 if self.choose_executor_and_assign(possible_zone_managers, task, partitions, current_time):
                     continue
 
     def find_zone_manager_offload_task(self, zone_managers, task, current_time):
+        if task.is_hard:
+            return []
+
         zone_manager_offload_task = []
         for zone_manager in zone_managers:
             # print(f"zone_manager:{zone_manager.zone}")
@@ -158,6 +170,9 @@ class Simulator:
         return calcAttenuation(task, nearest_node, intersecting_partitions)
 
     def choose_executor_and_assign(self, zone_manager_offload_task, task, partitions, current_time):
+        if task.is_hard:
+            return
+
         # if any ZM suggest any device to offload
         if len(zone_manager_offload_task) != 0:
             attenuationList = []
@@ -448,7 +463,7 @@ class Simulator:
         return tasks
 
     def load_hard_tasks(self, current_time: float) -> int:
-        """Load hard tasks into each vehicle's critical processor for local EDF scheduling."""
+        """Load hard tasks onto each vehicle's local processor."""
         loaded_count = 0
         for creator_id, creator_tasks in self.loader.load_nodes_hard_tasks(current_time).items():
             creator = self._resolve_task_creator(creator_id)
@@ -456,26 +471,19 @@ class Simulator:
                 print(f"there is no creator for hard task: {creator_id}\n")
                 continue
             for task in creator_tasks:
-                self._assign_hard_task_to_critical_processor(task, creator, current_time)
+                self._assign_hard_task_locally(task, creator, current_time)
                 self.metrics.inc_total_tasks()
                 loaded_count += 1
         return loaded_count
 
-    @staticmethod
-    def _assign_hard_task_to_critical_processor(
+    def _assign_hard_task_locally(
+            self,
             task: Task,
             creator: MobileNodeABC,
             current_time: float,
     ) -> None:
-        """Enqueue a pre-generated periodic task on the vehicle's critical processor."""
-        critical = creator.critical_processor
-        task.creator = creator
-        task.creator_id = f"#{critical.id}"
-        task.release_time = current_time
-        task.remaining_time = task.exec_time
-        task.start_time = current_time
-        task.is_hard = True
-        critical.periodic_jobs_active.append(task)
+        """Assign a pre-generated hard task to the creating vehicle's local processor."""
+        creator.assign_local_hard_task(task, current_time)
 
     def load_tasks(self, current_time: float) -> Dict[str, List[Task]]:
         """Load soft tasks; hard tasks are loaded via load_hard_tasks()."""
@@ -552,6 +560,9 @@ class Simulator:
         self.update_mobile_fog_nodes_coordinate()
 
     def offload_to_cloud(self, task: Task, current_time: float, partitions, cloud_node):
+        if task.is_hard:
+            return
+
         if self.cloud_node.can_offload_task(task):
             # todo: complete this fucking shit
             attenuationList = []
@@ -633,9 +644,6 @@ class Simulator:
                 node.y = new_node.y
                 node.angle = new_node.angle
                 node.speed = new_node.speed
-                if hasattr(node, "critical_processor"):
-                    node.critical_processor.x = new_node.x
-                    node.critical_processor.y = new_node.y
             data[n_id] = node
         return data
 
@@ -651,11 +659,9 @@ class Simulator:
             left_tasks.extend(node.tasks)
             for _ in range(len(node.tasks)):
                 self.metrics.inc_deadline_miss()
-            if hasattr(node, "critical_processor"):
-                critical = node.critical_processor
-                left_tasks.extend(critical.periodic_jobs_active)
-                left_tasks.extend(critical.tasks)
-                for _ in range(len(critical.periodic_jobs_active) + len(critical.tasks)):
+            if hasattr(node, "local_hard_tasks"):
+                left_tasks.extend(node.local_hard_tasks)
+                for _ in range(len(node.local_hard_tasks)):
                     self.metrics.inc_deadline_miss()
         return left_tasks
 

@@ -67,6 +67,12 @@ class Config:
         LOCAL_OFFLOAD_POWER_OVERHEAD = 1
         LOCAL_EXECUTE_TIME_OVERHEAD = 1
         NUM_CORE = 8
+        HARD_TASK_EXEC_TIME_DIVISOR = 1e6
+        HARD_TASK_SPECS = (
+            {"period": 7, "size_max": 1200, "cycles_max": 1200},
+            {"period": 5, "size_max": 5000, "cycles_max": 1200},
+            {"period": 6, "size_max": 1000, "cycles_max": 1000},
+        )
 
     class CriticalUserNodeConfig:
         MAX_TASK_QUEUE_LEN = 10

@@ -48,6 +48,9 @@ class HeuristicZoneManager(ZoneManagerABC):
         )
 
     def can_offload_task(self, task: Task) -> bool:
+        if task.is_hard:
+            return False
+
         # print("oomad")
         # if task.creator.can_offload_task(task):
         #     return True
