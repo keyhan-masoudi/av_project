@@ -134,7 +134,7 @@ class SimulatorMADDPG(Simulator):
                     if status == "SUCCESS":
                         # اجرای موفقیت آمیز
                         rewards[chosen_agent_id] = compute_agent_reward(task, final_executor, self.fixed_fog_nodes)
-                        final_executor.assign_task(task, current_time)
+                        final_executor.assign_task(task, current_time, self.fixed_fog_nodes)
                         self.task_zone_managers[task.id] = self.agents[chosen_agent_id]
 
                     elif status == "PACKET_LOSS":
@@ -267,7 +267,7 @@ class SimulatorMADDPG(Simulator):
 
     def handle_no_zone_manager(self, task, current_time, partitions=None):
         if task.creator.can_offload_task(task):
-            task.creator.assign_task(task, current_time)
+            task.creator.assign_task(task, current_time, self.fixed_fog_nodes)
         else:
             self.offload_to_cloud(task, current_time, partitions,
                                   self.cloud_node)  # Passed empty partitions or handle inside
@@ -309,7 +309,7 @@ class SimulatorMADDPG(Simulator):
                     self.schedule_retransmission(task, timeout_time)
                 else:
                     self.task_zone_managers[task.id] = chosen_zone_manager
-                    self.cloud_node.assign_task(task, current_time)
+                    self.cloud_node.assign_task(task, current_time, self.fixed_fog_nodes)
             else:
                 self.metrics.inc_no_device_found_to_run_becauseOf_Noise()
                 timeout_time = current_time + 1

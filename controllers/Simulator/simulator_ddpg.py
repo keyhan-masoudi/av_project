@@ -106,7 +106,7 @@ class SimulatorDDPG(Simulator):
                             self.schedule_retransmission(task, timeout_time)
                             task_assigned = False
                         else:
-                            chosen_executor.assign_task(task, current_time)
+                            chosen_executor.assign_task(task, current_time, self.fixed_fog_nodes)
                             task_assigned = True
 
                         next_state = chosen_zone_manager.env._get_state(task)
@@ -115,7 +115,7 @@ class SimulatorDDPG(Simulator):
                         chosen_zone_manager.agent.train()
 
                     else:
-                        chosen_executor.assign_task(task, current_time)
+                        chosen_executor.assign_task(task, current_time, self.fixed_fog_nodes)
                         task_assigned = True
 
                 if packet_loss_occurred:
@@ -130,6 +130,6 @@ class SimulatorDDPG(Simulator):
                 self.schedule_retransmission(task, timeout_time)
         else:
             if task.creator.can_offload_task(task):
-                task.creator.assign_task(task, current_time)
+                task.creator.assign_task(task, current_time, self.fixed_fog_nodes)
             else:
                 self.offload_to_cloud(task, current_time, partitions, self.cloud_node)
