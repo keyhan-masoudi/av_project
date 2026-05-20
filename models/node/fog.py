@@ -57,9 +57,3 @@ class MobileFogNode(FogLayerABC, MobileNodeABC):
     @property
     def num_cores(self) -> int:
         return Config.MobileFogNodeConfig.NUM_CORE
-
-    def execute_tasks(self, current_time: float, fixed_fog_nodes) -> list:
-        """Run hard tasks locally, then execute any other tasks on this vehicle."""
-        finished_hard = self._execute_local_hard_tasks(current_time, float(self.num_cores))
-        finished_other = super().execute_tasks(current_time, fixed_fog_nodes)
-        return finished_hard + finished_other

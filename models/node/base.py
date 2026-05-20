@@ -279,6 +279,7 @@ class MobileNodeABC(NodeABC, abc.ABC):
         self.tasks = deque()
         self.finished_tasks = deque()
         self.local_hard_tasks = []
+        self.last_tbs_deadline = 0.0
 
     def assign_local_hard_task(self, task, current_time: float) -> None:
         """Register a hard task on this vehicle's local processor only."""
@@ -291,11 +292,47 @@ class MobileNodeABC(NodeABC, abc.ABC):
         task.is_hard = True
         self.local_hard_tasks.append(task)
 
-    def _execute_local_hard_tasks(self, current_time: float, timestep: float) -> list:
-        """EDF execution of hard tasks on the vehicle's local processor."""
+    def _hard_task_utilization(self) -> float:
+        """Worst-case utilization of pre-generated hard periodic tasks for TBS."""
+        total_util = 0.0
+        divisor = Config.UserNodeConfig.HARD_TASK_EXEC_TIME_DIVISOR
+        for spec in Config.UserNodeConfig.HARD_TASK_SPECS:
+            worst_exec = (spec["size_max"] * spec["cycles_max"]) / (self.frequency * divisor)
+            total_util += worst_exec / spec["period"]
+        return total_util
+
+    def assign_task(self, task, current_time: float, fixed_fog_nodes) -> None:
+        """Hard tasks → local processor. Soft tasks → TBS-scheduled local queue."""
+        if task.is_hard:
+            self.assign_local_hard_task(task, current_time)
+            return
+
+        task.executor = self
+        task.release_time = current_time
+        task.total_exec_time = findExecTimeInEachKindOfNode(task, executor=self)
+        task.remaining_time = task.total_exec_time
+        delay = self.get_transmission_time(task, fixed_fog_nodes)
+        task.start_time = current_time + delay
+
+        # TBS deadline assignment: d_k = max(r_k, d_{k-1}) + C_k / U_s.
+        slack_util = max(0.1, 1.0 - self._hard_task_utilization())
+        self.last_tbs_deadline = max(task.start_time, self.last_tbs_deadline) + (
+            task.total_exec_time / slack_util
+        )
+        task.deadline = self.last_tbs_deadline
+        self.tasks.append(task)
+
+    def execute_tasks(self, current_time: float, fixed_fog_nodes) -> list:
+        """Run one timestep of EDF over hard + TBS-scheduled soft tasks."""
+        timestep = float(self.num_cores)
         finished_tasks_this_step = []
         ready_jobs = []
+
         for task in self.local_hard_tasks:
+            if task.remaining_time > 0 and task.start_time <= current_time:
+                heapq.heappush(ready_jobs, (task.deadline, task))
+
+        for task in self.tasks:
             if task.remaining_time > 0 and task.start_time <= current_time:
                 heapq.heappush(ready_jobs, (task.deadline, task))
 
@@ -309,9 +346,15 @@ class MobileNodeABC(NodeABC, abc.ABC):
             if running_task.remaining_time <= 1e-9:
                 running_task.finish_time = current_time + (timestep - time_remaining)
                 finished_tasks_this_step.append(running_task)
-                self.local_hard_tasks = [
-                    job for job in self.local_hard_tasks if job is not running_task
-                ]
+                if running_task.is_hard:
+                    self.local_hard_tasks = [
+                        job for job in self.local_hard_tasks if job is not running_task
+                    ]
+                else:
+                    try:
+                        self.tasks.remove(running_task)
+                    except ValueError:
+                        pass
             else:
                 heapq.heappush(ready_jobs, (running_task.deadline, running_task))
 
