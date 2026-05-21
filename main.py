@@ -1,6 +1,5 @@
 from concurrent.futures import ProcessPoolExecutor, as_completed
 
-
 from config import Config
 from controllers.loader import Loader
 from controllers.simulator import Simulator, red_bg
@@ -11,6 +10,7 @@ from controllers.simulator_maddpg import SimulatorMADDPG
 from controllers.Simulator.simulator_ddpg import SimulatorDDPG
 from controllers.Simulator.simulator_ppo import SimulatorPPO
 from controllers.Simulator.simulator_sac import SimulatorSAC
+
 
 def run_one(params):
     algorithm, method, threshold, traffic_noise_profile, attenuationLevel, city = params
@@ -59,13 +59,13 @@ def run_one(params):
         Config.TrafficNoise.RedTrafficNoise.DEFAULT_RedTrafficNoise = Config.TrafficNoise.RedTrafficNoise.RedTrafficNoise2
         Config.TrafficNoise.BlackTrafficNoise.DEFAULT_BlackTrafficNoise = Config.TrafficNoise.BlackTrafficNoise.BlackTrafficNoise2
 
-
     loader = Loader(
         zone_file=Config.Directory.DEFAULT_ZON,
         fixed_fn_file=Config.Directory.DEFAULT_FN,
         mobile_file="./data/vehicles",
         task_file="./data/tasks",
         checkpoint_path="./checkpoints",
+        hard_task_file="./data/hard_tasks",
     )
     cloud = CloudNode(
         id="CLOUD0",
@@ -99,12 +99,14 @@ def run_one(params):
         "metrics": simulator.metrics,
     }
 
+
 if __name__ == "__main__":
     algorithms = [
-        Config.ZoneManagerConfig.ALGORITHM_RANDOM,
+        # Config.ZoneManagerConfig.ALGORITHM_RANDOM,
         # Config.ZoneManagerConfig.ALGORITHM_HEURISTIC,
         # Config.ZoneManagerConfig.ALGORITHM_ONLY_CLOUD,
         # Config.ZoneManagerConfig.ALGORITHM_ONLY_FOG,
+        Config.ZoneManagerConfig.ALGORITHM_ONLY_LOCAL,
         # Config.ZoneManagerConfig.ALGORITHM_DEEP_RL,
         # Config.ZoneManagerConfig.ALGORITHM_DDPG,
         # Config.ZoneManagerConfig.ALGORITHM_PPO,
@@ -162,7 +164,8 @@ if __name__ == "__main__":
     #
     #
 
-    tasks_for_current_algo = [(algorithm, m, t, n, at, city) for algorithm in algorithms for m in methods for t in thresholds for n in
+    tasks_for_current_algo = [(algorithm, m, t, n, at, city) for algorithm in algorithms for m in methods for t in
+                              thresholds for n in
                               traffic_noise_profiles for at in attenuationLevels for city in cities]
 
     with ProcessPoolExecutor() as executor:

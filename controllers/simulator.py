@@ -1,7 +1,7 @@
 import glob
 import random
 from collections import defaultdict
-from typing import Dict, List
+from typing import Dict, List, Optional
 
 from NoiseConfigs.noiseConfigGeneralAttribute import NoiseConfigGeneralAttribute
 from NoiseConfigs.utilsFunctions import UtilsFunc
@@ -81,6 +81,8 @@ class Simulator:
         self.traffic_cache: Dict[int, any] = {}
         self.traffic_predictions = defaultdict(dict)
         self.noise_controller = FinalChoiceByAttenuationNoise()
+
+        self._gantt_340_drawn = False
 
     def init_simulation(self):
         self.clock.set_current_time(Config.SimulatorConfig.SIMULATION_START_TIME)
@@ -246,6 +248,11 @@ class Simulator:
                 self.schedule_retransmission(task, 1)
             elif Config.ZoneManagerConfig.DEFAULT_ALGORITHM == Config.ZoneManagerConfig.ALGORITHM_ONLY_CLOUD:
                 self.offload_to_cloud(task, current_time, partitions, self.cloud_node)
+            elif Config.ZoneManagerConfig.DEFAULT_ALGORITHM == Config.ZoneManagerConfig.ALGORITHM_ONLY_LOCAL:
+                if task.creator.can_offload_task(task):
+                    task.creator.assign_task(task, current_time)
+                else:
+                    self.schedule_retransmission(task, 1)
             else:
                 # print(green_bg("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"))
                 if task.creator.can_offload_task(task):
@@ -360,6 +367,9 @@ class Simulator:
 
             print(red_bg(f"current_time:{current_time}"))
 
+            # for user_node in self.user_nodes.values():
+            #     user_node.release_periodic_jobs(current_time)
+
             time_int = int(current_time)
             cached_data_str_keys = self.traffic_cache.get(time_int, {})
 
@@ -384,13 +394,15 @@ class Simulator:
                 partition.update_traffic_status(traffic_data)
             # self.logTrafficStatus(partitions)
 
-            nodes_tasks = self.load_tasks(current_time)
+            soft_tasks = self.load_soft_tasks(current_time)
+            self.load_hard_tasks(current_time)
+
             user_possible_zones = self.assign_mobile_nodes_to_zones(self.user_nodes, layer=Layer.USER)
             mobile_possible_zones = self.assign_mobile_nodes_to_zones(self.mobile_fog_nodes, layer=Layer.FOG)
 
             merged_possible_zones: Dict[str, List[ZoneManagerABC]] = {**user_possible_zones, **mobile_possible_zones}
 
-            for creator_id, tasks in nodes_tasks.items():
+            for creator_id, tasks in soft_tasks.items():
                 zone_managers = merged_possible_zones.get(creator_id, [])
                 # print(f"zoneManagers : {zone_managers}")
                 self.retransmission(zone_managers, current_time, partitions)
@@ -398,19 +410,25 @@ class Simulator:
                 for task in tasks:
                     # todo: log hard tasks and a counter for this
                     self.metrics.inc_total_tasks()
-                    # has_offloaded = False
                     # todo: separate decision making for Hard and Soft tasks here
 
                     zone_manager_offload_task = self.find_zone_manager_offload_task(zone_managers, task, current_time)
                     # print(blue_bg(f"{len(zone_manager_offload_task)}"))
                     self.choose_executor_and_assign(zone_manager_offload_task, task, partitions, current_time)
 
-            target_id = "PKW105"
+            target_id = "PKW364"
             self.print_node_schedule_status(current_time, target_id)
 
             self.update_graph()
             self.execute_tasks_for_one_step()
             self.metrics.flush()
+
+            # رسم گانت چارت برای بازه 320 تا 340 (فقط یک بار در ثانیه 341 انجام می‌شود)
+            if current_time >= 320.0 and not getattr(self, '_gantt_340_drawn', False):
+                print(blue_bg(f"--- Attempting to draw Gantt chart at time {current_time} ---"))
+                self.draw_gantt_chart(target_id, window_start=300.0, window_end=320.0)
+                self._gantt_340_drawn = True
+            # --------------------------------------------------------------------------
 
             self.metrics.log_metrics()
             self.metrics.add_data(current_time)
@@ -428,24 +446,53 @@ class Simulator:
         self.metrics.save_to_excel(
             f"final_metrics_summary_{Config.ZoneManagerConfig.DEFAULT_ALGORITHM}_{Config.NoiseMethod.DEFAULT_METHOD}_{Config.NoiseConfig.DEFAULT_THRESHOLD}_{Config.TrafficNoise.DEFAULT_TrafficNoiseLevel}_{Config.AttenuationLevel.DEFAULT_AttenuationLevelName}_{Config.City.DEFAULT_CITY}.xlsx")
 
-    def load_tasks(self, current_time: float) -> Dict[str, List[Task]]:
-        # todo: Load Hard tasks here
+    def _resolve_task_creator(self, creator_id: str) -> Optional[MobileNodeABC]:
+        if creator_id in self.user_nodes:
+            return self.user_nodes[creator_id]
+        if creator_id in self.mobile_fog_nodes:
+            return self.mobile_fog_nodes[creator_id]
+        return None
+
+    def load_soft_tasks(self, current_time: float) -> Dict[str, List[Task]]:
+        """Load soft tasks and attach their creators for the offload path."""
         tasks: Dict[str, List[Task]] = defaultdict(list)
         for creator_id, creator_tasks in self.loader.load_nodes_tasks(current_time).items():
-            creator = None
-            if creator_id in self.user_nodes:
-                creator = self.user_nodes[creator_id]
-            elif creator_id in self.mobile_fog_nodes:
-                creator = self.mobile_fog_nodes[creator_id]
-            # assert creator is not None
+            creator = self._resolve_task_creator(creator_id)
             if creator is None:
-                print(f"there is no {creator}\n")
-            else:
-                for task in creator_tasks:
-                    task.creator = creator
-                    tasks[creator_id].append(task)
-
+                print(f"there is no creator for soft task: {creator_id}\n")
+                continue
+            for task in creator_tasks:
+                task.creator = creator
+                tasks[creator_id].append(task)
         return tasks
+
+    def load_hard_tasks(self, current_time: float) -> int:
+        """Load hard tasks onto each vehicle's local processor."""
+        loaded_count = 0
+        for creator_id, creator_tasks in self.loader.load_nodes_hard_tasks(current_time).items():
+            creator = self._resolve_task_creator(creator_id)
+            if creator is None:
+                print(f"there is no creator for hard task: {creator_id}\n")
+                continue
+            for task in creator_tasks:
+                self._assign_hard_task_locally(task, creator, current_time)
+                self.metrics.inc_total_tasks()
+                loaded_count += 1
+        return loaded_count
+
+    def _assign_hard_task_locally(
+            self,
+            task: Task,
+            creator: MobileNodeABC,
+            current_time: float,
+    ) -> None:
+        """Assign a pre-generated hard task to the creating vehicle's local processor."""
+        creator.assign_local_hard_task(task, current_time)
+
+    def load_tasks(self, current_time: float) -> Dict[str, List[Task]]:
+        """Load soft tasks; hard tasks are loaded via load_hard_tasks()."""
+        self.load_hard_tasks(current_time)
+        return self.load_soft_tasks(current_time)
 
     def execute_tasks_for_one_step(self):
         executed_tasks: List[Task] = []
@@ -471,10 +518,15 @@ class Simulator:
                         max_load = max(loads)
                         self.metrics.inc_task_load_diff(task.id, min_load, max_load)
                 # todo: check local hard tasks
-                if isinstance(task.executor, (FixedFogNode, MobileFogNode)):
-                    self.metrics.inc_fog_execution()
+                if task.is_hard:
+                    self.metrics.inc_local_execution()
+
                 elif task.creator.id == task.executor.id:
                     self.metrics.inc_local_execution()
+
+                elif isinstance(task.executor, (FixedFogNode, MobileFogNode)):
+                    self.metrics.inc_fog_execution()
+
                 elif isinstance(task.executor, CloudNode):
                     self.metrics.inc_cloud_tasks()
                 # if task.has_migrated:
@@ -610,8 +662,12 @@ class Simulator:
 
         for node_id, node in merged_nodes.items():
             left_tasks.extend(node.tasks)
-            for i in range(len(node.tasks)):
+            for _ in range(len(node.tasks)):
                 self.metrics.inc_deadline_miss()
+            if hasattr(node, "local_hard_tasks"):
+                left_tasks.extend(node.local_hard_tasks)
+                for _ in range(len(node.local_hard_tasks)):
+                    self.metrics.inc_deadline_miss()
         return left_tasks
 
     def save_missed_deadlines_to_excel(self, filename: str = "missed_deadlines.xlsx"):
@@ -693,3 +749,160 @@ class Simulator:
                     print(f"      │  └_ Assigned Start Time: {task.start_time:.2f}")
 
         print(f"{'=' * 65}\n")
+
+    def draw_gantt_chart(self, target_node_id: str, window_start: float, window_end: float):
+        import matplotlib.pyplot as plt
+        import matplotlib.colors as mcolors
+        import matplotlib.patches as mpatches
+        from matplotlib.ticker import MultipleLocator
+        import os
+
+        merged_nodes = {
+            **self.mobile_fog_nodes,
+            **self.user_nodes,
+            **self.fixed_fog_nodes,
+            self.cloud_node.id: self.cloud_node,
+        }
+
+        node = merged_nodes.get(target_node_id)
+        if not node:
+            print(red_bg(f"Node {target_node_id} not found for Gantt chart."))
+            return
+
+        if not hasattr(node, 'execution_log') or not node.execution_log:
+            print(yellow_bg(f"No execution history found for {target_node_id}."))
+            return
+
+        fig, ax = plt.subplots(figsize=(30, 10))
+
+        # رنگ‌ها برای periodهای مختلف
+        base_colors = list(mcolors.TABLEAU_COLORS.values())
+        period_colors = {}
+        color_idx = 0
+
+        relevant_logs = [
+            log for log in node.execution_log
+            if log['start'] + log['duration'] > window_start and log['start'] < window_end
+        ]
+
+        if not relevant_logs:
+            print(yellow_bg(f"No tasks executed for {target_node_id} between {window_start} and {window_end}."))
+            return
+
+        for log in relevant_logs:
+            core = log['core']
+            task_id = log['task_id']
+
+            start = max(log['start'], window_start)
+            end = min(log['start'] + log['duration'], window_end)
+            duration = end - start
+
+            if duration <= 0:
+                continue
+
+            parts = task_id.split("_")
+
+            # -------------------------------
+            # تعیین رنگ
+            # -------------------------------
+            if "_S_" in task_id:
+                color = "black"
+                parts = task_id.split("_")
+
+                if len(parts) >= 3:
+                    step = parts[2]
+                    label = f"S{step}"
+                else:
+                    label = "S"
+
+
+            elif "_H_" in task_id and len(parts) >= 5:
+                period = parts[-1]
+
+                if period not in period_colors:
+                    period_colors[period] = base_colors[color_idx % len(base_colors)]
+                    color_idx += 1
+
+                color = period_colors[period]
+                label = f"P{period}"
+
+            else:
+                color = "gray"
+                label = "?"
+
+            # -------------------------------
+            # رسم بلاک
+            # -------------------------------
+            ax.broken_barh(
+                [(start, duration)],
+                (core - 0.4, 0.8),
+                facecolors=color,
+                edgecolor='black',
+                linewidth=0.8
+            )
+
+            # نوشتن لیبل
+            if duration > (window_end - window_start) * 0.01:
+                ax.text(
+                    start + duration / 2,
+                    core,
+                    label,
+                    ha='center',
+                    va='center',
+                    color='white' if color != "black" else 'white',
+                    fontsize=9,
+                    weight='bold'
+                )
+
+        # -------------------------------
+        # تنظیم محورها
+        # -------------------------------
+        ax.set_ylim(-1, node.num_cores)
+        ax.set_yticks(range(node.num_cores))
+        ax.set_yticklabels([f"Core {i}" for i in range(node.num_cores)])
+
+        ax.set_xlim(window_start, window_end)
+        ax.xaxis.set_major_locator(MultipleLocator(1))
+
+        ax.set_xlabel('Simulation Time (Seconds)', fontsize=12, weight='bold')
+        ax.set_ylabel('CPU Cores', fontsize=12, weight='bold')
+
+        ax.set_title(
+            f'Scheduling Gantt Chart for {target_node_id} (Time {window_start} to {window_end})',
+            fontsize=14,
+            weight='bold'
+        )
+
+        ax.grid(True, axis='x', linestyle='--', alpha=0.6)
+
+        # -------------------------------
+        # Legend فقط برای Hard periods
+        # -------------------------------
+        legend_patches = [
+            mpatches.Patch(color=color, label=f"Hard - Period {period}")
+            for period, color in period_colors.items()
+        ]
+
+        legend_patches.append(mpatches.Patch(color="black", label="Soft Tasks"))
+
+        ax.legend(
+            handles=legend_patches,
+            loc='center left',
+            bbox_to_anchor=(1.02, 0.5)
+        )
+
+        plt.tight_layout()
+
+        output_dir = "Gantt"
+        if not os.path.exists(output_dir):
+            os.makedirs(output_dir)
+
+        filepath = os.path.join(
+            output_dir,
+            f"gantt_{target_node_id}_t{int(window_start)}_to_{int(window_end)}.png"
+        )
+
+        plt.savefig(filepath, dpi=400, bbox_inches='tight')
+        plt.close()
+
+        print(green_bg(f"✅ Gantt chart saved successfully at: {filepath}"))

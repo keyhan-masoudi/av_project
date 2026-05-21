@@ -5,7 +5,7 @@ import heapq
 import math
 from collections import deque
 from dataclasses import dataclass, field
-from typing import Deque, List
+from typing import Deque, List, Dict
 import xml.etree.ElementTree as ET
 
 import numpy as np
@@ -14,18 +14,9 @@ import random
 from config import Config
 from controllers.metric import MetricsController
 from models.base import ModelBaseABC
-# from models.node.user import CriticalUserNode
 from utils.enums import Layer
 from utils.distance import get_distance
-from typing import TYPE_CHECKING
 from models.task import Task
-
-PERIODIC_TASKS = [
-    (7.0, (800.0, 1200.0), (1000.0, 1200.0)),
-    (5.0, (1000.0, 5000.0), (1000.0, 1200.0)),
-    (6.0, (500.0, 1000.0), (500.0, 1000.0)),
-]
-random.seed(42)
 
 
 def blue_bg(text):
@@ -45,13 +36,9 @@ def findExecTimeInEachKindOfNode(task, executor=None):
     taskExecutor = task.executor
     if executor:
         taskExecutor = executor
-    # todo: remove critical local
     if isinstance(taskExecutor, UserNode):
         # print("UserNode()")
         return task.real_exec_time(executor=taskExecutor)
-    elif isinstance(taskExecutor, CriticalUserNode):
-        return task.real_exec_time(executor=taskExecutor) / (
-                Config.CriticalUserNodeConfig.USER_NODE_FREQUENCY / Config.UserNodeConfig.USER_NODE_FREQUENCY)
     elif isinstance(taskExecutor, CloudNode):
         # print("CloudNode()")
         return task.real_exec_time(executor=taskExecutor) / (
@@ -150,7 +137,8 @@ class NodeABC(ModelBaseABC, abc.ABC):
         """Checks whether the task can be offloaded in this node."""
         # print("----------------------------------test----------------------------------")
         # todo : improve this part
-
+        if getattr(task, "is_hard", False):
+            return False
         # note: i think this section could help drl and make a maximisation for each node
         if len(self.tasks) >= self.max_tasks_queue_len:
             # print(blue_bg(f"max_tasks_queue_len"))
@@ -195,6 +183,7 @@ class NodeABC(ModelBaseABC, abc.ABC):
         else:
             return 0.0
 
+    # todo: should change it
     def assign_task(self, task, current_time: float, fixed_fog_nodes) -> None:
         """Offload a task in the current node."""
         # todo: should change power concept
@@ -281,155 +270,155 @@ class NodeABC(ModelBaseABC, abc.ABC):
         raise NotImplementedError
 
 
-@dataclass
-class CriticalUserNode(NodeABC):
-    """
-    Represents the critical-level processor that co-exists inside a UserNode.
-    It inherits movement (x, y) from its parent but has its own task queue and resources.
-    """
-    parent_node: 'MobileNodeABC' = field(init=False)
-    id: str = field(init=False)
-    x: float = field(init=False)
-    y: float = field(init=False)
-
-    def __post_init__(self):
-        """
-        Initializes the critical processor's default properties from the config.
-        Note: Properties depending on the parent (like id, radius)
-        must be set in 'set_parent_node'.
-        """
-        self.periodic_counter = 0
-        self.power = Config.CriticalUserNodeConfig.DEFAULT_COMPUTATION_POWER
-        self.frequency = Config.CriticalUserNodeConfig.USER_NODE_FREQUENCY
-        self.remaining_power = self.power
-        self.tasks = deque()
-        self.periodic_jobs_active = []
-        self.finished_tasks = deque()
-        self.last_tbs_deadline = 0.0  # for TBS
-        self.next_periodic_release = {p: 0.0 for (p, _, _) in PERIODIC_TASKS}
-
-    def set_parent_node(self, parent: 'MobileNodeABC'):
-        """
-        Finalizes initialization by linking this node to its parent UserNode.
-        This must be called by the parent immediately after creation.
-        """
-        self.parent_node = parent
-        self.id = f"{self.parent_node.id}_critical"
-        self.x = self.parent_node.x
-        self.y = self.parent_node.y
-        self.radius = self.parent_node.radius
-
-    def release_periodic_jobs(self, current_time):
-        """Release new periodic jobs at their release times."""
-        new_jobs = []
-        for idx, (period, data_range, cycles_range) in enumerate(PERIODIC_TASKS, start=1):
-            # check if it's time for release
-            if current_time >= self.next_periodic_release[period] - 1e-9:
-                data_kb = random.uniform(*data_range)
-                cycles_per_bit = random.uniform(*cycles_range)
-                bits = data_kb * 1024
-                exec_time = (bits * cycles_per_bit) / self.frequency
-                deadline = current_time + period
-                self.periodic_counter += 1
-                task_id = f"P_{self.id}_{self.periodic_counter}"
-                task = Task(
-                    id=task_id,
-                    release_time=current_time,
-                    deadline=deadline,
-                    exec_time=exec_time,
-                    power=0,
-                    creator_id=f"#{self.id}",
-                    dataSize=data_kb,
-                    cycles_per_bit=cycles_per_bit,
-                    remaining_time=exec_time,
-                    start_time=current_time
-                )
-                new_jobs.append(task)
-                self.next_periodic_release[period] += period
-        self.periodic_jobs_active.extend(new_jobs)
-
-    def execute_tasks(self, current_time: float, fixed_fog_nodes) -> list:
-        """
-        Run one time-step of EDF+TBS scheduling.
-        If tasks finish early, continue executing others until the timestep ends.
-        Returns: list of finished Task objects in this step.
-        """
-        timestep = 1.0
-        finished_tasks_this_step = []
-
-        # 1️⃣ release new periodic jobs if needed
-        self.release_periodic_jobs(current_time)
-
-        # 2️⃣ Build ready list (periodic + aperiodic)
-        ready_jobs = []
-        for task in self.periodic_jobs_active:
-            if task.remaining_time > 0:
-                heapq.heappush(ready_jobs, (task.deadline, task))
-
-        # 3️⃣ Assign TBS deadlines to new aperiodic tasks
-        while self.tasks:
-            task = self.tasks.popleft()
-            Ck = task.exec_time
-            rk = current_time
-
-            # compute Us = 1 - Up (based on current periodic utilization)
-            total_util = 0.0
-            for (period, data_range, cycles_range) in PERIODIC_TASKS:
-                max_data = max(data_range)
-                max_cycles = max(cycles_range)
-                bits = max_data * 1024
-                Ci = (bits * max_cycles) / self.frequency
-                total_util += Ci / period
-            Us = max(0.1, 1.0 - total_util)
-
-            dk = max(rk, self.last_tbs_deadline) + (Ck / Us)
-            self.last_tbs_deadline = dk
-            task.deadline = dk
-            task.start_time = rk
-            heapq.heappush(ready_jobs, (task.deadline, task))
-
-        # 4️⃣ EDF loop — run until timestep exhausted
-        time_remaining = timestep
-        while time_remaining > 1e-9 and ready_jobs:
-            _, running_task = heapq.heappop(ready_jobs)
-
-            run_time = min(running_task.remaining_time, time_remaining)
-            running_task.remaining_time -= run_time
-            time_remaining -= run_time
-
-            # mark completion or reinsert
-            if running_task.remaining_time <= 1e-9:
-                running_task.finish_time = current_time + (timestep - time_remaining)
-                finished_tasks_this_step.append(running_task)
-
-                if running_task.creator_id.startswith("#"):
-                    self.periodic_jobs_active = [
-                        j for j in self.periodic_jobs_active if j is not running_task
-                    ]
-                else:
-                    self.tasks = [  # TODO
-                        j for j in self.tasks if j is not running_task
-                    ]
-            else:
-                # still has remaining time, put back
-                heapq.heappush(ready_jobs, (running_task.deadline, running_task))
-
-        # 5️⃣ store finished tasks and return
-        self.finished_tasks.extend(finished_tasks_this_step)
-        return finished_tasks_this_step
-
-    # --- Abstract Method Implementations ---
-    @property
-    def max_tasks_queue_len(self) -> int:
-        return Config.CriticalUserNodeConfig.MAX_TASK_QUEUE_LEN
-
-    @property
-    def layer(self) -> Layer:
-        return Layer.CriticalUser
-
-    @property
-    def num_cores(self) -> int:
-        return Config.CriticalUserNodeConfig.NUM_CORE
+# @dataclass
+# class CriticalUserNode(NodeABC):
+#     """
+#     Represents the critical-level processor that co-exists inside a UserNode.
+#     It inherits movement (x, y) from its parent but has its own task queue and resources.
+#     """
+#     parent_node: 'MobileNodeABC' = field(init=False)
+#     id: str = field(init=False)
+#     x: float = field(init=False)
+#     y: float = field(init=False)
+#
+#     def __post_init__(self):
+#         """
+#         Initializes the critical processor's default properties from the config.
+#         Note: Properties depending on the parent (like id, radius)
+#         must be set in 'set_parent_node'.
+#         """
+#         self.periodic_counter = 0
+#         self.power = Config.CriticalUserNodeConfig.DEFAULT_COMPUTATION_POWER
+#         self.frequency = Config.CriticalUserNodeConfig.USER_NODE_FREQUENCY
+#         self.remaining_power = self.power
+#         self.tasks = deque()
+#         self.periodic_jobs_active = []
+#         self.finished_tasks = deque()
+#         self.last_tbs_deadline = 0.0  # for TBS
+#         self.next_periodic_release = {p: 0.0 for (p, _, _) in PERIODIC_TASKS}
+#
+#     def set_parent_node(self, parent: 'MobileNodeABC'):
+#         """
+#         Finalizes initialization by linking this node to its parent UserNode.
+#         This must be called by the parent immediately after creation.
+#         """
+#         self.parent_node = parent
+#         self.id = f"{self.parent_node.id}_critical"
+#         self.x = self.parent_node.x
+#         self.y = self.parent_node.y
+#         self.radius = self.parent_node.radius
+#
+#     def release_periodic_jobs(self, current_time):
+#         """Release new periodic jobs at their release times."""
+#         new_jobs = []
+#         for idx, (period, data_range, cycles_range) in enumerate(PERIODIC_TASKS, start=1):
+#             # check if it's time for release
+#             if current_time >= self.next_periodic_release[period] - 1e-9:
+#                 data_kb = random.uniform(*data_range)
+#                 cycles_per_bit = random.uniform(*cycles_range)
+#                 bits = data_kb * 1024
+#                 exec_time = (bits * cycles_per_bit) / self.frequency
+#                 deadline = current_time + period
+#                 self.periodic_counter += 1
+#                 task_id = f"P_{self.id}_{self.periodic_counter}"
+#                 task = Task(
+#                     id=task_id,
+#                     release_time=current_time,
+#                     deadline=deadline,
+#                     exec_time=exec_time,
+#                     power=0,
+#                     creator_id=f"#{self.id}",
+#                     dataSize=data_kb,
+#                     cycles_per_bit=cycles_per_bit,
+#                     remaining_time=exec_time,
+#                     start_time=current_time
+#                 )
+#                 new_jobs.append(task)
+#                 self.next_periodic_release[period] += period
+#         self.periodic_jobs_active.extend(new_jobs)
+#
+#     def execute_tasks(self, current_time: float, fixed_fog_nodes) -> list:
+#         """
+#         Run one time-step of EDF+TBS scheduling.
+#         If tasks finish early, continue executing others until the timestep ends.
+#         Returns: list of finished Task objects in this step.
+#         """
+#         timestep = 1.0
+#         finished_tasks_this_step = []
+#
+#         # 1️⃣ release new periodic jobs if needed
+#         self.release_periodic_jobs(current_time)
+#
+#         # 2️⃣ Build ready list (periodic + aperiodic)
+#         ready_jobs = []
+#         for task in self.periodic_jobs_active:
+#             if task.remaining_time > 0:
+#                 heapq.heappush(ready_jobs, (task.deadline, task))
+#
+#         # 3️⃣ Assign TBS deadlines to new aperiodic tasks
+#         while self.tasks:
+#             task = self.tasks.popleft()
+#             Ck = task.exec_time
+#             rk = current_time
+#
+#             # compute Us = 1 - Up (based on current periodic utilization)
+#             total_util = 0.0
+#             for (period, data_range, cycles_range) in PERIODIC_TASKS:
+#                 max_data = max(data_range)
+#                 max_cycles = max(cycles_range)
+#                 bits = max_data * 1024
+#                 Ci = (bits * max_cycles) / self.frequency
+#                 total_util += Ci / period
+#             Us = max(0.1, 1.0 - total_util)
+#
+#             dk = max(rk, self.last_tbs_deadline) + (Ck / Us)
+#             self.last_tbs_deadline = dk
+#             task.deadline = dk
+#             task.start_time = rk
+#             heapq.heappush(ready_jobs, (task.deadline, task))
+#
+#         # 4️⃣ EDF loop — run until timestep exhausted
+#         time_remaining = timestep
+#         while time_remaining > 1e-9 and ready_jobs:
+#             _, running_task = heapq.heappop(ready_jobs)
+#
+#             run_time = min(running_task.remaining_time, time_remaining)
+#             running_task.remaining_time -= run_time
+#             time_remaining -= run_time
+#
+#             # mark completion or reinsert
+#             if running_task.remaining_time <= 1e-9:
+#                 running_task.finish_time = current_time + (timestep - time_remaining)
+#                 finished_tasks_this_step.append(running_task)
+#
+#                 if running_task.creator_id.startswith("#"):
+#                     self.periodic_jobs_active = [
+#                         j for j in self.periodic_jobs_active if j is not running_task
+#                     ]
+#                 else:
+#                     self.tasks = [  # TODO
+#                         j for j in self.tasks if j is not running_task
+#                     ]
+#             else:
+#                 # still has remaining time, put back
+#                 heapq.heappush(ready_jobs, (running_task.deadline, running_task))
+#
+#         # 5️⃣ store finished tasks and return
+#         self.finished_tasks.extend(finished_tasks_this_step)
+#         return finished_tasks_this_step
+#
+#     # --- Abstract Method Implementations ---
+#     @property
+#     def max_tasks_queue_len(self) -> int:
+#         return Config.CriticalUserNodeConfig.MAX_TASK_QUEUE_LEN
+#
+#     @property
+#     def layer(self) -> Layer:
+#         return Layer.CriticalUser
+#
+#     @property
+#     def num_cores(self) -> int:
+#         return Config.CriticalUserNodeConfig.NUM_CORE
 
 
 @dataclass
@@ -443,39 +432,164 @@ class MobileNodeABC(NodeABC, abc.ABC):
     angle: float = 0
     weather: str = ""
 
-    # This will hold the internal critical processor
-    critical_processor: CriticalUserNode = field(init=False)
+    core_Up: List[float] = field(init=False)
+    core_Us: List[float] = field(init=False)
+    last_tbs_deadline: List[float] = field(init=False)
+    periodic_allocation: List[List[dict]] = field(init=False)
+    local_hard_tasks = []
+
+    execution_log = None
 
     def __post_init__(self):
-        """
-        Initializes the normal processor and then creates and links
-        its internal critical processor.
-        """
         super().__post_init__()
+        self.core_Up = [0.0] * self.num_cores
+        self.core_Us = [1.0] * self.num_cores
+        self.last_tbs_deadline = [0.0] * self.num_cores
+        self.periodic_allocation = [[] for _ in range(self.num_cores)]
 
-        # 1. Initialize self (normal processor)
-        self.power = Config.UserNodeConfig.DEFAULT_COMPUTATION_POWER
-        self.frequency = Config.UserNodeConfig.USER_NODE_FREQUENCY
-        self.radius = Config.MobileFogNodeConfig.DEFAULT_RADIUS
-        self.remaining_power = self.power
-        self.tasks = deque()
-        self.finished_tasks = deque()
+    def assign_local_hard_task(self, task, current_time: float) -> None:
+        """Register a hard task on this vehicle's local processor using Worst Fit (Utilization-based)."""
+        task.creator = self
+        task.executor = self
+        task.creator_id = self.id
+        task.release_time = current_time
 
-        # 2. Create and link the critical processor
-        self.critical_processor = CriticalUserNode()
-        self.critical_processor.set_parent_node(self)
+        # محاسبه زمان اجرای واقعی
+        exec_time_calculated = findExecTimeInEachKindOfNode(task)
+        task.total_exec_time = exec_time_calculated if exec_time_calculated > 0 else task.exec_time
+        task.remaining_time = task.total_exec_time
+        task.start_time = current_time
+        task.is_hard = True
+        self.local_hard_tasks.append(task)
 
-    # --- Overridden Task Execution Method ---
+        # -------------------------------------------------------------
+        # پیاده‌سازی Worst Fit Decreasing / Worst Fit بر اساس Utilization
+        # -------------------------------------------------------------
+        # محاسبه دوره تناوب (Period) فرض شده از روی فاصله Release Time و Deadline
+        period = task.deadline - task.release_time
+        # محاسبه Utilization این تسک هارد
+        task_utilization = task.total_exec_time / period if period > 0 else task.total_exec_time
+
+        # پیدا کردن کوری که کمترین مقدار Utilization هارد (core_Up) را دارد (الگوریتم Worst Fit)
+        best_core_idx = self.core_Up.index(min(self.core_Up))
+
+        # آپدیت کردن Utilization پریودیک (Up) برای کور انتخاب شده
+        self.core_Up[best_core_idx] += task_utilization
+
+        # آپدیت کردن پهنای باند سرور آپریودیک (Us) برای همان کور
+        # برای جلوگیری از تقسیم بر صفر در فرمول TBS، مینیمم Us را 0.01 در نظر می‌گیریم
+        self.core_Us[best_core_idx] = max(0.01, 1.0 - self.core_Up[best_core_idx])
+
+        # آپدیت کردن بار کلی کور (برای لاگ‌ها)
+        self.core_loads[best_core_idx] += task.total_exec_time
+
+        # پوش کردن تسک هارد داخل صف (Heap) همان کور بر اساس ددلاین
+        heapq.heappush(self.cores[best_core_idx], (task.deadline, task.release_time, task))
+
+    def assign_task(self, task, current_time: float, fixed_fog_nodes=None) -> None:
+        """آف‌لود وظایف آپریودیک با استفاده از فرمول TBS برای گره‌های سیار"""
+        self.tasks.append(task)
+        task.executor = self
+        task.total_exec_time = findExecTimeInEachKindOfNode(task)
+        task.remaining_time = task.total_exec_time
+
+        delay = 0
+        if hasattr(self, 'get_transmission_time') and fixed_fog_nodes is not None:
+            delay = self.get_transmission_time(task, fixed_fog_nodes)
+
+        task.start_time = current_time + delay
+        rk = task.start_time
+
+        best_core_idx = 0
+        min_prospective_deadline = float('inf')
+
+        for i in range(self.num_cores):
+            Us = self.core_Us[i]  # این مقدار حالا توسط تسک‌های هارد آپدیت شده است
+            last_dl = self.last_tbs_deadline[i]
+            Ck = task.total_exec_time
+
+            # فرمول عکس: dk = max(rk, last_deadline) + (Ck / Us)
+            prospective_dk = max(rk, last_dl) + (Ck / Us)
+
+            # انتخاب کوری که در نهایت بهترین ددلاین (کمترین ددلاین ممکن) را به ما می‌دهد
+            if prospective_dk < min_prospective_deadline:
+                min_prospective_deadline = prospective_dk
+                best_core_idx = i
+
+        # ست کردن ددلاین نهایی بر اساس فرمول
+        task.deadline = min_prospective_deadline
+
+        # آپدیت کردن آخرین ددلاین محاسبه شده برای این کور جهت استفاده در تسک‌های بعدی
+        self.last_tbs_deadline[best_core_idx] = min_prospective_deadline
+
+        self.core_loads[best_core_idx] += task.total_exec_time
+
+        # قرار دادن تسک سافت در صف اولویت
+        heapq.heappush(self.cores[best_core_idx], (task.deadline, task.release_time, task))
+
     def execute_tasks(self, current_time: float, fixed_fog_nodes) -> list:
         """
-        Executes tasks for BOTH the normal queue and the critical queue.
-        This is called by the simulator.
+            Executes tasks on all cores for one time step using Preemptive EDF.
+            Relies on a heap to manage task priority by deadline.
+            - Always runs the task with the earliest deadline.
+            - Skips tasks whose start_time > current_time.
+            - If a task finishes before the tick ends, continues with the next ready task.
         """
-        # 1. Execute tasks from the normal queue (by calling the parent's method)
-        finished_normal_tasks = super().execute_tasks(current_time, fixed_fog_nodes)
+        # ایجاد یک لیست برای ذخیره تاریخچه اجرا جهت رسم گانت چارت
+        if self.execution_log is None:
+            self.execution_log = []
+        finished_tasks_this_step = []
+        WORK_PER_TICK = 1.0
 
-        # 2. Execute tasks from the critical processor's queue
-        finished_critical_tasks = self.critical_processor.execute_tasks(current_time, fixed_fog_nodes)
+        for i in range(self.num_cores):
+            remaining_work_this_tick = WORK_PER_TICK
+            core_heap = self.cores[i]
+            temp_unready_tasks = []
 
-        # 3. Return the combined list of all finished tasks
-        return finished_normal_tasks + finished_critical_tasks
+            while remaining_work_this_tick > 0:
+                if not core_heap:
+                    break
+
+                deadline, rel_time, task = heapq.heappop(core_heap)
+
+                if task.start_time > current_time:
+                    temp_unready_tasks.append((deadline, rel_time, task))
+                    continue
+
+                work_to_do = min(remaining_work_this_tick, task.remaining_time)
+
+                # -------------- اضافه کردن لاگ اجرا برای گانت چارت --------------
+                slice_start = current_time + (WORK_PER_TICK - remaining_work_this_tick)
+                self.execution_log.append({
+                    'core': i,
+                    'task_id': task.id,
+                    'start': slice_start,
+                    'duration': work_to_do,
+                    'is_hard': getattr(task, 'is_hard', False)
+                })
+                # ----------------------------------------------------------------
+
+                task.remaining_time -= work_to_do
+                self.core_loads[i] -= work_to_do
+                remaining_work_this_tick -= work_to_do
+
+                if task.remaining_time <= 0:
+                    task.finish_time = current_time + (WORK_PER_TICK - remaining_work_this_tick)
+                    finished_tasks_this_step.append(task)
+                    self.finished_tasks.append(task)
+
+                    if task in self.tasks:
+                        self.tasks.remove(task)
+
+                    if task in self.local_hard_tasks:
+                        self.local_hard_tasks.remove(task)
+
+                    continue
+                else:
+                    heapq.heappush(core_heap, (deadline, rel_time, task))
+                    break
+
+            for item in temp_unready_tasks:
+                heapq.heappush(core_heap, item)
+
+        return finished_tasks_this_step

@@ -31,6 +31,7 @@ class Task(ModelBaseABC):
 
     creator: MobileNodeABC = None
     executor: NodeABC = None
+    is_hard: bool = False
 
     def real_exec_time(self, executor=None) -> float:
         # print(f"self.executor : {self.executor}\nexecutor : {executor}")

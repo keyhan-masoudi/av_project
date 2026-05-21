@@ -52,6 +52,9 @@ class HeuristicZoneManager(ZoneManagerABC):
         # if task.creator.can_offload_task(task):
         #     return True
 
+        if task.is_hard:
+            return False
+
         all_fog_nodes: [str, FogLayerABC] = {**self.fixed_fog_nodes, **self.mobile_fog_nodes}
         # print(f"all_fog_nodes: {all_fog_nodes}")
         self.all_possible_nodes: dict[str, FogLayerABC] = {}

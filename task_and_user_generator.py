@@ -6,6 +6,7 @@ from collections import defaultdict
 from dataclasses import dataclass
 from xml.dom import minidom
 import config as CNF
+import numpy as np
 
 import matplotlib.pyplot as plt
 
@@ -43,6 +44,106 @@ class Config:
         MIN_COMPUTATION_POWER: float = 7.0
         COMPUTATION_POWER_ROUND_DIGIT: int = 2
 
+    class HardTaskConfig:
+        """Periodic hard tasks HT_1..HT_3 per vehicle (P, S KB range, C range, lambda)."""
+        EXEC_TIME_DIVISOR: float = 1e6
+        HARD_TASK_POWER: float = 0.0
+
+        # α(TL): traffic impact factor for TL in {1..5}.
+        ALPHA_BY_TRAFFIC_LEVEL: dict = {
+            1: 1.0,
+            2: 1.05,
+            3: 1.10,
+            4: 1.15,
+            5: 1.20,
+        }
+        # β(W): weather impact factor for W in {1..5}.
+        BETA_BY_WEATHER: dict = {
+            1: 1.0,
+            2: 1.05,
+            3: 1.10,
+            4: 1.15,
+            5: 1.20,
+        }
+        # Lane vehicle count upper bounds map to traffic level 1..5.
+        TRAFFIC_LEVEL_THRESHOLDS: tuple = (5, 10, 15, 20)
+
+        # todo: add more tasks
+        TASKS: tuple = (
+            {
+                "period": 7,
+                "size_min": 800,
+                "size_max": 1200,
+                "cycles_min": 1000,
+                "cycles_max": 1200,
+                "lambda": 1.0,
+            },
+            {
+                "period": 5,
+                "size_min": 1000,
+                "size_max": 3000,
+                "cycles_min": 600,
+                "cycles_max": 800,
+                "lambda": 1.0,
+            },
+            {
+                "period": 6,
+                "size_min": 500,
+                "size_max": 1000,
+                "cycles_min": 500,
+                "cycles_max": 1000,
+                "lambda": 1.0,
+            },
+            {
+                "period": 4,
+                "size_min": 800,
+                "size_max": 900,
+                "cycles_min": 100,
+                "cycles_max": 700,
+                "lambda": 1.0,
+            },
+            {
+                "period": 9,
+                "size_min": 800,
+                "size_max": 1000,
+                "cycles_min": 1000,
+                "cycles_max": 1100,
+                "lambda": 1.0,
+            },
+            {
+                "period": 12,
+                "size_min": 300,
+                "size_max": 500,
+                "cycles_min": 1100,
+                "cycles_max": 1300,
+                "lambda": 1.0,
+            },
+            {
+                "period": 3,
+                "size_min": 1000,
+                "size_max": 2000,
+                "cycles_min": 300,
+                "cycles_max": 600,
+                "lambda": 1.0,
+            },
+            {
+                "period": 10,
+                "size_min": 400,
+                "size_max": 700,
+                "cycles_min": 700,
+                "cycles_max": 900,
+                "lambda": 1.0,
+            },
+            {
+                "period": 2,
+                "size_min": 200,
+                "size_max": 400,
+                "cycles_min": 100,
+                "cycles_max": 200,
+                "lambda": 1.0,
+            },
+        )
+
 
 @dataclass
 class Vehicle:
@@ -75,13 +176,19 @@ class Generator:
         self.current_chunk = 0
         self.current_vehicles = []
         self.current_tasks = []
+        self.current_hard_tasks = []
+        self.hard_task_counters = defaultdict(int)
+        self.soft_task_counters = defaultdict(int)
+        # Per-vehicle next release step keyed by period; cleared when vehicle leaves.
+        self.hard_task_release_schedule: dict[str, dict[int, float]] = {}
         self.tasks_count_per_step = defaultdict(int)
         self.average_speed_per_step = defaultdict(float)
         self.total_task_power_per_step = defaultdict(float)
 
-        # Create output directories
+        # Create output directories.
         os.makedirs("./data/vehicles", exist_ok=True)
         os.makedirs("./data/tasks", exist_ok=True)
+        os.makedirs("./data/hard_tasks", exist_ok=True)
 
     @staticmethod
     def get_chunk_number(step: int) -> int:
@@ -89,11 +196,15 @@ class Generator:
 
     def save_current_chunk(self, step: int):
         chunk_num = self.get_chunk_number(step)
-        if chunk_num > self.current_chunk and (self.current_vehicles or self.current_tasks):
+        if chunk_num > self.current_chunk and (
+                self.current_vehicles or self.current_tasks or self.current_hard_tasks
+        ):
             self._save_vehicles_chunk()
             self._save_tasks_chunk()
+            self._save_hard_tasks_chunk()
             self.current_vehicles = []
             self.current_tasks = []
+            self.current_hard_tasks = []
             self.current_chunk = chunk_num
 
     def _save_vehicles_chunk(self):
@@ -141,6 +252,104 @@ class Generator:
         with open(f"./data/tasks/chunk_{self.current_chunk}.xml", 'w', encoding='utf-8') as f:
             f.write(xml_str)
 
+    def _save_hard_tasks_chunk(self):
+        root = Et.Element('fcd-export')
+        root.set("version", "1.0")
+
+        for time_data in self.current_hard_tasks:
+            time_elem = Et.SubElement(root, 'timestep')
+            time_elem.set('time', f"{time_data['step']}")
+            for task in time_data['tasks']:
+                t_elem = Et.SubElement(time_elem, 'task')
+                t_elem.set('id', task.id)
+                t_elem.set('deadline', f"{task.deadline:.2f}")
+                t_elem.set('exec_time', f"{task.exec_time:.2f}")
+                t_elem.set('power', f"{task.power:.2f}")
+                t_elem.set('creator', task.creator)
+                t_elem.set('cycles_per_bit', f"{task.cycles_per_bit:.2f}")
+                t_elem.set('dataSize', f"{task.dataSize:.2f}")
+
+        xml_str = minidom.parseString(Et.tostring(root)).toprettyxml(indent="    ")
+        with open(f"./data/hard_tasks/chunk_{self.current_chunk}.xml", 'w', encoding='utf-8') as f:
+            f.write(xml_str)
+
+    @staticmethod
+    def _traffic_level(lane_vehicle_count: int) -> int:
+        thresholds = Config.HardTaskConfig.TRAFFIC_LEVEL_THRESHOLDS
+        for level, threshold in enumerate(thresholds, start=1):
+            if lane_vehicle_count <= threshold:
+                return level
+        return len(thresholds) + 1
+
+    @staticmethod
+    def _environment_scaling(traffic_level: int, weather_level: int) -> float:
+        alpha = Config.HardTaskConfig.ALPHA_BY_TRAFFIC_LEVEL[traffic_level]
+        beta = Config.HardTaskConfig.BETA_BY_WEATHER[weather_level]
+        return alpha * beta
+
+    @staticmethod
+    def _clamp_level(value: float) -> int:
+        return max(1, min(5, int(round(value))))
+
+    def _init_hard_task_schedule(self, vehicle_id: str, entry_step: int) -> None:
+        """Start periodic releases when a vehicle enters the simulation."""
+        self.hard_task_release_schedule[vehicle_id] = {
+            task_spec["period"]: float(entry_step)
+            for task_spec in Config.HardTaskConfig.TASKS
+        }
+
+    def generate_hard_tasks_for_vehicle(
+            self,
+            step: int,
+            vehicle: Vehicle,
+            lane_vehicle_count: int,
+    ) -> list[Task]:
+        """Generate periodic hard tasks while the vehicle is present in the system."""
+        if vehicle.id not in self.hard_task_release_schedule:
+            self._init_hard_task_schedule(vehicle.id, step)
+
+        traffic_level = self._traffic_level(lane_vehicle_count)
+        weather_level = self._clamp_level(vehicle.weather)
+        scaling = self._environment_scaling(traffic_level, weather_level)
+        schedule = self.hard_task_release_schedule[vehicle.id]
+        hard_tasks = []
+
+        for task_spec in Config.HardTaskConfig.TASKS:
+            period = task_spec["period"]
+            if step < schedule[period] - 1e-9:
+                continue
+
+            size_baseline = random.uniform(task_spec["size_min"], task_spec["size_max"])
+            cycles_baseline = random.uniform(task_spec["cycles_min"], task_spec["cycles_max"])
+            sensitivity = task_spec["lambda"]
+            data_size = round(size_baseline * scaling * sensitivity, 2)
+            cycles_per_bit = round(cycles_baseline * scaling * sensitivity, 2)
+            exec_time = (
+                data_size * cycles_per_bit
+            ) / (vehicle.frequency * Config.HardTaskConfig.EXEC_TIME_DIVISOR)
+            task_index = self.hard_task_counters[vehicle.id]
+            task_id = f"{vehicle.id}_H_{step}_{task_index}_{period}"
+            self.hard_task_counters[vehicle.id] += 1
+            schedule[period] += period
+
+            hard_tasks.append(Task(
+                id=task_id,
+                deadline=float(step + period),
+                exec_time=exec_time,
+                power=Config.HardTaskConfig.HARD_TASK_POWER,
+                creator=vehicle.id,
+                cycles_per_bit=cycles_per_bit,
+                dataSize=data_size,
+            ))
+
+        return hard_tasks
+
+    def _clear_departed_vehicle_schedules(self, present_vehicle_ids: set[str]) -> None:
+        """Drop schedules for vehicles that left so re-entry starts a new periodic cycle."""
+        departed_ids = set(self.hard_task_release_schedule) - present_vehicle_ids
+        for vehicle_id in departed_ids:
+            del self.hard_task_release_schedule[vehicle_id]
+
     def calculate_metrics(self, step: float, vehicles: list[Vehicle], tasks: list[Task]):
         """Calculate metrics for the current timestep."""
         # Count tasks for this step
@@ -157,7 +366,7 @@ class Generator:
         self.total_task_power_per_step[step] = round(sum(task.power for task in tasks), 2)
 
     @staticmethod
-    def generate_one_step_task(step, vehicle, lane_counter):
+    def generate_one_step_task(self, step, vehicle, lane_counter):
         """Generate tasks for each mobile fog node."""
         deadline_free = round(
             random.uniform(
@@ -191,11 +400,13 @@ class Generator:
 
         exec_time = (dataSize * cycles_per_bit) / CNF.Config.UserNodeConfig.USER_NODE_FREQUENCY
         deadline = round(exec_time + deadline_free) + step
+        task_index = self.soft_task_counters[vehicle.id]
+        self.soft_task_counters[vehicle.id] += 1
 
         if chance > threshold:
             return None
         return Task(
-            id=f"{vehicle.id}_{step}",
+            id=f"{vehicle.id}_S_{step}_{task_index}",
             deadline=deadline,
             exec_time=exec_time,
             power=power,
@@ -208,6 +419,7 @@ class Generator:
         """Generate vehicles for each mobile fog node."""
         current_vehicles = []
         current_tasks = []
+        current_hard_tasks = []
         lane_counter = defaultdict(int)
 
         for vehicle in time_data.findall('vehicle'):
@@ -258,15 +470,26 @@ class Generator:
             current_vehicles.append(vehicle_obj)
             lane_counter[vehicle_obj.lane] += 1
 
-            if task := self.generate_one_step_task(step, vehicle_obj, lane_counter[vehicle_obj.lane]):
+            if task := self.generate_one_step_task(self, step, vehicle_obj, lane_counter[vehicle_obj.lane]):
                 current_tasks.append(task)
 
-        # Calculate metrics before saving the chunk
+            current_hard_tasks.extend(
+                self.generate_hard_tasks_for_vehicle(
+                    step,
+                    vehicle_obj,
+                    lane_counter[vehicle_obj.lane],
+                )
+            )
+
+        self._clear_departed_vehicle_schedules({vehicle.id for vehicle in current_vehicles})
+
+        # Calculate metrics before saving the chunk.
         self.calculate_metrics(step, current_vehicles, current_tasks)
 
-        # Add current timestep data to the chunk
+        # Add current timestep data to the chunk.
         self.current_vehicles.append({"step": step, "vehicles": current_vehicles})
         self.current_tasks.append({"step": step, "tasks": current_tasks})
+        self.current_hard_tasks.append({"step": step, "tasks": current_hard_tasks})
 
         self.save_current_chunk(step)
 
@@ -281,10 +504,11 @@ class Generator:
             step = round(float(time.get('time')))
             seen_ids_power = self.generate_one_step(step, time, seen_ids_power)
 
-        # Save the last chunk if there's any data left
-        if self.current_vehicles or self.current_tasks:
+        # Save the last chunk if there's any data left.
+        if self.current_vehicles or self.current_tasks or self.current_hard_tasks:
             self._save_vehicles_chunk()
             self._save_tasks_chunk()
+            self._save_hard_tasks_chunk()
 
     def save_metrics_to_csv(self, metrics_file: str):
         """Save the collected metrics to a CSV file."""

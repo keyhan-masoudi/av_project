@@ -9,6 +9,7 @@ from controllers.zone_managers.random import RandomZoneManager
 # from controllers.zone_managers.hrl import HRLZoneManager
 from controllers.zone_managers.only_cloud import OnlyCloudZoneManager
 from controllers.zone_managers.only_fog import OnlyFogZoneManager
+from controllers.zone_managers.only_local import OnlyLocalZoneManager
 from controllers.zone_managers.deepRL.deep_rl_zone_manager import DeepRLZoneManager
 from controllers.zone_managers.MADDPG.deep_rl_zone_manager_maddpg import DeepRLZoneManagerMADDGP
 from controllers.zone_managers.DDPG.deep_rl_zone_manager_ddpg import DeepRLZoneManager_DDPG
@@ -24,6 +25,7 @@ class Loader:
         Config.ZoneManagerConfig.ALGORITHM_HEURISTIC: HeuristicZoneManager,
         Config.ZoneManagerConfig.ALGORITHM_ONLY_CLOUD: OnlyCloudZoneManager,
         Config.ZoneManagerConfig.ALGORITHM_ONLY_FOG: OnlyFogZoneManager,
+        Config.ZoneManagerConfig.ALGORITHM_ONLY_LOCAL: OnlyLocalZoneManager,
         Config.ZoneManagerConfig.ALGORITHM_DEEP_RL: DeepRLZoneManager,
         Config.ZoneManagerConfig.ALGORITHM_MADDPG: DeepRLZoneManagerMADDGP,
         Config.ZoneManagerConfig.ALGORITHM_DDPG: DeepRLZoneManager_DDPG,
@@ -31,7 +33,7 @@ class Loader:
         Config.ZoneManagerConfig.ALGORITHM_SAC: DeepRLZoneManagerSAC
     }
 
-    def __init__(self, zone_file: str, fixed_fn_file: str, mobile_file: str, task_file: str, checkpoint_path: str):
+    def __init__(self, zone_file: str, fixed_fn_file: str, mobile_file: str, task_file: str, checkpoint_path: str, hard_task_file: str):
         self.current_chunk = 0
         self.chunk_size = Config.CHUNK_SIZE
         self.zone_parser = ZoneSumoXMLParser(zone_file)
@@ -40,12 +42,24 @@ class Loader:
         self.mobile_node_parser = MobileNodeSumoXMLParser(mobile_file, 0)
         self.task_chunk_path = task_file
         self.task_parser = TaskSumoXMLParser(task_file, 0)
+        self.hard_task_chunk_path = hard_task_file
+        self.hard_task_parser = (
+            TaskSumoXMLParser(hard_task_file, 0) if hard_task_file else None
+        )
         self.checkpoint_path = checkpoint_path
 
     def __load_next_chunk(self, time_step: float):
         if self.get_chunk(time_step - 1) != self.current_chunk and time_step != 0:
-            self.mobile_node_parser = MobileNodeSumoXMLParser(self.mobile_chunk_path, self.get_chunk(time_step))
-            self.task_parser = TaskSumoXMLParser(self.task_chunk_path, self.get_chunk(time_step))
+            self.mobile_node_parser = MobileNodeSumoXMLParser(
+                self.mobile_chunk_path, self.get_chunk(time_step)
+            )
+            self.task_parser = TaskSumoXMLParser(
+                self.task_chunk_path, self.get_chunk(time_step)
+            )
+            if self.hard_task_parser is not None:
+                self.hard_task_parser = TaskSumoXMLParser(
+                    self.hard_task_chunk_path, self.get_chunk(time_step)
+                )
             self.current_chunk = self.get_chunk(time_step)
 
     def get_chunk(self, time_step: float) -> int:
@@ -116,10 +130,24 @@ class Loader:
         return user_fog_nodes
 
     def load_nodes_tasks(self, time_step: float) -> Dict[str, List[Task]]:
+        """Load soft (aperiodic) tasks for the given simulation step."""
         self.__load_next_chunk(time_step)
         tasks: Dict[str, List[Task]] = defaultdict(list)
 
         for task in self.task_parser.parse().get(time_step, []):
+            tasks[task.creator_id].append(task)
+        return tasks
+
+    def load_nodes_hard_tasks(self, time_step: float) -> Dict[str, List[Task]]:
+        """Load pre-generated periodic hard tasks for the given simulation step."""
+        if self.hard_task_parser is None:
+            return {}
+
+        self.__load_next_chunk(time_step)
+        tasks: Dict[str, List[Task]] = defaultdict(list)
+
+        for task in self.hard_task_parser.parse().get(time_step, []):
+            task.is_hard = True
             tasks[task.creator_id].append(task)
         return tasks
 
