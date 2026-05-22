@@ -20,6 +20,7 @@ class MetricsController:
         self.no_resource_found = 0  # Total number of tasks that did not find resource to execute in system.
         self.migrate_and_miss = 0
         self.local_execution = 0
+        self.local_hard_execution = 0
         self.fog_execution = 0
         self.total_tasks = 0  # Total number of tasks processed in system.
         self.cloud_tasks = 0  # Total number of tasks offloaded to cloud server.
@@ -63,6 +64,9 @@ class MetricsController:
 
     def inc_local_execution(self):
         self.local_execution += 1
+
+    def inc_local_hard_execution(self):
+        self.local_hard_execution += 1
 
     def inc_fog_execution(self):
         self.fog_execution += 1
@@ -133,6 +137,7 @@ class MetricsController:
         # print(f"\tTotal migrate and misses: {self.migrate_and_miss}")
         print(f"\tTotal cloud tasks: {self.cloud_tasks}")
         print(f"\tTotal local execution tasks: {self.local_execution}")
+        print(f"\tTotal local hard execution tasks: {self.local_hard_execution}")
         print(f"\tTotal fog execution tasks: {self.fog_execution}")
         print(f"\tTotal completed tasks: {self.completed_tasks}")
         print(f"\tTotal tasks: {self.total_tasks}")
@@ -165,6 +170,7 @@ class MetricsController:
             'Total deadline misses': self.deadline_misses,
             'Total cloud tasks': self.cloud_tasks,
             'Total local execution tasks': self.local_execution,
+            'Total Hard execution tasks': self.local_hard_execution,
             'Total fog execution tasks': self.fog_execution,
             'Total completed tasks': self.completed_tasks,
             'Deadline miss ratio': f"{deadline_miss_ratio:.3f}%",
