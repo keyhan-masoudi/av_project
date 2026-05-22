@@ -417,16 +417,18 @@ class Simulator:
                     self.choose_executor_and_assign(zone_manager_offload_task, task, partitions, current_time)
 
             target_id = "PKW364"
-            self.print_node_schedule_status(current_time, target_id)
+            target_id2 = "FN0006"
+            # self.print_node_schedule_status(current_time, target_id)
 
-            self.update_graph()
             self.execute_tasks_for_one_step()
+            self.update_graph()
             self.metrics.flush()
 
             # رسم گانت چارت برای بازه 320 تا 340 (فقط یک بار در ثانیه 341 انجام می‌شود)
             if current_time >= 320.0 and not getattr(self, '_gantt_340_drawn', False):
                 print(blue_bg(f"--- Attempting to draw Gantt chart at time {current_time} ---"))
                 self.draw_gantt_chart(target_id, window_start=300.0, window_end=320.0)
+                self.draw_gantt_chart(target_id2, window_start=300.0, window_end=320.0)
                 self._gantt_340_drawn = True
             # --------------------------------------------------------------------------
 
@@ -474,6 +476,13 @@ class Simulator:
             if creator is None:
                 print(f"there is no creator for hard task: {creator_id}\n")
                 continue
+            # --- Added to complete the WFD algorithm ---
+            # Sort tasks on the same machine in descending order by productivity (C/T)
+            creator_tasks = sorted(
+                creator_tasks,
+                key=lambda t: t.exec_time / float(t.id.split('_')[-1]),
+                reverse=True
+            )
             for task in creator_tasks:
                 self._assign_hard_task_locally(task, creator, current_time)
                 self.metrics.inc_total_tasks()
@@ -519,13 +528,13 @@ class Simulator:
                         self.metrics.inc_task_load_diff(task.id, min_load, max_load)
                 # todo: check local hard tasks
                 if task.is_hard:
-                    self.metrics.inc_local_execution()
+                    self.metrics.inc_local_hard_execution()
+
+                elif isinstance(task.executor, (FixedFogNode, MobileFogNode)) and (task.creator.id != task.executor.id or Config.ZoneManagerConfig.DEFAULT_ALGORITHM == Config.ZoneManagerConfig.ALGORITHM_ONLY_FOG):
+                    self.metrics.inc_fog_execution()
 
                 elif task.creator.id == task.executor.id:
                     self.metrics.inc_local_execution()
-
-                elif isinstance(task.executor, (FixedFogNode, MobileFogNode)):
-                    self.metrics.inc_fog_execution()
 
                 elif isinstance(task.executor, CloudNode):
                     self.metrics.inc_cloud_tasks()
