@@ -122,6 +122,7 @@ class NodeABC(ModelBaseABC, abc.ABC):
     # The total remaining work (load) for each core (for Worst Fit)
     # Used by assign_task and execute_tasks
     core_loads: List[float] = field(init=False)
+    execution_log = None
 
     def __post_init__(self):
         """
@@ -210,6 +211,9 @@ class NodeABC(ModelBaseABC, abc.ABC):
             - Skips tasks whose start_time > current_time.
             - If a task finishes before the tick ends, continues with the next ready task.
         """
+        # ایجاد یک لیست برای ذخیره تاریخچه اجرا جهت رسم گانت چارت
+        if self.execution_log is None:
+            self.execution_log = []
         finished_tasks_this_step = []
         WORK_PER_TICK = 1.0
 
@@ -229,6 +233,18 @@ class NodeABC(ModelBaseABC, abc.ABC):
                     continue
 
                 work_to_do = min(remaining_work_this_tick, task.remaining_time)
+
+                # -------------- اضافه کردن لاگ اجرا برای گانت چارت --------------
+                slice_start = current_time + (WORK_PER_TICK - remaining_work_this_tick)
+                self.execution_log.append({
+                    'core': i,
+                    'task_id': task.id,
+                    'start': slice_start,
+                    'duration': work_to_do,
+                    'is_hard': getattr(task, 'is_hard', False)
+                })
+                # ----------------------------------------------------------------
+
                 task.remaining_time -= work_to_do
                 self.core_loads[i] -= work_to_do
                 remaining_work_this_tick -= work_to_do
@@ -438,8 +454,6 @@ class MobileNodeABC(NodeABC, abc.ABC):
     periodic_allocation: List[List[dict]] = field(init=False)
     local_hard_tasks = []
 
-    execution_log = None
-
     def __post_init__(self):
         super().__post_init__()
         self.core_Up = [0.0] * self.num_cores
@@ -516,8 +530,8 @@ class MobileNodeABC(NodeABC, abc.ABC):
                 min_prospective_deadline = prospective_dk
                 best_core_idx = i
 
-        # ست کردن ددلاین نهایی بر اساس فرمول
-        task.deadline = min_prospective_deadline
+        # # ست کردن ددلاین نهایی بر اساس فرمول
+        # task.deadline = min_prospective_deadline
 
         # آپدیت کردن آخرین ددلاین محاسبه شده برای این کور جهت استفاده در تسک‌های بعدی
         self.last_tbs_deadline[best_core_idx] = min_prospective_deadline
@@ -525,7 +539,7 @@ class MobileNodeABC(NodeABC, abc.ABC):
         self.core_loads[best_core_idx] += task.total_exec_time
 
         # قرار دادن تسک سافت در صف اولویت
-        heapq.heappush(self.cores[best_core_idx], (task.deadline, task.release_time, task))
+        heapq.heappush(self.cores[best_core_idx], (min_prospective_deadline, task.release_time, task))
 
     def execute_tasks(self, current_time: float, fixed_fog_nodes) -> list:
         """
