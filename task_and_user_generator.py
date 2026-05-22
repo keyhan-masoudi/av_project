@@ -29,7 +29,7 @@ class Config:
     class VehicleConfig:
         TASK_GENERATION_RATE: float = 0.35  # More frequent task generation
         FUCKED_UP_TASK_GENERATION_RATE: float = 0.55
-        TRAFFIC_MIN_SPEED_THRESHOLD: float = 10  # Lowered speed, causing occasional congestion
+        TRAFFIC_MIN_SPEED_THRESHOLD: float = 10.5  # Lowered speed, causing occasional congestion
         LANE_TRAFFIC_THRESHOLD: int = 15  # More vehicles per lane (moderate traffic)
         MAX_COMPUTATION_POWER: float = 6  # note : change it in feature change !
         MIN_COMPUTATION_POWER: float = 2
@@ -325,8 +325,8 @@ class Generator:
             data_size = round(size_baseline * scaling * sensitivity, 2)
             cycles_per_bit = round(cycles_baseline * scaling * sensitivity, 2)
             exec_time = (
-                data_size * cycles_per_bit
-            ) / (vehicle.frequency * Config.HardTaskConfig.EXEC_TIME_DIVISOR)
+                                data_size * cycles_per_bit
+                        ) / (vehicle.frequency * Config.HardTaskConfig.EXEC_TIME_DIVISOR)
             task_index = self.hard_task_counters[vehicle.id]
             task_id = f"{vehicle.id}_H_{step}_{task_index}_{period}"
             self.hard_task_counters[vehicle.id] += 1
@@ -366,54 +366,75 @@ class Generator:
         self.total_task_power_per_step[step] = round(sum(task.power for task in tasks), 2)
 
     @staticmethod
-    def generate_one_step_task(self, step, vehicle, lane_counter):
+    def generate_one_step_tasks(self, step, vehicle, lane_counter):
         """Generate tasks for each mobile fog node."""
-        deadline_free = round(
-            random.uniform(
-                Config.TaskConfig.DEADLINE_MIN_FREE_TIME,
-                Config.TaskConfig.DEADLINE_MAX_FREE_TIME,
-            ),
-            2
-        )
-        power = round(
-            random.uniform(
-                Config.TaskConfig.MIN_POWER_CONSUMPTION,
-                Config.TaskConfig.MAX_POWER_CONSUMPTION
-            ),
-            2
-        )
-        cycles_per_bit = round(
-            random.uniform(
-                Config.TaskConfig.MIN_CYCLE_PER_BIT,
-                Config.TaskConfig.MAX_CYCLE_PER_BIT
-            ),
-            2
-        )
-        chance = random.random()
-        threshold = Config.VehicleConfig.TASK_GENERATION_RATE
-        dataSize = round(random.uniform(Config.TaskConfig.MIN_DATASIZE, Config.TaskConfig.MAX_DATASIZE), 2)
-        if (
-                lane_counter > Config.VehicleConfig.LANE_TRAFFIC_THRESHOLD or
-                vehicle.speed < Config.VehicleConfig.TRAFFIC_MIN_SPEED_THRESHOLD
-        ):
-            threshold = Config.VehicleConfig.FUCKED_UP_TASK_GENERATION_RATE
 
-        exec_time = (dataSize * cycles_per_bit) / CNF.Config.UserNodeConfig.USER_NODE_FREQUENCY
-        deadline = round(exec_time + deadline_free) + step
-        task_index = self.soft_task_counters[vehicle.id]
-        self.soft_task_counters[vehicle.id] += 1
-
-        if chance > threshold:
-            return None
-        return Task(
-            id=f"{vehicle.id}_S_{step}_{task_index}",
-            deadline=deadline,
-            exec_time=exec_time,
-            power=power,
-            creator=vehicle.id,
-            cycles_per_bit=cycles_per_bit,
-            dataSize=dataSize
+        traffic_high = (
+                lane_counter > Config.VehicleConfig.LANE_TRAFFIC_THRESHOLD
+                or vehicle.speed < Config.VehicleConfig.TRAFFIC_MIN_SPEED_THRESHOLD
         )
+        if traffic_high:
+            num_tasks = np.random.poisson(lam=3.0)
+            num_tasks = int(np.clip(num_tasks, 2, 5))
+        else:
+            num_tasks = np.random.poisson(lam=0.8)
+            num_tasks = int(np.clip(num_tasks, 0, 3))
+
+        tasks = []
+
+        for _ in range(num_tasks):
+
+            deadline_free = round(
+                random.uniform(
+                    Config.TaskConfig.DEADLINE_MIN_FREE_TIME,
+                    Config.TaskConfig.DEADLINE_MAX_FREE_TIME,
+                ),
+                2
+            )
+            power = round(
+                random.uniform(
+                    Config.TaskConfig.MIN_POWER_CONSUMPTION,
+                    Config.TaskConfig.MAX_POWER_CONSUMPTION
+                ),
+                2
+            )
+            cycles_per_bit = round(
+                random.uniform(
+                    Config.TaskConfig.MIN_CYCLE_PER_BIT,
+                    Config.TaskConfig.MAX_CYCLE_PER_BIT
+                ),
+                2
+            )
+            dataSize = round(random.uniform(Config.TaskConfig.MIN_DATASIZE, Config.TaskConfig.MAX_DATASIZE), 2)
+
+            exec_time = (dataSize * cycles_per_bit) / CNF.Config.UserNodeConfig.USER_NODE_FREQUENCY
+            deadline = round(exec_time + deadline_free) + step
+
+            task_index = self.soft_task_counters[vehicle.id]
+            self.soft_task_counters[vehicle.id] += 1
+
+            # chance = random.random()
+            # threshold = Config.VehicleConfig.TASK_GENERATION_RATE
+            # if (
+            #         lane_counter > Config.VehicleConfig.LANE_TRAFFIC_THRESHOLD or
+            #         vehicle.speed < Config.VehicleConfig.TRAFFIC_MIN_SPEED_THRESHOLD
+            # ):
+            #     threshold = Config.VehicleConfig.FUCKED_UP_TASK_GENERATION_RATE
+
+            # if chance > threshold:
+            #     return None
+
+            tasks.append(Task(
+                id=f"{vehicle.id}_S_{step}_{task_index}",
+                deadline=deadline,
+                exec_time=exec_time,
+                power=power,
+                creator=vehicle.id,
+                cycles_per_bit=cycles_per_bit,
+                dataSize=dataSize
+            ))
+
+        return tasks
 
     def generate_one_step(self, step, time_data, seen_ids_power):
         """Generate vehicles for each mobile fog node."""
@@ -470,8 +491,9 @@ class Generator:
             current_vehicles.append(vehicle_obj)
             lane_counter[vehicle_obj.lane] += 1
 
-            if task := self.generate_one_step_task(self, step, vehicle_obj, lane_counter[vehicle_obj.lane]):
-                current_tasks.append(task)
+            if tasks := self.generate_one_step_tasks(self, step, vehicle_obj, lane_counter[vehicle_obj.lane]):
+                for task in tasks:
+                    current_tasks.append(task)
 
             current_hard_tasks.extend(
                 self.generate_hard_tasks_for_vehicle(
