@@ -26,7 +26,7 @@ def blue_bg(text):
 def green_bg(text):
     return f"\033[42m{text}\033[0m"
 
-
+# todo should change this
 def findExecTimeInEachKindOfNode(task, executor=None):
     from models.node.user import UserNode
     from models.node.cloud import CloudNode
@@ -158,6 +158,31 @@ class NodeABC(ModelBaseABC, abc.ABC):
             # print(blue_bg(f"distance"))
             return False
         return True
+
+    def get_best_queue_length(self) -> float:
+        """Returns: The length of the shortest queue among all the blinds of this node"""
+        if not hasattr(self, 'cores') or not self.cores:
+            return 0.0
+        return float(min(len(core) for core in self.cores))
+
+    def get_avg_queue_length(self) -> float:
+        """Returns: Average queue length at this node"""
+        if not hasattr(self, 'cores') or not self.cores:
+            return 0.0
+        total_tasks = sum(len(core) for core in self.cores)
+        return float(total_tasks) / max(1, self.num_cores)
+
+    def get_idle_cores_count(self) -> float:
+        """Returns: Number of cores which are IDLE"""
+        if not hasattr(self, 'cores') or not self.cores:
+            return 0.0
+        return float(sum(1 for core in self.cores if len(core) == 0))
+
+    def get_idle_capable_cores_count(self, task) -> float:
+        """Returns: The number of idle cores that have the processing power for this task"""
+        if not self.can_offload_task(task):
+            return 0.0
+        return self.get_idle_cores_count()
 
     def get_transmission_time(self, task, fixed_fog_nodes) -> float:
         if task.creator.id != task.executor.id:
