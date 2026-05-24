@@ -12,6 +12,20 @@ class Config:
 
         DEFAULT_CITY = MELBOURNE
 
+    class Scenario:
+        # --- SCENARIO PARAMETERS ---
+        # First rain period
+        RAIN1_START_TIME = 700
+        RAIN1_END_TIME = 900
+
+        # Second rain period
+        RAIN2_START_TIME = 1500
+        RAIN2_END_TIME = 1700
+
+        # third rain period
+        RAIN3_START_TIME = 3000
+        RAIN3_END_TIME = 3300
+
     class Directory:
         ZON_HAM = "./data/hamburg.zon.xml"
         FN_HAM = "./data/hamburg.fn.xml"
