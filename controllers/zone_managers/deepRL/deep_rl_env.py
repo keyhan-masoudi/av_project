@@ -8,6 +8,7 @@ from config import Config
 from models.node.base import findExecTimeInEachKindOfNode, find_closest_fn, findDataRate
 from models.node.fog import FixedFogNode, MobileFogNode
 from utils.distance import get_distance
+from collections import deque
 
 
 def red_bg(text):
@@ -43,7 +44,7 @@ def get_vehicle_position(csv_file, target_id):
 def calculate_distance(x1, y1, x2, y2):
     return math.sqrt((x2 - x1) ** 2 + (y2 - y1) ** 2)
 
-
+# todo: should change this
 def isDeadlineMissHappening(task, executor, fn_nodes):
     task.real_exec_time_base = findExecTimeInEachKindOfNode(task, executor)
 
@@ -92,12 +93,21 @@ class DeepRLEnvironment(gym.Env):
         self.metrics = simulator.metrics  # Track performance
 
         # Define action space: (Where to offload the task?)
-        self.action_space = spaces.Discrete(3)  # 0: Local, 1: Fog, 2: Cloud
+        # self.action_space = spaces.Discrete(3)  # 0: Local, 1: Fog, 2: Cloud
+        # 0:Local, 1:Cloud, 2:Fog1, 3:Fog2, 4:Fog3
+        self.action_space = spaces.Discrete(5)
 
         # Define state space: (What information do we use to make decisions?)
+        # self.observation_space = spaces.Box(
+        #     low=0, high=1, shape=(5,), dtype=np.float32
+        # )
+        # 36: Task(4) + Local(5) + Env(6) + Fog(15) + Cloud(6)
         self.observation_space = spaces.Box(
-            low=0, high=1, shape=(5,), dtype=np.float32
+            low=0, high=1, shape=(36,), dtype=np.float32
         )
+
+        # Frame Stacking for weather
+        self.weather_history = deque([0.0, 0.0, 0.0], maxlen=3)
 
     def reset(self):
         """Reset the environment to start a new episode."""
@@ -123,79 +133,152 @@ class DeepRLEnvironment(gym.Env):
 
         return next_state, reward, done, {}
 
+    # def get_action_mask(self, task):
+    #     mask = [1.0, 1.0, 1.0]
+    #     if task is not None:
+    #         local_exec_time = findExecTimeInEachKindOfNode(task, task.creator)
+    #
+    #         if (task.release_time + local_exec_time) > task.deadline:
+    #             mask[0] = 0.0
+    #
+    #     return np.array(mask, dtype=np.float32)
+
     def get_action_mask(self, task):
-        mask = [1.0, 1.0, 1.0]
-        if task is not None:
-            local_exec_time = findExecTimeInEachKindOfNode(task, task.creator)
+        # [Local, Cloud, Fog1, Fog2, Fog3]
+        mask = np.ones(5, dtype=np.float32)
 
-            if (task.release_time + local_exec_time) > task.deadline:
-                mask[0] = 0.0
+        creator = task.creator
 
-        return np.array(mask, dtype=np.float32)
+        # todo: change this variables
+        # todo: MAX_QUEUE_LEN should not be a constant variable
+        # todo: maybe it would be a better option if i use can_offload instead of this
+        MAX_QUEUE_LEN = 20.0
+        MAX_DISTANCE = 500.0  # حداکثر شعاع ارتباطی ماشین
+
+        # =====================================
+        # 1. مسک کردن Local (اکشن 0)
+        # =====================================
+        local_best_q = getattr(creator, 'get_best_queue_length', lambda: 0.0)()
+        # اگر صف خلوت‌ترین کور از ۸۵ درصد ظرفیت بیشتر بود، لوکال را مسک کن
+        if (local_best_q / MAX_QUEUE_LEN) > 0.85:
+            mask[0] = 0.0
+
+        # todo: maybe it won't be bad if we mask fog with queue too
+        # =====================================
+        # 3. مسک کردن Fog ها (اکشن‌های 2, 3, 4)
+        # =====================================
+        nearest_fogs = self._get_k_nearest_fogs(creator, k=3)
+
+        for i in range(3):
+            action_idx = i + 2  # نگاشت i=0 به اکشن 2 و الی آخر
+
+            if i < len(nearest_fogs):
+                fog = nearest_fogs[i]
+                dist = np.sqrt((fog.x - creator.x) ** 2 + (fog.y - creator.y) ** 2)
+
+                if dist > MAX_DISTANCE:
+                    mask[action_idx] = 0.0
+            else:
+                mask[action_idx] = 0.0
+
+        return mask
+
+    # def _execute_action(self, task, action):
+    #     """Perform the task offloading based on the action and return the reward."""
+    #     if action == 0:
+    #         candidate_executor = task.creator  # Local execution
+    #     elif action == 1:
+    #         candidate_executor = self._get_best_fog_node(task)  # Offload to fog
+    #     else:
+    #         candidate_executor = self.simulator.cloud_node  # Offload to cloud
+    #
+    #     if candidate_executor and candidate_executor.can_offload_task(task):
+    #         # executor.assign_task(task, self.simulator.clock.get_current_time())  # note : i have removed this line to have multi agent algorithm
+    #         reward = self._compute_reward2(task, candidate_executor)
+    #     else:
+    #         reward = -1  # Task couldn't be offloaded
+    #
+    #     return reward
+
+    # def _get_best_fog_node(self, task):
+    #     creator = task.creator
+    #     all_fog_nodes = list(self.fixed_fog_nodes.values()) + list(self.mobile_fog_nodes.values())
+    #     eligible_nodes = [node for node in all_fog_nodes if node.can_offload_task(task)]
+    #
+    #     if not eligible_nodes:
+    #         return None
+    #
+    #     if len(eligible_nodes) == 1:
+    #         return eligible_nodes[0]
+    #
+    #     distances_by_id = {
+    #         node.id: get_distance(node.x, node.y, creator.x, creator.y)
+    #         for node in eligible_nodes
+    #     }
+    #
+    #     min_dist = min(distances_by_id.values())
+    #     max_dist = max(distances_by_id.values())
+    #
+    #     mobile_node_ids = {node.id for node in self.mobile_fog_nodes.values()}
+    #
+    #     def calculate_score(node):
+    #         if node.id in mobile_node_ids:
+    #             normalized_power = node.power / Config.MobileFogNodeConfig.DEFAULT_COMPUTATION_POWER
+    #         else:
+    #             normalized_power = node.power / Config.FixedFogNodeConfig.DEFAULT_COMPUTATION_POWER
+    #
+    #         distance = distances_by_id[node.id]
+    #
+    #         if max_dist == min_dist:
+    #             normalized_distance = 0.0
+    #         else:
+    #             normalized_distance = (distance - min_dist) / (max_dist - min_dist)
+    #
+    #         distance_score = 1.0 - normalized_distance
+    #
+    #         final_score = (0.5 * normalized_power) + (0.5 * distance_score)
+    #         return final_score
+    #
+    #     chosen_node = max(
+    #         eligible_nodes,
+    #         key=calculate_score,
+    #         default=None
+    #     )
+    #
+    #     return chosen_node
 
     def _execute_action(self, task, action):
         """Perform the task offloading based on the action and return the reward."""
+        candidate_executor = None
+
         if action == 0:
-            candidate_executor = task.creator  # Local execution
+            candidate_executor = task.creator
+
         elif action == 1:
-            candidate_executor = self._get_best_fog_node(task)  # Offload to fog
-        else:
-            candidate_executor = self.simulator.cloud_node  # Offload to cloud
+            candidate_executor = self.simulator.cloud_node
 
-        if candidate_executor and candidate_executor.can_offload_task(task):
-            # executor.assign_task(task, self.simulator.clock.get_current_time())  # note : i have removed this line to have multi agent algorithm
-            reward = self._compute_reward2(task, candidate_executor)
-        else:
-            reward = -1  # Task couldn't be offloaded
+        elif action in [2, 3, 4]:
+            fog_index = action - 2
+            nearest_fogs = self._get_k_nearest_fogs(task.creator, k=3)
 
+            if fog_index < len(nearest_fogs):
+                candidate_executor = nearest_fogs[fog_index]
+
+        # If the agent randomly selects a non-existent fog in Exploration mode
+        if candidate_executor is None:
+            return -1.0
+
+        # todo: should write new reward formulation
+        if candidate_executor.can_offload_task(task):
+            reward = self._compute_reward_complex(task, candidate_executor)
+        else:
+            reward = -10.0
         return reward
 
-    def _get_best_fog_node(self, task):
-        creator = task.creator
-        all_fog_nodes = list(self.fixed_fog_nodes.values()) + list(self.mobile_fog_nodes.values())
-        eligible_nodes = [node for node in all_fog_nodes if node.can_offload_task(task)]
-
-        if not eligible_nodes:
-            return None
-
-        if len(eligible_nodes) == 1:
-            return eligible_nodes[0]
-
-        distances_by_id = {
-            node.id: get_distance(node.x, node.y, creator.x, creator.y)
-            for node in eligible_nodes
-        }
-
-        min_dist = min(distances_by_id.values())
-        max_dist = max(distances_by_id.values())
-
-        mobile_node_ids = {node.id for node in self.mobile_fog_nodes.values()}
-
-        def calculate_score(node):
-            if node.id in mobile_node_ids:
-                normalized_power = node.power / Config.MobileFogNodeConfig.DEFAULT_COMPUTATION_POWER
-            else:
-                normalized_power = node.power / Config.FixedFogNodeConfig.DEFAULT_COMPUTATION_POWER
-
-            distance = distances_by_id[node.id]
-
-            if max_dist == min_dist:
-                normalized_distance = 0.0
-            else:
-                normalized_distance = (distance - min_dist) / (max_dist - min_dist)
-
-            distance_score = 1.0 - normalized_distance
-
-            final_score = (0.5 * normalized_power) + (0.5 * distance_score)
-            return final_score
-
-        chosen_node = max(
-            eligible_nodes,
-            key=calculate_score,
-            default=None
-        )
-
-        return chosen_node
+    def _get_k_nearest_fogs(self, vehicle, k=3):
+        all_fogs = list(self.simulator.fixed_fog_nodes.values()) + list(self.simulator.mobile_fog_nodes.values())
+        all_fogs.sort(key=lambda fog: np.sqrt((fog.x - vehicle.x) ** 2 + (fog.y - vehicle.y) ** 2))
+        return all_fogs[:k]
 
     def _compute_reward(self, task, executor):
         """Compute the reward based on execution success, latency, and power efficiency."""
@@ -232,99 +315,236 @@ class DeepRLEnvironment(gym.Env):
         else:
             return reward, 2
 
-    def _calculate_avg_fog_power(self, vehicle):
-        """
-        Calculates the average remaining power of all fog nodes
-        within 300 meters of the given vehicle.
-        """
-        fog_nodes = list(self.simulator.mobile_fog_nodes.values()) + list(self.simulator.fixed_fog_nodes.values())
+    # def _calculate_avg_fog_power(self, vehicle):
+    #     """
+    #     Calculates the average remaining power of all fog nodes
+    #     within 300 meters of the given vehicle.
+    #     """
+    #     fog_nodes = list(self.simulator.mobile_fog_nodes.values()) + list(self.simulator.fixed_fog_nodes.values())
+    #
+    #     # Filter fog nodes within 300 meters of the vehicle
+    #     nearby_fogs = []
+    #     for fog in fog_nodes:
+    #         distance = np.sqrt((fog.x - vehicle.x) ** 2 + (fog.y - vehicle.y) ** 2)
+    #         if distance <= 300:
+    #             nearby_fogs.append(fog)
+    #
+    #     if len(nearby_fogs) == 0:
+    #         return 0.0
+    #
+    #     avg_power = sum(node.remaining_power for node in nearby_fogs) / len(nearby_fogs)
+    #     return avg_power
 
-        # Filter fog nodes within 300 meters of the vehicle
-        nearby_fogs = []
-        for fog in fog_nodes:
-            distance = np.sqrt((fog.x - vehicle.x) ** 2 + (fog.y - vehicle.y) ** 2)
-            if distance <= 300:
-                nearby_fogs.append(fog)
+    # def _calculate_max_fog_power(self, vehicle):
+    #     """
+    #     Calculates the maximum remaining power of all fog nodes
+    #     within 300 meters of the given vehicle.
+    #     """
+    #     fog_nodes = list(self.simulator.mobile_fog_nodes.values()) + list(self.simulator.fixed_fog_nodes.values())
+    #
+    #     # Filter fog nodes within 300 meters of the vehicle
+    #     nearby_fogs = []
+    #     for fog in fog_nodes:
+    #         distance = np.sqrt((fog.x - vehicle.x) ** 2 + (fog.y - vehicle.y) ** 2)
+    #         if distance <= 300:
+    #             nearby_fogs.append(fog)
+    #
+    #     if len(nearby_fogs) == 0:
+    #         return 0.0
+    #
+    #     max_power = max(node.remaining_power for node in nearby_fogs)
+    #     return max_power
 
-        if len(nearby_fogs) == 0:
-            return 0.0
-
-        avg_power = sum(node.remaining_power for node in nearby_fogs) / len(nearby_fogs)
-        return avg_power
-
-    def _calculate_max_fog_power(self, vehicle):
-        """
-        Calculates the maximum remaining power of all fog nodes
-        within 300 meters of the given vehicle.
-        """
-        fog_nodes = list(self.simulator.mobile_fog_nodes.values()) + list(self.simulator.fixed_fog_nodes.values())
-
-        # Filter fog nodes within 300 meters of the vehicle
-        nearby_fogs = []
-        for fog in fog_nodes:
-            distance = np.sqrt((fog.x - vehicle.x) ** 2 + (fog.y - vehicle.y) ** 2)
-            if distance <= 300:
-                nearby_fogs.append(fog)
-
-        if len(nearby_fogs) == 0:
-            return 0.0
-
-        max_power = max(node.remaining_power for node in nearby_fogs)
-        return max_power
+    # def _get_state(self, task=None):
+    #     """
+    #     Extract the state vector for the RL agent.
+    #     State format:
+    #     [remainingVehiclePower, taskPower, timeToExecute, avg_fog_available_power, vehicleSpeed, cloud_available_power]
+    #     """
+    #     if task is not None:
+    #         remaining_power = task.creator.remaining_power if task.creator else 0.0
+    #         task_power = task.power
+    #         # vehicle_speed = task.creator.speed if hasattr(task.creator, 'speed') else 0.0
+    #         time_to_execute = task.exec_time  # in normal mode
+    #         # note: maybe it's needed to add /2 for fog and cloud, but how?? (i think it's okay now and it's considered in reward)
+    #
+    #     else:
+    #         remaining_power = 0.0
+    #         task_power = 0.0
+    #         time_to_execute = 0.0
+    #         # vehicle_speed = 0.0
+    #
+    #     # exec time ratio
+    #     maxExecTime = 25.0
+    #     execTimeRatio = time_to_execute / maxExecTime
+    #
+    #     # task power ratio
+    #     maxTaskPower = 3.5
+    #     taskPowerRatio = task_power / maxTaskPower
+    #
+    #     # vehicle speed ratio
+    #     # maxSpeedOfaVehicle = 13.89
+    #     # vehicle_speed_ratio = vehicle_speed / maxSpeedOfaVehicle
+    #
+    #     # vehicle remaining power ratio
+    #     maxVehiclePower = task.creator.power
+    #     VehiclePowerRatio = remaining_power / maxVehiclePower
+    #
+    #     # fog power ratio
+    #     avg_fog_power = self._calculate_avg_fog_power(task.creator)
+    #     max_fog_power_in_range = self._calculate_max_fog_power(task.creator)
+    #     max_fog_power = 19.79
+    #     avg_fog_remaining_power_ratio = avg_fog_power / max_fog_power
+    #     max_fog_remaining_power_ratio = max_fog_power_in_range / max_fog_power
+    #
+    #     # cloud power ratio
+    #     cloud_remaining_power = self.simulator.cloud_node.remaining_power if self.simulator.cloud_node else 0.0
+    #     cloud_power = self.simulator.cloud_node.power if self.simulator.cloud_node else 1.0
+    #     cloud_power_ratio = cloud_remaining_power / cloud_power
+    #
+    #     return np.array([
+    #         VehiclePowerRatio,
+    #         taskPowerRatio,
+    #         execTimeRatio,
+    #         avg_fog_remaining_power_ratio,
+    #         # max_fog_remaining_power_ratio,
+    #         # vehicle_speed_ratio,
+    #         cloud_power_ratio
+    #     ], dtype=np.float32)
 
     def _get_state(self, task=None):
-        """
-        Extract the state vector for the RL agent.
-        State format:
-        [remainingVehiclePower, taskPower, timeToExecute, avg_fog_available_power, vehicleSpeed, cloud_available_power]
-        """
-        if task is not None:
-            remaining_power = task.creator.remaining_power if task.creator else 0.0
-            task_power = task.power
-            # vehicle_speed = task.creator.speed if hasattr(task.creator, 'speed') else 0.0
-            time_to_execute = task.exec_time  # in normal mode
-            # note: maybe it's needed to add /2 for fog and cloud, but how?? (i think it's okay now and it's considered in reward)
+        if task is None:
+            return np.zeros(self.observation_space.shape[0], dtype=np.float32)
 
+        state_vector = []
+        creator = task.creator
+
+        # === ثوابت نرمال‌سازی (باید در فایل Config قرار بگیرند) ===
+        MAX_TASK_SIZE = 5.0  # حداکثر سایز تسک هارد
+        MAX_WORKLOAD = 10.0  # حداکثر توان پردازشی مورد نیاز تسک
+        MAX_DEADLINE = 5.0  # حداکثر ددلاین
+        MAX_CAPACITY = 20.0  # حداکثر ظرفیت یک گره فاگ/لوکال
+        MAX_CLOUD_CAPACITY = 100.0  # حداکثر ظرفیت کلاد
+        MAX_QUEUE_LEN = 20.0  # حداکثر طول صف مجاز
+        MAX_CORES = 8.0  # حداکثر تعداد کورها
+        MAX_DISTANCE = 500.0  # شعاع ارتباطی محیط
+        MAX_BANDWIDTH = 100.0  # حداکثر پهنای باند کلاد
+        MAX_DELAY = 2.0  # حداکثر تاخیر پایه کلاد
+
+        # ==========================================
+        # بلوک ۱: ویژگی‌های Task
+        # ==========================================
+        data_size_ratio = task.dataSize / MAX_TASK_SIZE
+        workload_ratio = task.power / MAX_WORKLOAD
+        deadline_ratio = task.deadline / MAX_DEADLINE
+
+        # فرض میکنیم ویژگی is_hard در کلاس Task اضافه شده باشد
+        task_type = 1.0 if hasattr(task, 'is_hard') and task.is_hard else 0.0
+
+        state_vector.extend([data_size_ratio, workload_ratio, deadline_ratio, task_type])
+
+        # ==========================================
+        # بلوک ۲: ویژگی‌های Local Node
+        # ==========================================
+        local_tot_cap = creator.power / MAX_CAPACITY
+        local_rem_cap = creator.remaining_power / MAX_CAPACITY
+        # این متدها باید به کلاس پایه گره‌ها (Node) اضافه شوند
+        local_best_q = getattr(creator, 'get_best_queue_length', lambda: 0.0)() / MAX_QUEUE_LEN
+        local_avg_q = getattr(creator, 'get_avg_queue_length', lambda: 0.0)() / MAX_QUEUE_LEN
+        local_idle_cores = getattr(creator, 'get_idle_cores_count', lambda: 0.0)() / MAX_CORES
+
+        state_vector.extend([local_tot_cap, local_rem_cap, local_best_q, local_avg_q, local_idle_cores])
+
+        # ==========================================
+        # بلوک ۳: ویژگی‌های محیط (Environment & Context)
+        # ==========================================
+        # دریافت ترافیک و پیش‌بینی آن از شبیه‌ساز (فرضی)
+        current_traffic = getattr(self.simulator, 'current_traffic_intensity', 0.5)
+        predicted_traffic = getattr(self.simulator, 'predicted_traffic_intensity', 0.5)
+
+        # آپدیت آب و هوا در استک (دریافت وضعیت فعلی آب و هوا: 0 خوب، 1 بد)
+        current_weather = getattr(self.simulator, 'current_weather_status', 0.0)
+        self.weather_history.append(current_weather)
+
+        # ضریب تضعیف سیگنال (Path Loss) برای لوکیشن ماشین
+        path_loss = getattr(self.simulator, 'get_path_loss', lambda x, y: 0.0)(creator.x, creator.y)
+
+        state_vector.extend([current_traffic, predicted_traffic])
+        state_vector.extend(list(self.weather_history))  # ۳ ویژگی آب و هوا
+        state_vector.extend([path_loss])
+
+        # ==========================================
+        # بلوک ۴: ویژگی‌های 3 فاگ نزدیک
+        # ==========================================
+        nearest_fogs = self._get_k_nearest_fogs(creator, k=3)
+
+        for i in range(3):
+            if i < len(nearest_fogs):
+                fog = nearest_fogs[i]
+                dist = np.sqrt((fog.x - creator.x) ** 2 + (fog.y - creator.y) ** 2) / MAX_DISTANCE
+                dist = min(dist, 1.0)  # محدود کردن روی 1
+
+                f_rem_cap = fog.remaining_power / MAX_CAPACITY
+                f_best_q = getattr(fog, 'get_best_queue_length', lambda: 0.0)() / MAX_QUEUE_LEN
+                f_avg_q = getattr(fog, 'get_avg_queue_length', lambda: 0.0)() / MAX_QUEUE_LEN
+                f_idle_cores = getattr(fog, 'get_idle_capable_cores_count', lambda t: 0.0)(task) / MAX_CORES
+
+                state_vector.extend([dist, f_rem_cap, f_best_q, f_avg_q, f_idle_cores])
+            else:
+                # اگر فاگی وجود نداشت (مثلا فقط ۲ فاگ در کل نقشه بود)، بدترین حالت را پاس میدهیم
+                state_vector.extend([1.0, 0.0, 1.0, 1.0, 0.0])
+
+        # ==========================================
+        # بلوک ۵: ویژگی‌های Cloud
+        # ==========================================
+        cloud = self.simulator.cloud_node
+        if cloud:
+            # todo: should fix this section. current_cloud_bandwidth doesn't need to write
+            bw = getattr(self.simulator, 'current_cloud_bandwidth', MAX_BANDWIDTH) / MAX_BANDWIDTH
+            est_delay = getattr(self.simulator, 'estimated_cloud_delay', 0.0) / MAX_DELAY
+            c_rem_cap = cloud.remaining_power / MAX_CLOUD_CAPACITY
+            c_best_q = getattr(cloud, 'get_best_queue_length', lambda: 0.0)() / MAX_QUEUE_LEN
+            c_avg_q = getattr(cloud, 'get_avg_queue_length', lambda: 0.0)() / MAX_QUEUE_LEN
+            c_idle_cores = getattr(cloud, 'get_idle_cores_count', lambda: 0.0)() / MAX_CORES
+
+            state_vector.extend([bw, est_delay, c_rem_cap, c_best_q, c_avg_q, c_idle_cores])
         else:
-            remaining_power = 0.0
-            task_power = 0.0
-            time_to_execute = 0.0
-            # vehicle_speed = 0.0
+            state_vector.extend([0.0, 1.0, 0.0, 1.0, 1.0, 0.0])
 
-        # exec time ratio
-        maxExecTime = 25.0
-        execTimeRatio = time_to_execute / maxExecTime
+        # print(red_bg(state_vector))
+        return np.array(state_vector, dtype=np.float32)
 
-        # task power ratio
-        maxTaskPower = 3.5
-        taskPowerRatio = task_power / maxTaskPower
+    def _compute_reward_complex(self, task, executor):
+        """
+        Calculate combined rewards based on queue status, environmental
+        conditions, and deadline compliance.
+        """
+        reward = 0.0
 
-        # vehicle speed ratio
-        # maxSpeedOfaVehicle = 13.89
-        # vehicle_speed_ratio = vehicle_speed / maxSpeedOfaVehicle
+        idle_cores = getattr(executor, 'get_idle_capable_cores_count', lambda t: 0)(task)
+        if idle_cores > 0:
+            reward += 0.5
+        else:
+            best_queue = getattr(executor, 'get_best_queue_length', lambda: 0.0)()
+            reward -= (best_queue * 0.1)
 
-        # vehicle remaining power ratio
-        maxVehiclePower = task.creator.power
-        VehiclePowerRatio = remaining_power / maxVehiclePower
+        # todo: surly i should change the logic of this section
+        if executor != task.creator:
+            weather = getattr(self.simulator, 'current_weather_status', 0.0)
+            # todo: should fix this
+            path_loss = getattr(self.simulator, 'get_path_loss', lambda x, y: 0.0)(task.creator.x, task.creator.y)
 
-        # fog power ratio
-        avg_fog_power = self._calculate_avg_fog_power(task.creator)
-        max_fog_power_in_range = self._calculate_max_fog_power(task.creator)
-        max_fog_power = 19.79
-        avg_fog_remaining_power_ratio = avg_fog_power / max_fog_power
-        max_fog_remaining_power_ratio = max_fog_power_in_range / max_fog_power
+            env_penalty = (weather * 0.5) + (path_loss * 0.5)
+            reward -= env_penalty
 
-        # cloud power ratio
-        cloud_remaining_power = self.simulator.cloud_node.remaining_power if self.simulator.cloud_node else 0.0
-        cloud_power = self.simulator.cloud_node.power if self.simulator.cloud_node else 1.0
-        cloud_power_ratio = cloud_remaining_power / cloud_power
+        # todo: should change this section
+        isDeadlineMiss, lateness = isDeadlineMissHappening(task, executor, self.simulator.fixed_fog_nodes)
 
-        return np.array([
-            VehiclePowerRatio,
-            taskPowerRatio,
-            execTimeRatio,
-            avg_fog_remaining_power_ratio,
-            # max_fog_remaining_power_ratio,
-            # vehicle_speed_ratio,
-            cloud_power_ratio
-        ], dtype=np.float32)
+        if not isDeadlineMiss:
+            reward += lateness * 1.0
+        else:
+            base_penalty = -50.0
+            total_penalty = base_penalty + lateness
+            reward += total_penalty
+
+        return reward

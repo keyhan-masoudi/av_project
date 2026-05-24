@@ -22,7 +22,7 @@ class DeepRLZoneManager(ZoneManagerABC):
         # Initialize Deep RL Environment and Agent
         # note: here removed
         # self.env = DeepRLEnvironment(simulator=None)  # Will be set in simulation
-        self.agent = DeepRLAgent(state_dim=5, action_dim=3)  # 5 state features, 3 actions
+        self.agent = DeepRLAgent(state_dim=36, action_dim=5)
 
         self.env = None
 
