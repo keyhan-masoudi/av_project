@@ -39,6 +39,18 @@ class Config:
         NoiseConfigsPath = "D:/av_project/NoiseConfigs"
         pklPath = r"D:\av_project\SumoDividedByTime"
 
+    class VehiclesTraffic:
+        PROJECT_ROOT = r"D:\av_project"
+        NOISE_CONFIGS_PATH = r"D:\av_project\NoiseConfigs"
+        PKL_PATH = r"D:\av_project\precalculated_vehicle_traffic.pkl"
+
+    class TrafficCount:
+        GreenTraffic = 5
+        YellowTraffic = 10
+        OrangeTraffic = 15
+        RedTraffic = 20
+        BlackTraffic = 25
+
     class SimulatorConfig:
         SIMULATION_START_TIME = 300
         SIMULATION_DURATION = 1300
