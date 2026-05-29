@@ -1,4 +1,5 @@
 import glob
+import math
 import random
 from collections import defaultdict
 from typing import Dict, List, Optional
@@ -24,6 +25,8 @@ import sys
 import os
 import pickle
 import pandas as pd
+
+import pprint
 
 sys.path.append(os.path.abspath(Config.Paths.NoiseConfigsPath))
 
@@ -81,6 +84,7 @@ class Simulator:
         self.traffic_cache: Dict[int, any] = {}
         self.traffic_predictions = defaultdict(dict)
         self.noise_controller = FinalChoiceByAttenuationNoise()
+        self.partitions = UtilsFunc.load_partitions("generated_hex_partitions")
 
         self._gantt_340_drawn = False
 
@@ -213,7 +217,7 @@ class Simulator:
                     self.task_zone_managers[task.id] = chosen_zone_manager
                     # self.metrics.inc_node_tasks(chosen_executor.id)
                     if isinstance(chosen_zone_manager, DeepRLZoneManager):
-                        state = chosen_zone_manager.env._get_state(task)  # Get current system state
+                        state = chosen_zone_manager.env._get_state(task, current_time)  # Get current system state
                         # print(blue_bg(f"------------chosen_executor: {chosen_executor}------------\n------------task: {task}------------"))
                         reward, action = chosen_zone_manager.env._compute_reward2(task, chosen_executor)
                         if not chosen_executor.can_offload_task(task) and (reward > Config.NEGATIVE_REWARD):
@@ -234,7 +238,7 @@ class Simulator:
                     # if reward < 0:
                     #     print(chosen_executor.remaining_power)
                     if isinstance(chosen_zone_manager, DeepRLZoneManager):
-                        next_state = chosen_zone_manager.env._get_state(task)
+                        next_state = chosen_zone_manager.env._get_state(task, current_time)
                         chosen_zone_manager.agent.store_experience(state, action, reward, next_state,
                                                                    done=False)  # Store for training
                         # chosen_zone_manager.agent.train()
@@ -305,7 +309,7 @@ class Simulator:
         print(f"--- Pre-loading all predictions from '{directory_path}' ---")
 
         # Find all prediction files in the specified directory
-        csv_files = glob.glob(os.path.join(directory_path, "prediction_output_*.csv"))
+        csv_files = glob.glob(os.path.join(directory_path, "predictions_output*.csv"))
 
         if not csv_files:
             print(f"Warning: No prediction files found in '{directory_path}'.")
@@ -355,8 +359,7 @@ class Simulator:
 
     def start_simulation(self):
         self.init_simulation()
-        partitions = UtilsFunc.load_partitions("generated_hex_partitions")
-        neighbors_map = UtilsFunc.find_neighbors(partitions)
+        neighbors_map = UtilsFunc.find_neighbors(self.partitions)
 
         PREDICTION_UPDATE_INTERVAL = 10
         PREDICTOR_Y_NEEDED = 12
@@ -374,23 +377,24 @@ class Simulator:
             cached_data_str_keys = self.traffic_cache.get(time_int, {})
 
             traffic_data = {}
-            for p in partitions:
+            for p in self.partitions:
                 p_name = p.__class__.__name__
                 if p_name in cached_data_str_keys:
                     traffic_data[p] = cached_data_str_keys[p_name]
             # print(f"traffic_data:{traffic_data}")
 
             # --- 2. Store Current Features for Predictor History ---
-            print(red_bg(self.traffic_predictions))
+            formatted_data = pprint.pformat(dict(self.traffic_predictions), indent=4)
+            # print(red_bg(formatted_data))
             # --- 4. Clean up old predictions ---
             keys_to_delete = [t for t in self.traffic_predictions if t < current_time]
             for t in keys_to_delete: del self.traffic_predictions[t]
 
             # todo: change this section
             if int(self.clock.get_current_time()) % 5 == 0:
-                self.update_rain_with_constraints(neighbors_map, partitions)
+                self.update_rain_with_constraints(neighbors_map, self.partitions)
 
-            for partition in partitions:
+            for partition in self.partitions:
                 partition.update_traffic_status(traffic_data)
             # self.logTrafficStatus(partitions)
 
@@ -405,7 +409,7 @@ class Simulator:
             for creator_id, tasks in soft_tasks.items():
                 zone_managers = merged_possible_zones.get(creator_id, [])
                 # print(f"zoneManagers : {zone_managers}")
-                self.retransmission(zone_managers, current_time, partitions)
+                self.retransmission(zone_managers, current_time, self.partitions)
 
                 for task in tasks:
                     # todo: log hard tasks and a counter for this
@@ -414,7 +418,7 @@ class Simulator:
 
                     zone_manager_offload_task = self.find_zone_manager_offload_task(zone_managers, task, current_time)
                     # print(blue_bg(f"{len(zone_manager_offload_task)}"))
-                    self.choose_executor_and_assign(zone_manager_offload_task, task, partitions, current_time)
+                    self.choose_executor_and_assign(zone_manager_offload_task, task, self.partitions, current_time)
 
             target_id = "PKW364"
             target_id2 = "FN0006"
@@ -442,9 +446,9 @@ class Simulator:
 
         self.drop_not_completed_tasks()
         self.save_missed_deadlines_to_excel(
-            f"missed_deadlines_report_{Config.ZoneManagerConfig.DEFAULT_ALGORITHM}_{Config.NoiseMethod.DEFAULT_METHOD}_{Config.NoiseConfig.DEFAULT_THRESHOLD}_{Config.TrafficNoise.DEFAULT_TrafficNoiseLevel}_{Config.AttenuationLevel.DEFAULT_AttenuationLevelName}_{Config.City.DEFAULT_CITY}.xlsx")
+            f"missed_deadlines_report_{Config.ZoneManagerConfig.DEFAULT_ALGORITHM}_{Config.NoiseMethod.DEFAULT_METHOD}_{Config.NoiseConfig.DEFAULT_THRESHOLD}_{Config.TrafficNoise.DEFAULT_TrafficNoiseLevel}_{Config.AttenuationLevel.DEFAULT_AttenuationLevelName}_{Config.City.DEFAULT_CITY}.csv")
         self.save_success_deadlines_to_excel(
-            f"success_deadlines_report_{Config.ZoneManagerConfig.DEFAULT_ALGORITHM}_{Config.NoiseMethod.DEFAULT_METHOD}_{Config.NoiseConfig.DEFAULT_THRESHOLD}_{Config.TrafficNoise.DEFAULT_TrafficNoiseLevel}_{Config.AttenuationLevel.DEFAULT_AttenuationLevelName}_{Config.City.DEFAULT_CITY}.xlsx")
+            f"success_deadlines_report_{Config.ZoneManagerConfig.DEFAULT_ALGORITHM}_{Config.NoiseMethod.DEFAULT_METHOD}_{Config.NoiseConfig.DEFAULT_THRESHOLD}_{Config.TrafficNoise.DEFAULT_TrafficNoiseLevel}_{Config.AttenuationLevel.DEFAULT_AttenuationLevelName}_{Config.City.DEFAULT_CITY}.csv")
         self.metrics.save_to_excel(
             f"final_metrics_summary_{Config.ZoneManagerConfig.DEFAULT_ALGORITHM}_{Config.NoiseMethod.DEFAULT_METHOD}_{Config.NoiseConfig.DEFAULT_THRESHOLD}_{Config.TrafficNoise.DEFAULT_TrafficNoiseLevel}_{Config.AttenuationLevel.DEFAULT_AttenuationLevelName}_{Config.City.DEFAULT_CITY}.xlsx")
 
@@ -530,7 +534,8 @@ class Simulator:
                 if task.is_hard:
                     self.metrics.inc_local_hard_execution()
 
-                elif isinstance(task.executor, (FixedFogNode, MobileFogNode)) and (task.creator.id != task.executor.id or Config.ZoneManagerConfig.DEFAULT_ALGORITHM == Config.ZoneManagerConfig.ALGORITHM_ONLY_FOG):
+                elif isinstance(task.executor, (FixedFogNode, MobileFogNode)) and (
+                        task.creator.id != task.executor.id or Config.ZoneManagerConfig.DEFAULT_ALGORITHM == Config.ZoneManagerConfig.ALGORITHM_ONLY_FOG):
                     self.metrics.inc_fog_execution()
 
                 elif task.creator.id == task.executor.id:
@@ -679,36 +684,42 @@ class Simulator:
                     self.metrics.inc_deadline_miss()
         return left_tasks
 
-    def save_missed_deadlines_to_excel(self, filename: str = "missed_deadlines.xlsx"):
-
+    def save_missed_deadlines_to_excel(self, filename: str = "missed_deadlines.csv"):
         output_dir = "Results"
         if not os.path.exists(output_dir):
             os.makedirs(output_dir)
             print(f"Directory '{output_dir}' created.")
+
+        # مطمئن میشیم که پسوند فایل csv باشه
+        filename = filename.replace('.xlsx', '.csv')
         full_path = os.path.join(output_dir, filename)
 
         df = pd.DataFrame(self.missed_deadline_data)
         try:
-            df.to_excel(full_path, index=False)
+            # استفاده از to_csv به جای to_excel
+            df.to_csv(full_path, index=False)
             print(green_bg(f"Successfully saved missed deadline data to {filename}"))
         except Exception as e:
-            print(red_bg(f"Error saving to Excel file: {e}"))
+            print(red_bg(f"Error saving to CSV file: {e}"))
 
-    def save_success_deadlines_to_excel(self, filename: str = "success_deadlines.xlsx"):
-
+    def save_success_deadlines_to_excel(self, filename: str = "success_deadlines.csv"):
         output_dir = "Results_Success"
         if not os.path.exists(output_dir):
             os.makedirs(output_dir)
             print(f"Directory '{output_dir}' created.")
+
+        # مطمئن میشیم که پسوند فایل csv باشه
+        filename = filename.replace('.xlsx', '.csv')
         full_path = os.path.join(output_dir, filename)
 
         df = pd.DataFrame(self.success_deadline_data)
 
         try:
-            df.to_excel(full_path, index=False)
+            # استفاده از to_csv به جای to_excel
+            df.to_csv(full_path, index=False)
             print(green_bg(f"Successfully saved success deadline data to {filename}"))
         except Exception as e:
-            print(red_bg(f"Error saving to Excel file: {e}"))
+            print(red_bg(f"Error saving to CSV file: {e}"))
 
     def print_node_schedule_status(self, current_time: float, target_node_id: str):
         """Prints the scheduling status and core loads of a specific node."""
@@ -915,3 +926,108 @@ class Simulator:
         plt.close()
 
         print(green_bg(f"✅ Gantt chart saved successfully at: {filepath}"))
+
+    def get_partition_by_location(self, x: float, y: float):
+        """Find the partition where the given coordinates are located"""
+        if not hasattr(self, 'partitions') or not self.partitions:
+            return None
+        return min(self.partitions, key=lambda p: (p.centerX - x) ** 2 + (p.centerY - y) ** 2)
+
+    @property
+    def current_weather_status(self) -> float:
+        # check: should change if i change the Rain Scenario
+        current_time = self.clock.get_current_time()
+
+        if ((Config.Scenario.RAIN1_START_TIME <= current_time <= Config.Scenario.RAIN1_END_TIME)
+                or (Config.Scenario.RAIN2_START_TIME <= current_time <= Config.Scenario.RAIN2_END_TIME)
+                or (Config.Scenario.RAIN3_START_TIME <= current_time <= Config.Scenario.RAIN3_END_TIME)):
+            return 1
+        return 0
+
+    def get_current_traffic_intensity(self, x: float, y: float) -> float:
+        """برگرداندن ترافیک فعلی برای یک زون خاص بین 0.0 تا 1.0"""
+        try:
+            # پیدا کردن پارتیشنی که ماشین در آن قرار دارد
+            p = self.get_partition_by_location(x, y)
+            if not p or not hasattr(p, 'trafficStatus') or not p.trafficStatus:
+                return 0.5
+
+            # نگاشت جدید برای ۵ سطح ترافیک
+            mapping = {
+                'GreenTraffic': 0.0,
+                'YellowTraffic': 0.25,
+                'OrangeTraffic': 0.5,
+                'RedTraffic': 0.75,
+                'BlackTraffic': 1.0
+            }
+
+            name = p.trafficStatus.__class__.__name__
+            for k, v in mapping.items():
+                if k in name:
+                    return v
+
+            return 0.5
+        except Exception as e:
+            return 0.5
+
+    def get_predicted_traffic_intensity(self, vehicle) -> tuple[float, float]:
+        """
+        تخمین میانگین و ماکزیمم ترافیک زون‌هایی که ماشین در 10 ثانیه آینده از آن‌ها عبور می‌کند.
+        خروجی: (میانگین ترافیک, ماکزیمم ترافیک) هر دو مقداری بین 0.0 تا 1.0
+        """
+        try:
+            current_time = self.clock.get_current_time()
+            traffic_values = []
+
+            for t in range(1, 11):
+                future_time = current_time + t
+
+                # پیش‌بینی مختصات ماشین در ثانیه t
+                angle_rad = math.radians(vehicle.angle)
+                future_x = vehicle.x + (vehicle.speed * math.sin(angle_rad) * t)
+                future_y = vehicle.y + (vehicle.speed * math.cos(angle_rad) * t)
+
+                # پیدا کردن پارتیشن برای مکان آینده
+                p = self.get_partition_by_location(future_x, future_y)
+
+                if not p:
+                    # اگر ماشین از نقشه خارج شد، ترافیک فعلی‌اش را لحاظ میکنیم
+                    traffic_values.append(self.get_current_traffic_intensity(vehicle.x, vehicle.y))
+                    continue
+
+                future_times = [k for k in self.traffic_predictions.keys() if k >= future_time]
+                if not future_times:
+                    traffic_values.append(self.get_current_traffic_intensity(future_x, future_y))
+                    continue
+
+                closest_t = min(future_times)
+                hex_id = getattr(p, 'id', getattr(p, 'hex_id', None))
+
+                if hex_id is not None and hex_id in self.traffic_predictions[closest_t]:
+                    pred_label = float(self.traffic_predictions[closest_t][hex_id])
+                    # فرض میکنیم لیبل ها از 0 تا 4 هستند برای 5 سطح ترافیک
+                    traffic_values.append(min(pred_label / 4.0, 1.0))
+                else:
+                    traffic_values.append(self.get_current_traffic_intensity(future_x, future_y))
+
+            if not traffic_values:
+                curr = self.get_current_traffic_intensity(vehicle.x, vehicle.y)
+                return curr, curr
+
+            # استخراج میانگین و ماکزیمم از 10 ثانیه آینده
+            avg_traffic = sum(traffic_values) / len(traffic_values)
+            max_traffic = max(traffic_values)
+
+            return float(avg_traffic), float(max_traffic)
+
+        except Exception as e:
+            # گارد امنیتی در صورت بروز هرگونه خطا
+            curr = self.get_current_traffic_intensity(vehicle.x, vehicle.y) if hasattr(vehicle, 'x') else 0.5
+            return curr, curr
+
+    @property
+    def estimated_cloud_delay(self) -> float:
+        # todo: should change this too
+        if hasattr(self.cloud_node, 'get_best_queue_length'):
+            return min(self.cloud_node.get_best_queue_length() / 20.0, 1.0)
+        return 0.1
