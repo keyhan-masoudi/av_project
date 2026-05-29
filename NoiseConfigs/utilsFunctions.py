@@ -2,6 +2,7 @@ import math
 import importlib
 import pandas as pd
 from collections import defaultdict
+from config import Config
 
 from NoiseConfigs.noiseConfigGeneralAttribute import NoiseConfigGeneralAttribute
 
@@ -41,13 +42,13 @@ class UtilsFunc:
         traffic_statuses = {}
         for partition in partitions:
             count = partition_traffic.get(partition, 0)
-            if count < 15:
+            if count < Config.TrafficCount.GreenTraffic:
                 traffic_statuses[partition] = NoiseConfigGeneralAttribute.Traffic_options[4]
-            elif count < 30:
+            elif count < Config.TrafficCount.YellowTraffic:
                 traffic_statuses[partition] = NoiseConfigGeneralAttribute.Traffic_options[3]
-            elif count < 45:
+            elif count < Config.TrafficCount.OrangeTraffic:
                 traffic_statuses[partition] = NoiseConfigGeneralAttribute.Traffic_options[2]
-            elif count < 60:
+            elif count < Config.TrafficCount.RedTraffic:
                 traffic_statuses[partition] = NoiseConfigGeneralAttribute.Traffic_options[1]
             else:
                 traffic_statuses[partition] = NoiseConfigGeneralAttribute.Traffic_options[0]
