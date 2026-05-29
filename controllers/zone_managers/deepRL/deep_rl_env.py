@@ -2,9 +2,11 @@ import csv
 import math
 
 import numpy as np
-import gym
-from gym import spaces
+import gymnasium as gym
+from gymnasium import spaces
 from config import Config
+from models.node.cloud import CloudNode
+from task_and_user_generator import Config as CNF
 from models.node.base import findExecTimeInEachKindOfNode, find_closest_fn, findDataRate
 from models.node.fog import FixedFogNode, MobileFogNode
 from utils.distance import get_distance
@@ -101,7 +103,7 @@ class DeepRLEnvironment(gym.Env):
         # self.observation_space = spaces.Box(
         #     low=0, high=1, shape=(5,), dtype=np.float32
         # )
-        # 36: Task(4) + Local(5) + Env(6) + Fog(15) + Cloud(6)
+        # 36: Task(3) + Local(5) + Env(7) + Fog(15) + Cloud(6)
         self.observation_space = spaces.Box(
             low=0, high=1, shape=(36,), dtype=np.float32
         )
@@ -412,17 +414,15 @@ class DeepRLEnvironment(gym.Env):
     #         cloud_power_ratio
     #     ], dtype=np.float32)
 
-    def _get_state(self, task=None):
+    def _get_state(self, task=None, current_time=None):
         if task is None:
             return np.zeros(self.observation_space.shape[0], dtype=np.float32)
 
         state_vector = []
         creator = task.creator
+        executor = task.executor
 
         # === ثوابت نرمال‌سازی (باید در فایل Config قرار بگیرند) ===
-        MAX_TASK_SIZE = 5.0  # حداکثر سایز تسک هارد
-        MAX_WORKLOAD = 10.0  # حداکثر توان پردازشی مورد نیاز تسک
-        MAX_DEADLINE = 5.0  # حداکثر ددلاین
         MAX_CAPACITY = 20.0  # حداکثر ظرفیت یک گره فاگ/لوکال
         MAX_CLOUD_CAPACITY = 100.0  # حداکثر ظرفیت کلاد
         MAX_QUEUE_LEN = 20.0  # حداکثر طول صف مجاز
@@ -434,33 +434,44 @@ class DeepRLEnvironment(gym.Env):
         # ==========================================
         # بلوک ۱: ویژگی‌های Task
         # ==========================================
-        data_size_ratio = task.dataSize / MAX_TASK_SIZE
-        workload_ratio = task.power / MAX_WORKLOAD
-        deadline_ratio = task.deadline / MAX_DEADLINE
+        data_size_ratio = task.dataSize / CNF.TaskConfig.MAX_DATASIZE
+        workload_ratio = task.power / CNF.TaskConfig.MAX_POWER_CONSUMPTION
+        # todo: i have recently add current time, so i should validate this parameter here
+        deadline_ratio = (task.deadline - current_time) / CNF.TaskConfig.DEADLINE_MAX_FREE_TIME
 
-        # فرض میکنیم ویژگی is_hard در کلاس Task اضافه شده باشد
-        task_type = 1.0 if hasattr(task, 'is_hard') and task.is_hard else 0.0
-
-        state_vector.extend([data_size_ratio, workload_ratio, deadline_ratio, task_type])
+        state_vector.extend([data_size_ratio, workload_ratio, deadline_ratio])
 
         # ==========================================
         # بلوک ۲: ویژگی‌های Local Node
         # ==========================================
-        local_tot_cap = creator.power / MAX_CAPACITY
-        local_rem_cap = creator.remaining_power / MAX_CAPACITY
+        # todo: maybe i should change power values or remove this section
+        local_tot_cap = creator.power / Config.FixedFogNodeConfig.DEFAULT_COMPUTATION_POWER
+        local_rem_cap = creator.remaining_power / Config.FixedFogNodeConfig.DEFAULT_COMPUTATION_POWER
+
         # این متدها باید به کلاس پایه گره‌ها (Node) اضافه شوند
-        local_best_q = getattr(creator, 'get_best_queue_length', lambda: 0.0)() / MAX_QUEUE_LEN
-        local_avg_q = getattr(creator, 'get_avg_queue_length', lambda: 0.0)() / MAX_QUEUE_LEN
-        local_idle_cores = getattr(creator, 'get_idle_cores_count', lambda: 0.0)() / MAX_CORES
+        # todo: should change MAX_QUEUE_LEN to sth which i don't know now
+        local_best_q = creator.get_best_queue_length() / MAX_QUEUE_LEN
+        local_avg_q = creator.get_avg_queue_length() / MAX_QUEUE_LEN
+        local_idle_cores = -1
+        if isinstance(executor, FixedFogNode):
+            local_idle_cores = executor.get_idle_cores_count() / Config.FixedFogNodeConfig.NUM_CORE
+        elif isinstance(executor, MobileFogNode):
+            local_idle_cores = executor.get_idle_cores_count() / Config.MobileFogNodeConfig.NUM_CORE
+        elif task.creator.id == executor.id:
+            local_idle_cores = executor.get_idle_cores_count() / Config.UserNodeConfig.NUM_CORE
+        elif isinstance(executor, CloudNode):
+            local_idle_cores = executor.get_idle_cores_count() / Config.CloudConfig.NUM_CORE
 
         state_vector.extend([local_tot_cap, local_rem_cap, local_best_q, local_avg_q, local_idle_cores])
 
         # ==========================================
         # بلوک ۳: ویژگی‌های محیط (Environment & Context)
         # ==========================================
-        # دریافت ترافیک و پیش‌بینی آن از شبیه‌ساز (فرضی)
-        current_traffic = getattr(self.simulator, 'current_traffic_intensity', 0.5)
-        predicted_traffic = getattr(self.simulator, 'predicted_traffic_intensity', 0.5)
+        current_traffic = getattr(self.simulator, 'get_current_traffic_intensity', lambda x, y: 0.5)(creator.x,
+                                                                                                     creator.y)
+
+        # دریافت همزمان میانگین و بیشینه ترافیک مسیر آینده ماشین
+        pred_avg, pred_max = getattr(self.simulator, 'get_predicted_traffic_intensity', lambda v: (0.5, 0.5))(creator)
 
         # آپدیت آب و هوا در استک (دریافت وضعیت فعلی آب و هوا: 0 خوب، 1 بد)
         current_weather = getattr(self.simulator, 'current_weather_status', 0.0)
@@ -469,7 +480,8 @@ class DeepRLEnvironment(gym.Env):
         # ضریب تضعیف سیگنال (Path Loss) برای لوکیشن ماشین
         path_loss = getattr(self.simulator, 'get_path_loss', lambda x, y: 0.0)(creator.x, creator.y)
 
-        state_vector.extend([current_traffic, predicted_traffic])
+        # اضافه کردن هر سه پارامتر ترافیکی به استیت
+        state_vector.extend([current_traffic, pred_avg, pred_max])
         state_vector.extend(list(self.weather_history))  # ۳ ویژگی آب و هوا
         state_vector.extend([path_loss])
 
