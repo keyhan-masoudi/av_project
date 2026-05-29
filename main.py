@@ -13,13 +13,14 @@ from controllers.Simulator.simulator_sac import SimulatorSAC
 
 
 def run_one(params):
-    algorithm, method, threshold, traffic_noise_profile, attenuationLevel, city = params
+    algorithm, method, threshold, traffic_noise_profile, attenuationLevel, city, local_cores = params
     Config.ZoneManagerConfig.DEFAULT_ALGORITHM = algorithm
     Config.NoiseMethod.DEFAULT_METHOD = method
     Config.NoiseConfig.DEFAULT_THRESHOLD = threshold
     Config.AttenuationLevel.DEFAULT_AttenuationLevel = attenuationLevel
     Config.TrafficNoise.DEFAULT_TrafficNoiseLevel = traffic_noise_profile
     Config.City.DEFAULT_CITY = city
+    Config.UserNodeConfig.NUM_CORE = local_cores
     print(f"=====================================================")
     print(f"=== Start of : {algorithm} ===")
     print(f"=====================================================")
@@ -106,8 +107,8 @@ if __name__ == "__main__":
         # Config.ZoneManagerConfig.ALGORITHM_HEURISTIC,
         # Config.ZoneManagerConfig.ALGORITHM_ONLY_CLOUD,
         # Config.ZoneManagerConfig.ALGORITHM_ONLY_FOG,
-        Config.ZoneManagerConfig.ALGORITHM_ONLY_LOCAL,
-        # Config.ZoneManagerConfig.ALGORITHM_DEEP_RL,
+        # Config.ZoneManagerConfig.ALGORITHM_ONLY_LOCAL,
+        Config.ZoneManagerConfig.ALGORITHM_DEEP_RL,
         # Config.ZoneManagerConfig.ALGORITHM_DDPG,
         # Config.ZoneManagerConfig.ALGORITHM_PPO,
         # Config.ZoneManagerConfig.ALGORITHM_SAC,
@@ -122,6 +123,11 @@ if __name__ == "__main__":
 
     thresholds = [
         Config.NoiseConfig.NONE
+    ]
+
+    local_cores = [
+        8,
+        # 16
     ]
 
     traffic_noise_profiles = [
@@ -164,9 +170,9 @@ if __name__ == "__main__":
     #
     #
 
-    tasks_for_current_algo = [(algorithm, m, t, n, at, city) for algorithm in algorithms for m in methods for t in
+    tasks_for_current_algo = [(algorithm, m, t, n, at, city, lc) for algorithm in algorithms for m in methods for t in
                               thresholds for n in
-                              traffic_noise_profiles for at in attenuationLevels for city in cities]
+                              traffic_noise_profiles for at in attenuationLevels for city in cities for lc in local_cores]
 
     with ProcessPoolExecutor() as executor:
         futures = {executor.submit(run_one, t): t for t in tasks_for_current_algo}
