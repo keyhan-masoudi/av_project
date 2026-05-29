@@ -26,7 +26,7 @@ class DeepRLZoneManagerPPO(ZoneManagerABC):
         self.env = DeepRLEnvironment(simulator)
 
     def propose_candidate(self, task: Task, current_time: float):
-        state = self.env._get_state(task)
+        state = self.env._get_state(task, current_time)
         action_mask = self.env.get_action_mask(task)
         action, log_prob, value = self.agent.select_action(state, action_mask=action_mask)
 

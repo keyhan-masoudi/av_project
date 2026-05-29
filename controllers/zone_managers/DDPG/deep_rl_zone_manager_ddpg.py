@@ -51,7 +51,7 @@ class DeepRLZoneManager_DDPG(ZoneManagerABC):
         Uses DDPG to decide where to offload a task.
         It suggests a node and returns the zone manager, the node, and the continuous action.
         """
-        state = self.env._get_state(task)
+        state = self.env._get_state(task, current_time)
 
         action_mask = self.env.get_action_mask(task)
 

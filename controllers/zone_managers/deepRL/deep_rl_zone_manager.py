@@ -65,12 +65,13 @@ class DeepRLZoneManager(ZoneManagerABC):
 
         return candidate_executor
 
+    # todo: should remove usage of _get_best_fog_node
     def propose_candidate(self, task: Task, current_time: float):
         """
         Uses Deep RL to decide where to offload a task.
         It just suggests a node and return (ZN, node)
         """
-        state = self.env._get_state(task)
+        state = self.env._get_state(task, current_time)
         if hasattr(self.env, "get_action_mask"):
             action_mask = self.env.get_action_mask(task)
         else:

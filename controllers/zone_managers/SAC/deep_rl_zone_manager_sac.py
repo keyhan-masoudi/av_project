@@ -45,7 +45,7 @@ class DeepRLZoneManagerSAC(ZoneManagerABC):
         Uses Deep RL (SAC) to decide where to offload a task.
         It suggests a node and returns (self, node).
         """
-        state = self.env._get_state(task)
+        state = self.env._get_state(task, current_time)
         if hasattr(self.env, "get_action_mask"):
             action_mask = self.env.get_action_mask(task)
         else:
@@ -126,7 +126,7 @@ class DeepRLZoneManagerSAC(ZoneManagerABC):
         as the simulator makes the final assignment decision, but it demonstrates
         the full logic of the zone manager.
         """
-        state = self.env._get_state(task)
+        state = self.env._get_state(task, self.env.simulator.clock.get_current_time())
         if hasattr(self.env, "get_action_mask"):
             action_mask = self.env.get_action_mask(task)
         else:
