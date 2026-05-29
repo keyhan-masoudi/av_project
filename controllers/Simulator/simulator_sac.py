@@ -62,7 +62,7 @@ class SimulatorSAC(Simulator):
                     self.task_zone_managers[task.id] = chosen_zone_manager
 
                     if isinstance(chosen_zone_manager, DeepRLZoneManagerSAC):
-                        state = chosen_zone_manager.env._get_state(task)
+                        state = chosen_zone_manager.env._get_state(task, current_time)
                         reward, action = chosen_zone_manager.env._compute_reward2(task, chosen_executor)
 
                         if not chosen_executor.can_offload_task(task) and (reward > Config.NEGATIVE_REWARD):
@@ -78,7 +78,7 @@ class SimulatorSAC(Simulator):
                             chosen_executor.assign_task(task, current_time, self.fixed_fog_nodes)
                             task_assigned = True
 
-                        next_state = chosen_zone_manager.env._get_state(task)
+                        next_state = chosen_zone_manager.env._get_state(task, current_time)
                         chosen_zone_manager.agent.store_experience(state, action, reward, next_state, done=False)
 
                         chosen_zone_manager.agent.train()
