@@ -1,12 +1,12 @@
 import pickle
 import os
 import sys
+import glob
+import re
 from config import Config
-
 
 sys.path.append(os.path.abspath(Config.Paths.NoiseConfigsPath))
 from NoiseConfigs.utilsFunctions import UtilsFunc
-from config import Config
 
 
 def generate_cache_file():
@@ -19,9 +19,30 @@ def generate_cache_file():
     partitions = UtilsFunc.load_partitions("generated_hex_partitions")
 
     traffic_cache = {}
-    duration = int(Config.SimulatorConfig.SIMULATION_DURATION)
 
-    print(f"Start processing from: {csv_source_dir}")
+    print(f"Searching for CSV files in: {csv_source_dir}")
+    file_pattern = os.path.join(csv_source_dir, "dataInTime*.csv")
+    csv_files = glob.glob(file_pattern)
+
+    if not csv_files:
+        print(f"No files found matching pattern 'dataInTime*.csv' in {csv_source_dir}")
+        return
+
+    max_t = -1
+    for file_path in csv_files:
+        filename = os.path.basename(file_path)
+        match = re.search(r'dataInTime(\d+)\.csv', filename)
+        if match:
+            t_val = int(match.group(1))
+            if t_val > max_t:
+                max_t = t_val
+
+    if max_t == -1:
+        print("Could not extract time from file names. Exiting.")
+        return
+
+    duration = max_t
+    print(f"Found files up to t={duration}. Start processing...")
 
     for t in range(duration + 1):
         csv_file_path = os.path.join(csv_source_dir, f"dataInTime{t}.csv")
