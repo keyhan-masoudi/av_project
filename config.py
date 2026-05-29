@@ -82,14 +82,6 @@ class Config:
         LOCAL_EXECUTE_TIME_OVERHEAD = 1
         NUM_CORE = 8
 
-    class CriticalUserNodeConfig:
-        MAX_TASK_QUEUE_LEN = 10
-        DEFAULT_COMPUTATION_POWER = 20
-        USER_NODE_FREQUENCY = 2
-        LOCAL_OFFLOAD_POWER_OVERHEAD = 1
-        LOCAL_EXECUTE_TIME_OVERHEAD = 1
-        NUM_CORE = 1
-
     class ZoneManagerConfig:
         ALGORITHM_RANDOM = "Random"
         ALGORITHM_HEURISTIC = "Heuristic"
