@@ -87,6 +87,8 @@ class Simulator:
         self.partitions = UtilsFunc.load_partitions("generated_hex_partitions")
         self.precalculated_vehicle_traffic = {}
         self.precalculated_weather = {}
+        self.spatial_grid_cache = {}
+        self._partition_name_map = {}
 
         self._gantt_340_drawn = False
 
@@ -359,6 +361,7 @@ class Simulator:
         self.load_cached_traffic()
         self.load_cached_vehicle_traffic()
         self.load_cached_weather()
+        self.load_cached_spatial_grid()
 
         while (current_time := self.clock.get_current_time()) < Config.SimulatorConfig.SIMULATION_DURATION:
 
@@ -920,10 +923,20 @@ class Simulator:
         print(green_bg(f"✅ Gantt chart saved successfully at: {filepath}"))
 
     def get_partition_by_location(self, x: float, y: float):
-        """Find the partition where the given coordinates are located"""
-        if not hasattr(self, 'partitions') or not self.partitions:
-            return None
-        return min(self.partitions, key=lambda p: (p.centerX - x) ** 2 + (p.centerY - y) ** 2)
+        """
+        Finds the partition where the given coordinates are located.
+        Utilizes an O(1) grid cache for performance. If the coordinates fall outside
+        the cached area, it defaults to calculating the Euclidean distance mathematically.
+        """
+        GRID_SIZE = 5
+
+        # Discretize the continuous coordinates to grid indices
+        grid_x = int(x // GRID_SIZE)
+        grid_y = int(y // GRID_SIZE)
+
+        # Retrieve the partition name from the cache dictionary
+        p_name = self.spatial_grid_cache.get((grid_x, grid_y))
+        return self._partition_name_map.get(p_name)
 
     @property
     def current_weather_status(self) -> float:
@@ -1051,3 +1064,37 @@ class Simulator:
         if hasattr(self.cloud_node, 'get_best_queue_length'):
             return min(self.cloud_node.get_best_queue_length() / 20.0, 1.0)
         return 0.1
+
+    def get_n_coefficient(self, x: float, y: float) -> float:
+        """
+        Returns the path loss exponent (n) based on the Urban Status of the zone
+        where the vehicle is currently located.
+        """
+        p = self.get_partition_by_location(x, y)
+
+        if hasattr(p, 'urbanStatus') and p.urbanStatus:
+            # If you have explicitly defined 'n' inside your Urban classes
+            if hasattr(p.urbanStatus, 'n'):
+                print(blue_bg(f'{p.centerX}{p.centerY}{p.urbanStatus}'))
+                return float(p.urbanStatus.n)
+        return 2.0
+
+    def load_cached_spatial_grid(self):
+        """
+        Loads the precalculated spatial grid from a Pickle file to enable O(1)
+        partition lookups, significantly reducing geometric calculation overhead.
+        """
+        pkl_path = os.path.join(Config.VehiclesTraffic.PROJECT_ROOT, "precalculated_spatial_grid.pkl")
+        print(f"Loading spatial grid cache from: {pkl_path}")
+
+        try:
+            with open(pkl_path, "rb") as f:
+                self.spatial_grid_cache = pickle.load(f)
+            print("Spatial Grid cache loaded successfully!")
+
+            # Build a fast mapping dictionary: Partition Class Name -> Partition Object
+            if hasattr(self, 'partitions') and self.partitions:
+                self._partition_name_map = {p.__class__.__name__: p for p in self.partitions}
+
+        except Exception as e:
+            print(f"Error loading Spatial Grid Pickle file: {e}")
