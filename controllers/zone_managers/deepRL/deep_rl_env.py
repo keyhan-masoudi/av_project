@@ -471,10 +471,10 @@ class DeepRLEnvironment(gym.Env):
                                                                                                      creator.y)
 
         # دریافت همزمان میانگین و بیشینه ترافیک مسیر آینده ماشین
+        # todo: fix this
         pred_avg, pred_max = getattr(self.simulator, 'get_predicted_traffic_intensity', lambda v: (0.5, 0.5))(creator)
 
-        # آپدیت آب و هوا در استک (دریافت وضعیت فعلی آب و هوا: 0 خوب، 1 بد)
-        current_weather = getattr(self.simulator, 'current_weather_status', 0.0)
+        current_weather = self.simulator.current_weather_status()
         self.weather_history.append(current_weather)
 
         # ضریب تضعیف سیگنال (Path Loss) برای لوکیشن ماشین
@@ -542,7 +542,7 @@ class DeepRLEnvironment(gym.Env):
 
         # todo: surly i should change the logic of this section
         if executor != task.creator:
-            weather = getattr(self.simulator, 'current_weather_status', 0.0)
+            weather = self.simulator.current_weather_status()
             # todo: should fix this
             path_loss = getattr(self.simulator, 'get_path_loss', lambda x, y: 0.0)(task.creator.x, task.creator.y)
 

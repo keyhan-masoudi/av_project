@@ -85,6 +85,8 @@ class Simulator:
         self.traffic_predictions = defaultdict(dict)
         self.noise_controller = FinalChoiceByAttenuationNoise()
         self.partitions = UtilsFunc.load_partitions("generated_hex_partitions")
+        self.precalculated_vehicle_traffic = {}
+        self.precalculated_weather = {}
 
         self._gantt_340_drawn = False
 
@@ -95,8 +97,6 @@ class Simulator:
         self.assign_fixed_nodes()
         self.update_mobile_fog_nodes_coordinate()
         self.update_user_nodes_coordinate()
-        # check this line, i think there is no need for this attribute
-        # self.historical_traffic_features.clear()
         self.traffic_predictions.clear()
         self.load_all_predictions_from_csv("data/prediction_data")
         # For zone managers that use deep RL, the simulator reference is set.
@@ -265,41 +265,33 @@ class Simulator:
                 else:
                     self.offload_to_cloud(task, current_time, partitions, self.cloud_node)
 
-    def update_rain_with_constraints(self, neighbors_map, partitions):
-        """
-        Updates the rain status of each partition based on its neighbors' status
-        to ensure the difference is not more than 2 units.
-        """
-        for p in partitions:
-            neighbors = neighbors_map.get(p, [])
-            if not neighbors:
-                # If a partition has no neighbors, it can change freely
-                p.change_rainStatus()
-                continue
+    def load_cached_weather(self):
+        pkl_path = os.path.join(Config.VehiclesTraffic.PROJECT_ROOT, "precalculated_weather.pkl")
+        print(f"Loading precalculated weather from: {pkl_path}")
 
-            # Find the min and max rain unit among neighbors
-            neighbor_units = [
-                NoiseConfigGeneralAttribute.Rain_class_to_unit[n.rainStatus.__class__.__name__]
-                for n in neighbors
-            ]
-            min_neighbor_unit = min(neighbor_units)
-            max_neighbor_unit = max(neighbor_units)
+        if os.path.exists(pkl_path):
+            try:
+                with open(pkl_path, "rb") as f:
+                    self.precalculated_weather = pickle.load(f)
+                print(green_bg("Weather cache loaded successfully!"))
+            except Exception as e:
+                print(f"Error loading Weather Pickle file: {e}")
+        else:
+            print("Weather cache file not found! Running without dynamic weather.")
 
-            # Determine the allowed range for the new unit of the current partition 'p'
-            # The new unit must be at most 2 units away from the furthest neighbor.
-            min_allowed_unit = max(0, max_neighbor_unit - 2)
-            max_allowed_unit = min(len(NoiseConfigGeneralAttribute.Rain_options) - 1, min_neighbor_unit + 2)
+    def update_weather_from_cache(self, current_time):
+        time_int = int(current_time)
+        if time_int in self.precalculated_weather:
+            weather_dict = self.precalculated_weather[time_int]
 
-            # Create a list of valid rain options
-            allowed_options = []
-            if min_allowed_unit <= max_allowed_unit:
-                for unit in range(min_allowed_unit, max_allowed_unit + 1):
-                    allowed_options.append(NoiseConfigGeneralAttribute.Rain_options[unit])
+            for p in self.partitions:
+                p_name = p.__class__.__name__
+                if p_name in weather_dict:
+                    w_str = weather_dict[p_name]
 
-            # If there are valid options, choose one randomly and update
-            if allowed_options:
-                new_rain_status_str = random.choice(allowed_options)
-                p.rainStatus = eval(new_rain_status_str)
+                    if hasattr(NoiseConfig, w_str):
+                        weather_class = getattr(NoiseConfig, w_str)
+                        p.weatherStatus = weather_class()
 
     def load_all_predictions_from_csv(self, directory_path: str):
         """
@@ -365,6 +357,8 @@ class Simulator:
         PREDICTOR_Y_NEEDED = 12
 
         self.load_cached_traffic()
+        self.load_cached_vehicle_traffic()
+        self.load_cached_weather()
 
         while (current_time := self.clock.get_current_time()) < Config.SimulatorConfig.SIMULATION_DURATION:
 
@@ -390,9 +384,7 @@ class Simulator:
             keys_to_delete = [t for t in self.traffic_predictions if t < current_time]
             for t in keys_to_delete: del self.traffic_predictions[t]
 
-            # todo: change this section
-            if int(self.clock.get_current_time()) % 5 == 0:
-                self.update_rain_with_constraints(neighbors_map, self.partitions)
+            self.update_weather_from_cache(current_time)
 
             for partition in self.partitions:
                 partition.update_traffic_status(traffic_data)
@@ -944,15 +936,32 @@ class Simulator:
             return 1
         return 0
 
-    def get_current_traffic_intensity(self, x: float, y: float) -> float:
-        """برگرداندن ترافیک فعلی برای یک زون خاص بین 0.0 تا 1.0"""
+    def get_current_traffic_intensity(self, x: float, y: float, vehicle_id: str = None,
+                                      current_time: int = None) -> float:
         try:
-            # پیدا کردن پارتیشنی که ماشین در آن قرار دارد
+            if vehicle_id and current_time is not None:
+                if current_time in self.precalculated_vehicle_traffic:
+                    if vehicle_id in self.precalculated_vehicle_traffic[current_time]:
+                        return self.precalculated_vehicle_traffic[current_time][vehicle_id]['intensity']
+
             p = self.get_partition_by_location(x, y)
-            if not p or not hasattr(p, 'trafficStatus') or not p.trafficStatus:
+            if not p:
                 return 0.5
 
-            # نگاشت جدید برای ۵ سطح ترافیک
+            p_name = p.__class__.__name__
+
+            time_int = int(current_time) if current_time is not None else int(self.clock.get_current_time())
+
+            cached_data_str_keys = getattr(self, 'traffic_cache', {}).get(time_int, {})
+
+            if p_name in cached_data_str_keys:
+                traffic_obj = cached_data_str_keys[p_name]
+                name = traffic_obj if isinstance(traffic_obj, str) else traffic_obj.__class__.__name__
+            elif hasattr(p, 'trafficStatus') and p.trafficStatus:
+                name = p.trafficStatus.__class__.__name__
+            else:
+                return 0.5
+
             mapping = {
                 'GreenTraffic': 0.0,
                 'YellowTraffic': 0.25,
@@ -961,43 +970,54 @@ class Simulator:
                 'BlackTraffic': 1.0
             }
 
-            name = p.trafficStatus.__class__.__name__
             for k, v in mapping.items():
                 if k in name:
                     return v
 
-            return 0.5
-        except Exception as e:
-            return 0.5
+            return -1
 
-    def get_predicted_traffic_intensity(self, vehicle) -> tuple[float, float]:
-        """
-        تخمین میانگین و ماکزیمم ترافیک زون‌هایی که ماشین در 10 ثانیه آینده از آن‌ها عبور می‌کند.
-        خروجی: (میانگین ترافیک, ماکزیمم ترافیک) هر دو مقداری بین 0.0 تا 1.0
-        """
+        except Exception as e:
+            print(red_bg(e))
+            return -2
+
+    def load_cached_vehicle_traffic(self):
+        pkl_path = os.path.join(Config.VehiclesTraffic.PROJECT_ROOT, "precalculated_vehicle_traffic.pkl")
+
+        print(green_bg(f"Loading precalculated vehicle traffic from: {pkl_path}"))
+
         try:
-            current_time = self.clock.get_current_time()
+            with open(pkl_path, "rb") as f:
+                self.precalculated_vehicle_traffic = pickle.load(f)
+            print(green_bg("Vehicle Traffic cache loaded successfully!"))
+        except Exception as e:
+            print(f"Error loading Vehicle Traffic Pickle file: {e}")
+
+    # todo: should change the hole of this function
+    def get_predicted_traffic_intensity(self, vehicle) -> tuple[float, float]:
+        current_time = self.clock.get_current_time()
+        try:
             traffic_values = []
 
             for t in range(1, 11):
                 future_time = current_time + t
 
-                # پیش‌بینی مختصات ماشین در ثانیه t
+                import math
                 angle_rad = math.radians(vehicle.angle)
                 future_x = vehicle.x + (vehicle.speed * math.sin(angle_rad) * t)
                 future_y = vehicle.y + (vehicle.speed * math.cos(angle_rad) * t)
 
-                # پیدا کردن پارتیشن برای مکان آینده
                 p = self.get_partition_by_location(future_x, future_y)
 
                 if not p:
-                    # اگر ماشین از نقشه خارج شد، ترافیک فعلی‌اش را لحاظ میکنیم
-                    traffic_values.append(self.get_current_traffic_intensity(vehicle.x, vehicle.y))
+                    traffic_values.append(
+                        self.get_current_traffic_intensity(vehicle.x, vehicle.y, vehicle.id, int(current_time)))
                     continue
 
-                future_times = [k for k in self.traffic_predictions.keys() if k >= future_time]
+                future_times = [k for k in getattr(self, 'traffic_predictions', {}).keys() if k >= future_time]
+
                 if not future_times:
-                    traffic_values.append(self.get_current_traffic_intensity(future_x, future_y))
+                    traffic_values.append(
+                        self.get_current_traffic_intensity(future_x, future_y, vehicle.id, int(future_time)))
                     continue
 
                 closest_t = min(future_times)
@@ -1005,24 +1025,24 @@ class Simulator:
 
                 if hex_id is not None and hex_id in self.traffic_predictions[closest_t]:
                     pred_label = float(self.traffic_predictions[closest_t][hex_id])
-                    # فرض میکنیم لیبل ها از 0 تا 4 هستند برای 5 سطح ترافیک
                     traffic_values.append(min(pred_label / 4.0, 1.0))
                 else:
-                    traffic_values.append(self.get_current_traffic_intensity(future_x, future_y))
+                    traffic_values.append(
+                        self.get_current_traffic_intensity(future_x, future_y, vehicle.id, int(future_time)))
 
             if not traffic_values:
-                curr = self.get_current_traffic_intensity(vehicle.x, vehicle.y)
+                curr = self.get_current_traffic_intensity(vehicle.x, vehicle.y, vehicle.id, int(current_time))
                 return curr, curr
 
-            # استخراج میانگین و ماکزیمم از 10 ثانیه آینده
             avg_traffic = sum(traffic_values) / len(traffic_values)
             max_traffic = max(traffic_values)
 
             return float(avg_traffic), float(max_traffic)
 
         except Exception as e:
-            # گارد امنیتی در صورت بروز هرگونه خطا
-            curr = self.get_current_traffic_intensity(vehicle.x, vehicle.y) if hasattr(vehicle, 'x') else 0.5
+            print(red_bg(e))
+            curr = self.get_current_traffic_intensity(vehicle.x, vehicle.y, vehicle.id, int(current_time)) if hasattr(
+                vehicle, 'x') else 0.5
             return curr, curr
 
     @property
