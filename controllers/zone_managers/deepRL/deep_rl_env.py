@@ -465,25 +465,24 @@ class DeepRLEnvironment(gym.Env):
         state_vector.extend([local_tot_cap, local_rem_cap, local_best_q, local_avg_q, local_idle_cores])
 
         # ==========================================
-        # بلوک ۳: ویژگی‌های محیط (Environment & Context)
+        # (Environment & Context)
         # ==========================================
-        current_traffic = getattr(self.simulator, 'get_current_traffic_intensity', lambda x, y: 0.5)(creator.x,
-                                                                                                     creator.y)
+        current_traffic = self.simulator.get_current_traffic_intensity(creator.x, creator.y)
 
         # دریافت همزمان میانگین و بیشینه ترافیک مسیر آینده ماشین
-        # todo: fix this
-        pred_avg, pred_max = getattr(self.simulator, 'get_predicted_traffic_intensity', lambda v: (0.5, 0.5))(creator)
+        # todo: fix this: need Keyhan's results
+        pred_avg, pred_max = self.simulator.get_predicted_traffic_intensity(creator)
 
         current_weather = self.simulator.current_weather_status()
         self.weather_history.append(current_weather)
 
-        # ضریب تضعیف سیگنال (Path Loss) برای لوکیشن ماشین
-        path_loss = getattr(self.simulator, 'get_path_loss', lambda x, y: 0.0)(creator.x, creator.y)
+        # Extract the environmental path loss exponent (n) for the vehicle's current location
+        # check: is it okay?
+        n_coefficient = self.simulator.get_n_coefficient(creator.x, creator.y)
 
-        # اضافه کردن هر سه پارامتر ترافیکی به استیت
         state_vector.extend([current_traffic, pred_avg, pred_max])
-        state_vector.extend(list(self.weather_history))  # ۳ ویژگی آب و هوا
-        state_vector.extend([path_loss])
+        state_vector.extend(list(self.weather_history))
+        state_vector.extend([n_coefficient])
 
         # ==========================================
         # بلوک ۴: ویژگی‌های 3 فاگ نزدیک
