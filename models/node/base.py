@@ -160,28 +160,33 @@ class NodeABC(ModelBaseABC, abc.ABC):
         return True
 
     def get_best_queue_length(self) -> float:
-        """Returns: The length of the shortest queue among all the blinds of this node"""
-        if not hasattr(self, 'cores') or not self.cores:
-            return 0.0
-        return float(min(len(core) for core in self.cores))
+        """
+        Returns: The total remaining execution time (in seconds)
+        of the least loaded core (the shortest queue by time, not by task count).
+        """
+        core_loads = [sum(task[-1].remaining_time for task in core) for core in self.cores]
+        return float(min(core_loads))
 
     def get_avg_queue_length(self) -> float:
-        """Returns: Average queue length at this node"""
-        if not hasattr(self, 'cores') or not self.cores:
-            return 0.0
-        total_tasks = sum(len(core) for core in self.cores)
-        return float(total_tasks) / max(1, self.num_cores)
+        """
+        Returns: The average processing load (in seconds) across all cores at this node.
+        """
+        total_time_load = sum(task[-1].remaining_time for core in self.cores for task in core)
+        return float(total_time_load) / max(1, self.num_cores)
 
     def get_idle_cores_count(self) -> float:
-        """Returns: Number of cores which are IDLE"""
-        if not hasattr(self, 'cores') or not self.cores:
-            return 0.0
+        """
+        Returns: The exact number of cores that are currently IDLE (0 tasks currently running or waiting).
+        """
         return float(sum(1 for core in self.cores if len(core) == 0))
 
     def get_idle_capable_cores_count(self, task) -> float:
-        """Returns: The number of idle cores that have the processing power for this task"""
+        """
+        Returns: The number of idle cores that possess the required processing power for this specific task.
+        """
         if not self.can_offload_task(task):
             return 0.0
+
         return self.get_idle_cores_count()
 
     def get_transmission_time(self, task, fixed_fog_nodes) -> float:
@@ -213,7 +218,6 @@ class NodeABC(ModelBaseABC, abc.ABC):
     def assign_task(self, task, current_time: float, fixed_fog_nodes) -> None:
         """Offload a task in the current node."""
         # todo: should change power concept
-        # todo: add multicore and Worst Fit Decreasing assigning
         # 1. Initialize task execution parameters
         # Calculate the TOTAL discrete time steps this task needs to complete
         self.tasks.append(task)
