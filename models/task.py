@@ -33,6 +33,10 @@ class Task(ModelBaseABC):
     executor: NodeABC = None
     is_hard: bool = False
 
+    rl_state = None
+    rl_action = None
+    rl_zone_manager = None
+
     def real_exec_time(self, executor=None) -> float:
         # print(f"self.executor : {self.executor}\nexecutor : {executor}")
         taskExecutor = self.executor
