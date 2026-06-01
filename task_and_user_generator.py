@@ -65,6 +65,13 @@ class Config:
             4: 1.15,
             5: 1.20,
         }
+
+        max_alpha_key = max(ALPHA_BY_TRAFFIC_LEVEL)
+        max_beta_key = max(BETA_BY_WEATHER)
+
+        MAX_TASK_SIZE = 3000
+        MAX_TASK_SIZE_WITH_ALPHA_BETA = max_beta_key * max_alpha_key * MAX_TASK_SIZE
+
         # Lane vehicle count upper bounds map to traffic level 1..5.
         TRAFFIC_LEVEL_THRESHOLDS: tuple = (5, 10, 15, 20)
 
@@ -81,7 +88,7 @@ class Config:
             {
                 "period": 5,
                 "size_min": 1000,
-                "size_max": 3000,
+                "size_max": MAX_TASK_SIZE,
                 "cycles_min": 600,
                 "cycles_max": 800,
                 "lambda": 1.0,
@@ -336,6 +343,7 @@ class Generator:
                 id=task_id,
                 deadline=float(step + period),
                 exec_time=exec_time,
+                # todo: maybe i should change hard task power too. Actually maybe i should add hard tasks power.
                 power=Config.HardTaskConfig.HARD_TASK_POWER,
                 creator=vehicle.id,
                 cycles_per_bit=cycles_per_bit,
