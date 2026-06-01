@@ -219,17 +219,27 @@ class Simulator:
                     self.task_zone_managers[task.id] = chosen_zone_manager
                     # self.metrics.inc_node_tasks(chosen_executor.id)
                     if isinstance(chosen_zone_manager, DeepRLZoneManager):
-                        state = chosen_zone_manager.env._get_state(task, current_time)  # Get current system state
-                        # print(blue_bg(f"------------chosen_executor: {chosen_executor}------------\n------------task: {task}------------"))
-                        reward, action = chosen_zone_manager.env._compute_reward2(task, chosen_executor)
-                        if not chosen_executor.can_offload_task(task) and (reward > Config.NEGATIVE_REWARD):
+                        # state = chosen_zone_manager.env._get_state(task, current_time)  # Get current system state
+                        # # print(blue_bg(f"------------chosen_executor: {chosen_executor}------------\n------------task: {task}------------"))
+                        # reward, action = chosen_zone_manager.env._compute_reward2(task, chosen_executor)
+
+                        state = chosen_zone_manager.env._get_state(task, current_time)
+                        action = chosen_zone_manager.env.get_action_from_executor(task, chosen_executor)
+
+                        if not chosen_executor.can_offload_task(task):
                             reward = Config.NEGATIVE_REWARD
-                            timeout_time = current_time + 1
-                            self.schedule_retransmission(task, timeout_time)
-                        elif reward < Config.NEGATIVE_REWARD:
+                            next_state = chosen_zone_manager.env._get_state(task=None, current_time=current_time)
+                            chosen_zone_manager.agent.store_experience(state, action, reward, next_state, done=False)
+
                             timeout_time = current_time + 1
                             self.schedule_retransmission(task, timeout_time)
                         else:
+                            # Task is accepted into the queue!
+                            # Temporarily store RL info inside the task object for delayed reward calculation
+                            task.rl_state = state
+                            task.rl_action = action
+                            task.rl_zone_manager = chosen_zone_manager
+
                             chosen_executor.assign_task(task, current_time, self.fixed_fog_nodes)
                             # print(yellow_bg(f"chosen_executor: {chosen_executor.id}"))
 
@@ -239,11 +249,11 @@ class Simulator:
                         chosen_executor.assign_task(task, current_time, self.fixed_fog_nodes)
                     # if reward < 0:
                     #     print(chosen_executor.remaining_power)
-                    if isinstance(chosen_zone_manager, DeepRLZoneManager):
-                        next_state = chosen_zone_manager.env._get_state(task, current_time)
-                        chosen_zone_manager.agent.store_experience(state, action, reward, next_state,
-                                                                   done=False)  # Store for training
-                        # chosen_zone_manager.agent.train()
+                    # if isinstance(chosen_zone_manager, DeepRLZoneManager):
+                    #     next_state = chosen_zone_manager.env._get_state(task, current_time)
+                    #     chosen_zone_manager.agent.store_experience(state, action, reward, next_state,
+                    #                                                done=False)  # Store for training
+                    # chosen_zone_manager.agent.train()
             else:
                 self.metrics.inc_no_device_found_to_run_becauseOf_Noise()
 
@@ -528,23 +538,47 @@ class Simulator:
                 # todo: check local hard tasks
                 if task.is_hard:
                     self.metrics.inc_local_hard_execution()
+                else:
+                    if isinstance(task.executor, (FixedFogNode, MobileFogNode)) and (
+                            task.creator.id != task.executor.id or Config.ZoneManagerConfig.DEFAULT_ALGORITHM == Config.ZoneManagerConfig.ALGORITHM_ONLY_FOG):
+                        self.metrics.inc_fog_execution()
 
-                elif isinstance(task.executor, (FixedFogNode, MobileFogNode)) and (
-                        task.creator.id != task.executor.id or Config.ZoneManagerConfig.DEFAULT_ALGORITHM == Config.ZoneManagerConfig.ALGORITHM_ONLY_FOG):
-                    self.metrics.inc_fog_execution()
+                    elif task.creator.id == task.executor.id:
+                        self.metrics.inc_local_execution()
 
-                elif task.creator.id == task.executor.id:
-                    self.metrics.inc_local_execution()
+                    elif isinstance(task.executor, CloudNode):
+                        self.metrics.inc_cloud_tasks()
 
-                elif isinstance(task.executor, CloudNode):
-                    self.metrics.inc_cloud_tasks()
+                    # -----------------------------------------------------------------
+                    # DELAYED REWARD LOGIC: Task is fully executed. Calculate truth!
+                    # -----------------------------------------------------------------
+                    if hasattr(task, 'rl_state') and hasattr(task, 'rl_action'):
+                        rl_zm = task.rl_zone_manager
+                        if rl_zm and isinstance(rl_zm, DeepRLZoneManager):
+                            # 1. Calculate the REAL reward now that we know the exact finish_time
+                            real_reward = rl_zm.env._compute_reward(task, task.executor)
+
+                            # 2. Get the next state (the environment state at this exact completion moment)
+                            current_time = self.clock.get_current_time()
+                            next_state = rl_zm.env._get_state(task=None, current_time=current_time)
+
+                            # 3. Store the actual experience in the Replay Buffer
+                            rl_zm.agent.store_experience(
+                                task.rl_state,
+                                task.rl_action,
+                                real_reward,
+                                next_state,
+                                done=False
+                            )
+                    # -----------------------------------------------------------------
+
                 # if task.has_migrated:
                 #     self.metrics.inc_migration()
                 # if task.has_migrated and task.is_deadline_missed:
                 #     self.metrics.inc_migrate_and_miss()
                 if task.is_deadline_missed:
-                    # print(blue_bg(
-                    #     f"{task.id}: release_time:{task.release_time}, deadline:{task.deadline}, exec_time:{task.exec_time}, finish_time:{task.finish_time}, {task.executor.id}, {task.dataSize}, diff:{task.finish_time-task.deadline}"))
+                    print(blue_bg(
+                        f"{task.id}: release_time:{task.release_time}, deadline:{task.deadline}, exec_time:{task.exec_time}, finish_time:{task.finish_time}, {task.executor.id}, {task.dataSize}, diff:{task.finish_time - task.deadline}"))
                     missed_info = {
                         'task_id': task.id,
                         'release_time': task.release_time,
@@ -578,7 +612,6 @@ class Simulator:
 
     def offload_to_cloud(self, task: Task, current_time: float, partitions, cloud_node):
         if self.cloud_node.can_offload_task(task):
-            # todo: complete this fucking shit
             attenuationList = []
             intersecting_partitions = UtilsFunc().find_line_intersections(
                 (task.creator.x, task.creator.y),
@@ -946,8 +979,8 @@ class Simulator:
         if ((Config.Scenario.RAIN1_START_TIME <= current_time <= Config.Scenario.RAIN1_END_TIME)
                 or (Config.Scenario.RAIN2_START_TIME <= current_time <= Config.Scenario.RAIN2_END_TIME)
                 or (Config.Scenario.RAIN3_START_TIME <= current_time <= Config.Scenario.RAIN3_END_TIME)):
-            return 1
-        return 0
+            return 1.0
+        return 0.0
 
     def get_current_traffic_intensity(self, x: float, y: float, vehicle_id: str = None,
                                       current_time: int = None) -> float:
