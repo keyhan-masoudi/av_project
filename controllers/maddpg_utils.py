@@ -20,7 +20,7 @@ def is_deadline_miss_happening(task, executor, fn_nodes):
         return lateness < 0, lateness
 
     else:  # CloudNode
-        closest_fn = find_closest_fn(task.creator.x, task.creator.y, fn_nodes, task.power)
+        closest_fn = find_closest_fn(task.creator.x, task.creator.y, fn_nodes)
         dataRate = findDataRate(task, executor, closest_fn)
         # print(f"closest_fn:{closest_fn}, x: {closest_fn}")
         if closest_fn.x == Config.CloudConfig.CLOSEST_FOG_X and closest_fn.y == Config.CloudConfig.CLOSEST_FOG_Y:

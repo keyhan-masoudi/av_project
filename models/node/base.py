@@ -60,7 +60,7 @@ def calculate_distance(x1, y1, x2, y2):
     return math.sqrt((x2 - x1) ** 2 + (y2 - y1) ** 2)
 
 
-def find_closest_fn(x, y, fn_nodes, taskPower):
+def find_closest_fn(x, y, fn_nodes):
     closest_fn = None
     min_distance = float('inf')
     # print(fn_nodes)
@@ -139,23 +139,23 @@ class NodeABC(ModelBaseABC, abc.ABC):
         # print("----------------------------------test----------------------------------")
         # todo : improve this part
         if getattr(task, "is_hard", False):
+            # print("1111111111111111111111")
             return False
         # note: i think this section could help drl and make a maximisation for each node
+        # todo: change queue limit number
         if len(self.tasks) >= self.max_tasks_queue_len:
             # print(blue_bg(f"max_tasks_queue_len"))
+            # print(f"2222222222222222222222:{self.max_tasks_queue_len}")
             return False
 
-        task_power = task.power
-        if self.id == task.creator.id and self.layer == Layer.USER:
-            task_power *= Config.UserNodeConfig.LOCAL_OFFLOAD_POWER_OVERHEAD
-
-        # todo: maybe i should remove power and remaining power
-        if task_power > self.remaining_power:
-            # print(blue_bg(f"remaining_power"))
-            return False
+        # note: i have removed power and remaining power constraint
+        # if task_power > self.remaining_power:
+        #     # print(blue_bg(f"remaining_power"))
+        #     return False
 
         if get_distance(self.x, self.y, task.creator.x, task.creator.y) > self.radius:
             # print(blue_bg(f"distance"))
+            # print(f"333333333333333333333:{get_distance(self.x, self.y, task.creator.x, task.creator.y)}")
             return False
         return True
 
@@ -185,6 +185,7 @@ class NodeABC(ModelBaseABC, abc.ABC):
         Returns: The number of idle cores that possess the required processing power for this specific task.
         """
         if not self.can_offload_task(task):
+            # print(blue_bg("*******************"))
             return 0.0
 
         return self.get_idle_cores_count()
@@ -200,7 +201,7 @@ class NodeABC(ModelBaseABC, abc.ABC):
                 # print(blue_bg(f"executor: {task.executor.id}::: delay: {task.dataSize / dataRate}, dataRate: {dataRate}"))
             elif self.layer == Layer.CLOUD:
 
-                closest_fn = find_closest_fn(task.creator.x, task.creator.y, fixed_fog_nodes, task.power)
+                closest_fn = find_closest_fn(task.creator.x, task.creator.y, fixed_fog_nodes)
                 dataRate = findDataRate(task, task.executor, closest_fn)
 
                 if closest_fn.x == Config.CloudConfig.CLOSEST_FOG_X and closest_fn.y == Config.CloudConfig.CLOSEST_FOG_Y:
