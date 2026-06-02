@@ -7,49 +7,74 @@ import abc
 from models.node.base import NodeABC
 from models.task import Task
 
-class ModelBaseABC:
-    pass
 
 
-class MobileNodeABC(ModelBaseABC):
-    pass
+def load_tasks_by_vehicle(xml_file: str) -> Dict[str, List[Task]]:
+    tree = ET.parse(xml_file)
+    root = tree.getroot()
+
+    tasks_by_vehicle: Dict[str, List[Task]] = {}
+
+    for timestep in root.findall("timestep"):
+        release_time = float(timestep.get("time"))
+
+        for t in timestep.findall("task"):
+            creator_id = t.get("creator")
+
+            if creator_id not in tasks_by_vehicle:
+                tasks_by_vehicle[creator_id] = []
+
+            task = Task(
+                release_time=release_time,
+                deadline=float(t.get("deadline")),
+                exec_time=float(t.get("exec_time")),
+                power=float(t.get("power")),
+                creator_id=creator_id,
+                dataSize=float(t.get("dataSize")),
+                cycles_per_bit=float(t.get("cycles_per_bit")),
+                remaining_time=float(t.get("exec_time")),
+            )
+
+            tasks_by_vehicle[creator_id].append(task)
+
+    return tasks_by_vehicle
 
 
-# class NodeABC(ModelBaseABC, abc.ABC):
-#     def __init__(self, node_id, power, x=0, y=0, bandwidth=10, latency=0.5):
-#         self.id = node_id
-#         self.x = x
-#         self.y = y
-#         self.power = power  # Processing speed
-#         self.bandwidth = bandwidth  # Network speed
-#         self.latency = latency  # Network latency
+class NodeABC(ModelBaseABC, abc.ABC):
+    def __init__(self, node_id, power, x=0, y=0, bandwidth=10, latency=0.5):
+        self.id = node_id
+        self.x = x
+        self.y = y
+        self.power = power  # Processing speed
+        self.bandwidth = bandwidth  # Network speed
+        self.latency = latency  # Network latency
 
-#         # Simulating 2 cores per node for this example
-#         self.cores = [[], []]
-#         self.tasks = deque()
-#         self.finished_tasks = deque()
+        # Simulating 2 cores per node for this example
+        self.cores = [[], []]
+        self.tasks = deque()
+        self.finished_tasks = deque()
 
-#     def __repr__(self):
-#         return f"Node({self.id})"
+    def __repr__(self):
+        return f"Node({self.id})"
 
 
-# class Task(ModelBaseABC):
-#     def __init__(self, t_id, release, exec_time, deadline, data_size, creator_id="Car"):
-#         self.id = t_id
-#         self.release_time = release
-#         self.deadline = deadline
-#         self.exec_time = exec_time
-#         self.dataSize = data_size
-#         self.creator_id = creator_id
+class Task(ModelBaseABC):
+    def __init__(self, t_id, release, exec_time, deadline, data_size, creator_id="Car"):
+        self.id = t_id
+        self.release_time = release
+        self.deadline = deadline
+        self.exec_time = exec_time
+        self.dataSize = data_size
+        self.creator_id = creator_id
 
-#         # Runtime attributes
-#         self.start_time = 0
-#         self.finish_time = 0
-#         self.executor = None
-#         self.remaining_time = exec_time
+        # Runtime attributes
+        self.start_time = 0
+        self.finish_time = 0
+        self.executor = None
+        self.remaining_time = exec_time
 
-#     def __repr__(self):
-#         return f"Task({self.id} | Rel:{self.release_time} | D:{self.deadline})"
+    def __repr__(self):
+        return f"Task({self.id} | Rel:{self.release_time} | D:{self.deadline})"
 
 
 # ==========================================
@@ -189,100 +214,82 @@ class HybridScheduler:
 
 
 # ==========================================
-# 3. XML PARSER (MOCKED)
-# ==========================================
-
-def load_soft_tasks_from_xml(xml_string):
-    root = ET.fromstring(xml_string)
-    tasks = []
-    for t in root.findall('task'):
-        new_task = Task(
-            t_id=t.get('id'),
-            release=float(t.get('release')),
-            exec_time=float(t.get('exec')),
-            deadline=float(t.get('deadline')),
-            data_size=float(t.get('data'))
-        )
-        tasks.append(new_task)
-    return tasks
-
-
-# ==========================================
 # 4. MAIN EXECUTION FLOW
 # ==========================================
 
 if __name__ == "__main__":
-    # --- A. Setup Infrastructure ---
-    # Vehicle: Medium Power, 2 Cores
-    car = NodeABC("Vehicle_1", power=10)
-    # Edge: High Power, High Bandwidth
-    edge = NodeABC("Edge_Server", power=30, bandwidth=100, latency=2)
-    # Cloud: Massive Power, Low Bandwidth, High Latency
-    cloud = NodeABC("Cloud_AWS", power=100, bandwidth=20, latency=20)
+    load_tasks_by_vehicle("../DATA/periodic/periodic_tasks.xml")
+    # # --- A. Setup Infrastructure ---
+    # # Vehicle: Medium Power, 2 Cores
+    # car = NodeABC("Vehicle_1", power=10)
+    # # Edge: High Power, High Bandwidth
+    # edge = NodeABC("Edge_Server", power=30, bandwidth=100, latency=2)
+    # # Cloud: Massive Power, Low Bandwidth, High Latency
+    # cloud = NodeABC("Cloud_AWS", power=100, bandwidth=20, latency=20)
 
-    scheduler = HybridScheduler()
+    # scheduler = HybridScheduler()
 
-    # --- B. Define 3 Hard Periodic Task Types ---
-    # 1. Steering: Very frequent, low compute
-    # 2. SensorFusion: Medium frequency, medium compute
-    # 3. Navigation: Low frequency, high compute
-    hard_blueprints = [
-        HardTaskBlueprint("HARD_Steering", period=20, wcet=50, deadline=20),
-        HardTaskBlueprint("HARD_Sensor", period=50, wcet=100, deadline=50),
-        HardTaskBlueprint("HARD_Nav", period=200, wcet=400, deadline=200)
-    ]
+    # # --- B. Define 3 Hard Periodic Task Types ---
+    # # 1. Steering: Very frequent, low compute
+    # # 2. SensorFusion: Medium frequency, medium compute
+    # # 3. Navigation: Low frequency, high compute
+    # hard_blueprints = [
+    #     HardTaskBlueprint("HARD_Steering", period=20, wcet=50, deadline=20),
+    #     HardTaskBlueprint("HARD_Sensor", period=50, wcet=100, deadline=50),
+    #     HardTaskBlueprint("HARD_Nav", period=200, wcet=400, deadline=200)
+    # ]
 
-    # --- C. Run Offline Scheduling ---
-    # This locks hard task types to specific vehicle cores
-    scheduler.perform_offline_scheduling(hard_blueprints, [car])
+    # # --- C. Run Offline Scheduling ---
+    # # This locks hard task types to specific vehicle cores
+    # scheduler.perform_offline_scheduling(hard_blueprints, [car])
 
-    # --- D. Load Soft Tasks from XML ---
-    # Example XML content
-    # xml_data = """
-    # <tasks>
-    #     <task id="SOFT_Music" release="15" exec="60" deadline="100" data="500" />
-    #     <task id="SOFT_Video" release="16" exec="500" deadline="50" data="2000" />
-    #     <task id="SOFT_Update" release="105" exec="200" deadline="300" data="100" />
-    # </tasks>
-    # """
-    soft_tasks_queue = deque(load_soft_tasks_from_xml(xml_data))
+    # # --- D. Load Soft Tasks from XML ---
+    # # Example XML content
+    # # xml_data = """
+    # # <tasks>
+    # #     <task id="SOFT_Music" release="15" exec="60" deadline="100" data="500" />
+    # #     <task id="SOFT_Video" release="16" exec="500" deadline="50" data="2000" />
+    # #     <task id="SOFT_Update" release="105" exec="200" deadline="300" data="100" />
+    # # </tasks>
+    # # """
+    # soft_tasks_queue = deque(load_soft_tasks_from_xml(xml_data))
 
-    # --- E. Simulation Loop (Time 0 to 250) ---
-    print("\n--- [Phase 2] Starting Simulation (t=0 to 250) ---")
+    # # --- E. Simulation Loop (Time 0 to 250) ---
+    # print("\n--- [Phase 2] Starting Simulation (t=0 to 250) ---")
 
-    simulation_duration = 250
+    # simulation_duration = 250
 
-    # This loop generates hard jobs and processes soft jobs as time moves
-    for current_time in range(simulation_duration):
+    # # This loop generates hard jobs and processes soft jobs as time moves
+    # for current_time in range(simulation_duration):
 
-        # 1. Generate Hard Task Instances for this timestep
-        for bp in hard_blueprints:
-            # If current time is a multiple of period, release a new job
-            if current_time % bp.period == 0:
-                # Create the actual runtime Task object
-                hard_job = Task(
-                    t_id=f"{bp.type_id}_{current_time}",
-                    release=current_time,
-                    exec_time=bp.wcet,
-                    deadline=bp.deadline,
-                    data_size=0
-                )
+    #     # 1. Generate Hard Task Instances for this timestep
+    #     for bp in hard_blueprints:
+    #         # If current time is a multiple of period, release a new job
+    #         if current_time % bp.period == 0:
+    #             # Create the actual runtime Task object
+    #             hard_job = Task(
+    #                 t_id=f"{bp.type_id}_{current_time}",
+    #                 release=current_time,
+    #                 exec_time=bp.wcet,
+    #                 deadline=bp.deadline,
+    #                 data_size=0
+    #             )
 
-                # Retrieve Offline Assignment
-                if bp.type_id in scheduler.offline_map:
-                    assigned_node, core_idx = scheduler.offline_map[bp.type_id]
-                    hard_job.executor = assigned_node
-                    # In a real sim, you would add to assigned_node.cores[core_idx].append(hard_job)
-                    # print(f"  [t={current_time}] Generated {hard_job.id} -> {assigned_node.id} Core {core_idx}")
+    #             # Retrieve Offline Assignment
+    #             if bp.type_id in scheduler.offline_map:
+    #                 assigned_node, core_idx = scheduler.offline_map[bp.type_id]
+    #                 hard_job.executor = assigned_node
+    #                 # In a real sim, you would add to assigned_node.cores[core_idx].append(hard_job)
+    #                 # print(f"  [t={current_time}] Generated {hard_job.id} -> {assigned_node.id} Core {core_idx}")
 
-        # 2. Check for Soft Task Arrivals from XML Queue
-        while soft_tasks_queue and soft_tasks_queue[0].release_time == current_time:
-            soft_job = soft_tasks_queue.popleft()
+    #     # 2. Check for Soft Task Arrivals from XML Queue
+    #     while soft_tasks_queue and soft_tasks_queue[0].release_time == current_time:
+    #         soft_job = soft_tasks_queue.popleft()
 
-            # Run the Online Algorithm (Algorithm 4)
-            scheduler.schedule_online_job(
-                soft_job,
-                vehicle_nodes=[car],
-                edge_nodes=[edge],
-                cloud_nodes=[cloud]
-            )
+    #         # Run the Online Algorithm (Algorithm 4)
+    #         scheduler.schedule_online_job(
+    #             soft_job,
+    #             vehicle_nodes=[car],
+    #             edge_nodes=[edge],
+    #             cloud_nodes=[cloud]
+    #         )
