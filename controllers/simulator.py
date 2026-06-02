@@ -307,10 +307,6 @@ class Simulator:
         """
         Loads the O(1) precalculated future trajectory predictions for all vehicles.
         """
-        import os
-        import pickle
-        from config import Config
-
         pkl_path = os.path.join(Config.VehiclesTraffic.PROJECT_ROOT, "precalculated_vehicle_predictions.pkl")
         print(f"Loading precalculated future predictions from: {pkl_path}")
 
@@ -348,10 +344,6 @@ class Simulator:
 
     def start_simulation(self):
         self.init_simulation()
-        neighbors_map = UtilsFunc.find_neighbors(self.partitions)
-
-        PREDICTION_UPDATE_INTERVAL = 10
-        PREDICTOR_Y_NEEDED = 12
 
         self.load_cached_traffic()
         self.load_cached_vehicle_traffic()
@@ -363,9 +355,6 @@ class Simulator:
 
             print(red_bg(f"current_time:{current_time}"))
 
-            # for user_node in self.user_nodes.values():
-            #     user_node.release_periodic_jobs(current_time)
-
             time_int = int(current_time)
             cached_data_str_keys = self.traffic_cache.get(time_int, {})
 
@@ -374,14 +363,6 @@ class Simulator:
                 p_name = p.__class__.__name__
                 if p_name in cached_data_str_keys:
                     traffic_data[p] = cached_data_str_keys[p_name]
-            # print(f"traffic_data:{traffic_data}")
-
-            # --- 2. Store Current Features for Predictor History ---
-            formatted_data = pprint.pformat(dict(self.traffic_predictions), indent=4)
-            # print(red_bg(formatted_data))
-            # --- 4. Clean up old predictions ---
-            keys_to_delete = [t for t in self.traffic_predictions if t < current_time]
-            for t in keys_to_delete: del self.traffic_predictions[t]
 
             self.update_weather_from_cache(current_time)
 
@@ -403,9 +384,7 @@ class Simulator:
                 self.retransmission(zone_managers, current_time, self.partitions)
 
                 for task in tasks:
-                    # todo: log hard tasks and a counter for this
                     self.metrics.inc_total_tasks()
-                    # todo: separate decision making for Hard and Soft tasks here
 
                     zone_manager_offload_task = self.find_zone_manager_offload_task(zone_managers, task, current_time)
                     # print(blue_bg(f"{len(zone_manager_offload_task)}"))
@@ -419,7 +398,6 @@ class Simulator:
             self.update_graph()
             self.metrics.flush()
 
-            # رسم گانت چارت برای بازه 320 تا 340 (فقط یک بار در ثانیه 341 انجام می‌شود)
             if current_time >= 320.0 and not getattr(self, '_gantt_340_drawn', False):
                 print(blue_bg(f"--- Attempting to draw Gantt chart at time {current_time} ---"))
                 self.draw_gantt_chart(target_id, window_start=300.0, window_end=320.0)
@@ -521,7 +499,6 @@ class Simulator:
                         min_load = min(loads)
                         max_load = max(loads)
                         self.metrics.inc_task_load_diff(task.id, min_load, max_load)
-                # todo: check local hard tasks
                 if task.is_hard:
                     self.metrics.inc_local_hard_execution()
                 else:
@@ -542,6 +519,7 @@ class Simulator:
                         rl_zm = task.rl_zone_manager
                         if rl_zm and isinstance(rl_zm, DeepRLZoneManager):
                             # 1. Calculate the REAL reward now that we know the exact finish_time
+                            # print(green_bg(f"{task.id}"))
                             real_reward = rl_zm.env._compute_reward(task, task.executor)
 
                             # 2. Get the next state (the environment state at this exact completion moment)
@@ -563,8 +541,8 @@ class Simulator:
                 # if task.has_migrated and task.is_deadline_missed:
                 #     self.metrics.inc_migrate_and_miss()
                 if task.is_deadline_missed:
-                    print(blue_bg(
-                        f"{task.id}: release_time:{task.release_time}, deadline:{task.deadline}, exec_time:{task.exec_time}, finish_time:{task.finish_time}, {task.executor.id}, {task.dataSize}, diff:{task.finish_time - task.deadline}"))
+                    # print(blue_bg(
+                    #     f"{task.id}: release_time:{task.release_time}, deadline:{task.deadline}, exec_time:{task.exec_time}, finish_time:{task.finish_time}, {task.executor.id}, {task.dataSize}, diff:{task.finish_time - task.deadline}"))
                     missed_info = {
                         'task_id': task.id,
                         'release_time': task.release_time,
@@ -704,13 +682,11 @@ class Simulator:
             os.makedirs(output_dir)
             print(f"Directory '{output_dir}' created.")
 
-        # مطمئن میشیم که پسوند فایل csv باشه
         filename = filename.replace('.xlsx', '.csv')
         full_path = os.path.join(output_dir, filename)
 
         df = pd.DataFrame(self.missed_deadline_data)
         try:
-            # استفاده از to_csv به جای to_excel
             df.to_csv(full_path, index=False)
             print(green_bg(f"Successfully saved missed deadline data to {filename}"))
         except Exception as e:
@@ -722,14 +698,12 @@ class Simulator:
             os.makedirs(output_dir)
             print(f"Directory '{output_dir}' created.")
 
-        # مطمئن میشیم که پسوند فایل csv باشه
         filename = filename.replace('.xlsx', '.csv')
         full_path = os.path.join(output_dir, filename)
 
         df = pd.DataFrame(self.success_deadline_data)
 
         try:
-            # استفاده از to_csv به جای to_excel
             df.to_csv(full_path, index=False)
             print(green_bg(f"Successfully saved success deadline data to {filename}"))
         except Exception as e:
@@ -809,7 +783,6 @@ class Simulator:
 
         fig, ax = plt.subplots(figsize=(30, 10))
 
-        # رنگ‌ها برای periodهای مختلف
         base_colors = list(mcolors.TABLEAU_COLORS.values())
         period_colors = {}
         color_idx = 0
@@ -836,9 +809,6 @@ class Simulator:
 
             parts = task_id.split("_")
 
-            # -------------------------------
-            # تعیین رنگ
-            # -------------------------------
             if "_S_" in task_id:
                 color = "black"
                 parts = task_id.split("_")
@@ -848,7 +818,6 @@ class Simulator:
                     label = f"S{step}"
                 else:
                     label = "S"
-
 
             elif "_H_" in task_id and len(parts) >= 5:
                 period = parts[-1]
@@ -864,9 +833,6 @@ class Simulator:
                 color = "gray"
                 label = "?"
 
-            # -------------------------------
-            # رسم بلاک
-            # -------------------------------
             ax.broken_barh(
                 [(start, duration)],
                 (core - 0.4, 0.8),
@@ -875,7 +841,6 @@ class Simulator:
                 linewidth=0.8
             )
 
-            # نوشتن لیبل
             if duration > (window_end - window_start) * 0.01:
                 ax.text(
                     start + duration / 2,
@@ -888,9 +853,6 @@ class Simulator:
                     weight='bold'
                 )
 
-        # -------------------------------
-        # تنظیم محورها
-        # -------------------------------
         ax.set_ylim(-1, node.num_cores)
         ax.set_yticks(range(node.num_cores))
         ax.set_yticklabels([f"Core {i}" for i in range(node.num_cores)])
@@ -909,9 +871,6 @@ class Simulator:
 
         ax.grid(True, axis='x', linestyle='--', alpha=0.6)
 
-        # -------------------------------
-        # Legend فقط برای Hard periods
-        # -------------------------------
         legend_patches = [
             mpatches.Patch(color=color, label=f"Hard - Period {period}")
             for period, color in period_colors.items()
