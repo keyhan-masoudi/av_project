@@ -262,8 +262,6 @@ class DeepRLEnvironment(gym.Env):
         # ==========================================
         current_traffic = self.simulator.get_current_traffic_intensity(creator.x, creator.y)
 
-        # دریافت همزمان میانگین و بیشینه ترافیک مسیر آینده ماشین
-        # todo: fix this: need Keyhan's results
         pred_avg, pred_max = self.simulator.get_predicted_traffic_intensity(creator)
 
         current_weather = self.simulator.current_weather_status
@@ -346,6 +344,7 @@ class DeepRLEnvironment(gym.Env):
             # Fallback (Should not occur if the mask logic is correct)
             return 0
 
+    # todo: complete reward function
     def _compute_reward(self, task, executor) -> float:
         """
         Calculates the REAL reward based on the ACTUAL finish time of the task.

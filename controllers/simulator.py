@@ -82,7 +82,7 @@ class Simulator:
         self.missed_deadline_data: List[Dict] = []
         self.success_deadline_data: List[Dict] = []
         self.traffic_cache: Dict[int, any] = {}
-        self.traffic_predictions = defaultdict(dict)
+        self.traffic_predictions = {}
         self.noise_controller = FinalChoiceByAttenuationNoise()
         self.partitions = UtilsFunc.load_partitions("generated_hex_partitions")
         self.precalculated_vehicle_traffic = {}
@@ -99,8 +99,6 @@ class Simulator:
         self.assign_fixed_nodes()
         self.update_mobile_fog_nodes_coordinate()
         self.update_user_nodes_coordinate()
-        self.traffic_predictions.clear()
-        self.load_all_predictions_from_csv("data/prediction_data")
         # For zone managers that use deep RL, the simulator reference is set.
         for zm in self.zone_managers.values():
             if hasattr(zm, "set_simulator"):
@@ -305,41 +303,28 @@ class Simulator:
                         weather_class = getattr(NoiseConfig, w_str)
                         p.weatherStatus = weather_class()
 
-    def load_all_predictions_from_csv(self, directory_path: str):
+    def load_cached_future_predictions(self):
         """
-        Scans a directory for prediction CSVs and loads them all into memory.
-        This is called once at the start of the simulation.
+        Loads the O(1) precalculated future trajectory predictions for all vehicles.
         """
-        print(f"--- Pre-loading all predictions from '{directory_path}' ---")
+        import os
+        import pickle
+        from config import Config
 
-        # Find all prediction files in the specified directory
-        csv_files = glob.glob(os.path.join(directory_path, "predictions_output*.csv"))
+        pkl_path = os.path.join(Config.VehiclesTraffic.PROJECT_ROOT, "precalculated_vehicle_predictions.pkl")
+        print(f"Loading precalculated future predictions from: {pkl_path}")
 
-        if not csv_files:
-            print(f"Warning: No prediction files found in '{directory_path}'.")
-            print("Traffic prediction will be unavailable.")
-            return
+        self.precalculated_vehicle_predictions = {}
 
-        total_rows = 0
-        for f_path in csv_files:
+        if os.path.exists(pkl_path):
             try:
-                # Read the CSV file
-                df = pd.read_csv(f_path)
-                # Iterate over its rows and store them in our dictionary
-                for row in df.itertuples():
-                    # Assumes CSV columns are 'time', 'hex_id', and 'label'
-                    self.traffic_predictions[row.time][row.hex_id] = row.label
-                    total_rows += 1
+                with open(pkl_path, "rb") as f:
+                    self.precalculated_vehicle_predictions = pickle.load(f)
+                print("Future Predictions cache loaded successfully!")
             except Exception as e:
-                print(f"Error loading prediction file {f_path}: {e}")
-
-        if total_rows > 0:
-            min_t = min(self.traffic_predictions.keys())
-            max_t = max(self.traffic_predictions.keys())
-            print(f"Successfully loaded {total_rows} prediction rows from {len(csv_files)} files.")
-            print(f"Pre-loaded data covers timesteps from {min_t} to {max_t}.")
+                print(f"Error loading Future Predictions Pickle file: {e}")
         else:
-            print("Warning: No data was loaded from prediction files.")
+            print("Future Predictions cache file not found! Mathematical fallback will be used.")
 
     def load_cached_traffic(self):
         pkl_dest_dir = Config.Paths.pklPath
@@ -372,6 +357,7 @@ class Simulator:
         self.load_cached_vehicle_traffic()
         self.load_cached_weather()
         self.load_cached_spatial_grid()
+        self.load_cached_future_predictions()
 
         while (current_time := self.clock.get_current_time()) < Config.SimulatorConfig.SIMULATION_DURATION:
 
@@ -1038,58 +1024,32 @@ class Simulator:
         except Exception as e:
             print(f"Error loading Vehicle Traffic Pickle file: {e}")
 
-    # todo: should change the hole of this function
     def get_predicted_traffic_intensity(self, vehicle) -> tuple[float, float]:
-        current_time = self.clock.get_current_time()
+        """
+        O(1) lookup for the average and maximum predicted traffic intensity
+        for the vehicle's trajectory over the next 10 seconds.
+        """
         try:
-            traffic_values = []
+            current_time = int(self.clock.get_current_time())
 
-            for t in range(1, 11):
-                future_time = current_time + t
+            # 1. Ultra-fast O(1) cache lookup
+            if hasattr(self, 'precalculated_vehicle_predictions') and self.precalculated_vehicle_predictions:
+                if current_time in self.precalculated_vehicle_predictions:
+                    if vehicle.id in self.precalculated_vehicle_predictions[current_time]:
+                        data = self.precalculated_vehicle_predictions[current_time][vehicle.id]
+                        return float(data['avg']), float(data['max'])
 
-                import math
-                angle_rad = math.radians(vehicle.angle)
-                future_x = vehicle.x + (vehicle.speed * math.sin(angle_rad) * t)
-                future_y = vehicle.y + (vehicle.speed * math.cos(angle_rad) * t)
-
-                p = self.get_partition_by_location(future_x, future_y)
-
-                if not p:
-                    traffic_values.append(
-                        self.get_current_traffic_intensity(vehicle.x, vehicle.y, vehicle.id, int(current_time)))
-                    continue
-
-                future_times = [k for k in getattr(self, 'traffic_predictions', {}).keys() if k >= future_time]
-
-                if not future_times:
-                    traffic_values.append(
-                        self.get_current_traffic_intensity(future_x, future_y, vehicle.id, int(future_time)))
-                    continue
-
-                closest_t = min(future_times)
-                hex_id = getattr(p, 'id', getattr(p, 'hex_id', None))
-
-                if hex_id is not None and hex_id in self.traffic_predictions[closest_t]:
-                    pred_label = float(self.traffic_predictions[closest_t][hex_id])
-                    traffic_values.append(min(pred_label / 4.0, 1.0))
-                else:
-                    traffic_values.append(
-                        self.get_current_traffic_intensity(future_x, future_y, vehicle.id, int(future_time)))
-
-            if not traffic_values:
-                curr = self.get_current_traffic_intensity(vehicle.x, vehicle.y, vehicle.id, int(current_time))
-                return curr, curr
-
-            avg_traffic = sum(traffic_values) / len(traffic_values)
-            max_traffic = max(traffic_values)
-
-            return float(avg_traffic), float(max_traffic)
+            # 2. Fallback if the vehicle or time step is not in the cache
+            # Uses current traffic intensity as a naive baseline prediction
+            curr_val = self.get_current_traffic_intensity(vehicle.x, vehicle.y, vehicle.id, current_time)
+            return float(curr_val), float(curr_val)
 
         except Exception as e:
-            print(red_bg(e))
-            curr = self.get_current_traffic_intensity(vehicle.x, vehicle.y, vehicle.id, int(current_time)) if hasattr(
-                vehicle, 'x') else 0.5
-            return curr, curr
+            # Safe fallback to prevent simulator crash
+            fallback_val = self.get_current_traffic_intensity(vehicle.x, vehicle.y, vehicle.id,
+                                                              int(self.clock.get_current_time())) if hasattr(vehicle,
+                                                                                                             'x') else 0.5
+            return float(fallback_val), float(fallback_val)
 
     @property
     def estimated_cloud_delay(self) -> float:
