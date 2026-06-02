@@ -48,42 +48,6 @@ def get_vehicle_position(csv_file, target_id):
 def calculate_distance(x1, y1, x2, y2):
     return math.sqrt((x2 - x1) ** 2 + (y2 - y1) ** 2)
 
-
-# # todo: should change this
-# def isDeadlineMissHappening(task, executor, fn_nodes):
-#     task.real_exec_time_base = findExecTimeInEachKindOfNode(task, executor)
-#
-#     real_exec_time = task.real_exec_time_base
-#
-#     if executor == task.creator:
-#         return ((task.release_time + real_exec_time) > task.deadline), (
-#                 task.deadline - (task.release_time + real_exec_time))
-#     elif isinstance(executor, (FixedFogNode, MobileFogNode)):
-#         # if checkMigration(executor, task, (task.release_time + real_exec_time)):
-#         #     real_exec_time += Config.TaskConfig.MIGRATION_OVERHEAD * task.dataSize
-#         dataRate = findDataRate(task, executor, 0)
-#         # print(purple_bg(f"{executor.id} ===> dataRate : {dataRate}, task.dataSize: {task.dataSize} ===> transmission time :{task.dataSize / dataRate}"))
-#         real_exec_time += task.dataSize / dataRate
-#
-#         return ((task.release_time + real_exec_time) > task.deadline), (
-#                 task.deadline - (task.release_time + real_exec_time))
-#     else:
-#         closest_fn = find_closest_fn(task.creator.x, task.creator.y, fn_nodes, task.power)
-#         dataRate = findDataRate(task, executor, closest_fn)
-#         # print(f"closest_fn:{closest_fn}, x: {closest_fn}")
-#         if closest_fn.x == Config.CloudConfig.CLOSEST_FOG_X and closest_fn.y == Config.CloudConfig.CLOSEST_FOG_Y:
-#             real_exec_time += (task.dataSize / dataRate) + (
-#                     task.dataSize / Config.CloudConfig.CLOUD_BANDWIDTH)
-#         else:
-#             real_exec_time += (task.dataSize / dataRate) + 2 * (
-#                     task.dataSize / Config.CloudConfig.CLOUD_BANDWIDTH)
-#         # print(purple_bg(f"{executor.id} ===> dataRate : {dataRate}, task.dataSize: {task.dataSize} ===> transmission time :{(task.dataSize / dataRate) + 2 * (task.dataSize / Config.CloudConfig.CLOUD_BANDWIDTH)}"))
-#
-#         # real_exec_time += Config.TaskConfig.CLOUD_PROCESSING_OVERHEAD
-#         return ((task.release_time + real_exec_time) > task.deadline), (
-#                 task.deadline - (task.release_time + real_exec_time))
-
-
 class DeepRLEnvironment(gym.Env):
     """
     Custom environment for RL-based task offloading.
@@ -103,9 +67,6 @@ class DeepRLEnvironment(gym.Env):
         self.action_space = spaces.Discrete(5)
 
         # Define state space: (What information do we use to make decisions?)
-        # self.observation_space = spaces.Box(
-        #     low=0, high=1, shape=(5,), dtype=np.float32
-        # )
         # 28: Task(3) + Local(3) + Env(7) + Fog(12) + Cloud(3)
         self.observation_space = spaces.Box(
             low=0, high=1, shape=(28,), dtype=np.float32
@@ -138,33 +99,17 @@ class DeepRLEnvironment(gym.Env):
 
         return next_state, reward, done, {}
 
-    # def get_action_mask(self, task):
-    #     mask = [1.0, 1.0, 1.0]
-    #     if task is not None:
-    #         local_exec_time = findExecTimeInEachKindOfNode(task, task.creator)
-    #
-    #         if (task.release_time + local_exec_time) > task.deadline:
-    #             mask[0] = 0.0
-    #
-    #     return np.array(mask, dtype=np.float32)
-
     def get_action_mask(self, task):
         # [Local, Cloud, Fog1, Fog2, Fog3]
         mask = np.ones(5, dtype=np.float32)
 
         creator = task.creator
 
-        # todo: change this variables
-        # todo: MAX_QUEUE_LEN should not be a constant variable
-        # todo: maybe it would be a better option if i use can_offload instead of this
-        MAX_QUEUE_LEN = 20.0
-
         # =====================================
         # Local Masking
         # =====================================
-        # todo: surly should change it
-        local_best_q = getattr(creator, 'get_best_queue_length', lambda: 0.0)()
-        if (local_best_q / MAX_QUEUE_LEN) > 0.85:
+        local_best_q = creator.get_best_queue_length()
+        if (local_best_q / CNF.TaskConfig.DEADLINE_MAX_FREE_TIME) > 0.85:
             mask[0] = 0.0
 
         # todo: maybe it won't be bad if we mask fog with queue too
@@ -208,7 +153,6 @@ class DeepRLEnvironment(gym.Env):
         if candidate_executor is None:
             return -1.0
 
-        # todo: should write new reward formulation
         if candidate_executor.can_offload_task(task):
             print(green_bg("are we here?????????????????????????????????"))
             reward = self._compute_reward(task, candidate_executor)
@@ -241,7 +185,6 @@ class DeepRLEnvironment(gym.Env):
         # ==========================================
         # Local Node
         # ==========================================
-        # todo: maybe i should change power values or remove this section
         # local_tot_cap = creator.power / Config.FixedFogNodeConfig.DEFAULT_COMPUTATION_POWER
         # local_rem_cap = creator.remaining_power / Config.FixedFogNodeConfig.DEFAULT_COMPUTATION_POWER
 
@@ -415,29 +358,3 @@ class DeepRLEnvironment(gym.Env):
             reward -= env_penalty
 
         return reward
-
-    # def _compute_reward2(self, task, executor):
-    #     """Compute the reward based on latency."""
-    #     # todo: should add execTime and check deadline
-    #
-    #     """
-    #     Reward function based on task completion timing.
-    #     If task is late (lateness < 0): reward = -2 + lateness
-    #     If task is on-time or early: reward = lateness
-    #     """
-    #     reward = 0
-    #     isDeadlineMiss, lateness = isDeadlineMissHappening(task, executor, self.simulator.fixed_fog_nodes)
-    #     # print(green_bg(f"{executor.id}: {lateness}"))
-    #     if isDeadlineMiss:
-    #         # print(f"AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA:{task.id}: {executor.id}")
-    #         reward = -100 + lateness
-    #         # print(red_bg(f"{reward}, {lateness}"))
-    #     else:
-    #         reward = lateness
-    #         # print(red_bg(f"{reward}, {lateness}"))
-    #     if executor == task.creator:
-    #         return reward, 0
-    #     elif isinstance(executor, (FixedFogNode, MobileFogNode)):
-    #         return reward, 1
-    #     else:
-    #         return reward, 2
