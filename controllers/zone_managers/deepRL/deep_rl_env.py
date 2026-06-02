@@ -177,8 +177,7 @@ class DeepRLEnvironment(gym.Env):
         # ==========================================
         data_size_ratio = task.dataSize / CNF.TaskConfig.MAX_DATASIZE
         workload_ratio = task.power / CNF.TaskConfig.MAX_POWER_CONSUMPTION
-        # todo: i have recently add current time, so i should validate this parameter here
-        deadline_ratio = (task.deadline - current_time) / CNF.TaskConfig.DEADLINE_MAX_FREE_TIME
+        deadline_ratio = min(((task.deadline - current_time) / CNF.TaskConfig.DEADLINE_MAX_FREE_TIME), 1)
 
         state_vector.extend([data_size_ratio, workload_ratio, deadline_ratio])
 
@@ -249,7 +248,6 @@ class DeepRLEnvironment(gym.Env):
         # ==========================================
         cloud = self.simulator.cloud_node
         if cloud:
-            # todo: maybe i should uncomment this feature
             # c_rem_cap = cloud.remaining_power / cloud.power
             # if creator.id == "PKW135":
             #     print(green_bg(
