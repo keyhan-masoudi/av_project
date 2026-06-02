@@ -106,9 +106,9 @@ class DeepRLEnvironment(gym.Env):
         # self.observation_space = spaces.Box(
         #     low=0, high=1, shape=(5,), dtype=np.float32
         # )
-        # 34: Task(3) + Local(5) + Env(7) + Fog(15) + Cloud(4)
+        # 28: Task(3) + Local(3) + Env(7) + Fog(12) + Cloud(3)
         self.observation_space = spaces.Box(
-            low=0, high=1, shape=(34,), dtype=np.float32
+            low=0, high=1, shape=(28,), dtype=np.float32
         )
 
         # Frame Stacking for weather
@@ -160,10 +160,10 @@ class DeepRLEnvironment(gym.Env):
         MAX_QUEUE_LEN = 20.0
 
         # =====================================
-        # 1. مسک کردن Local (اکشن 0)
+        # Local Masking
         # =====================================
+        # todo: surly should change it
         local_best_q = getattr(creator, 'get_best_queue_length', lambda: 0.0)()
-        # اگر صف خلوت‌ترین کور از ۸۵ درصد ظرفیت بیشتر بود، لوکال را مسک کن
         if (local_best_q / MAX_QUEUE_LEN) > 0.85:
             mask[0] = 0.0
 
@@ -210,6 +210,7 @@ class DeepRLEnvironment(gym.Env):
 
         # todo: should write new reward formulation
         if candidate_executor.can_offload_task(task):
+            print(green_bg("are we here?????????????????????????????????"))
             reward = self._compute_reward(task, candidate_executor)
         else:
             reward = -10.0
@@ -241,21 +242,20 @@ class DeepRLEnvironment(gym.Env):
         # Local Node
         # ==========================================
         # todo: maybe i should change power values or remove this section
-        local_tot_cap = creator.power / Config.FixedFogNodeConfig.DEFAULT_COMPUTATION_POWER
-        local_rem_cap = creator.remaining_power / Config.FixedFogNodeConfig.DEFAULT_COMPUTATION_POWER
+        # local_tot_cap = creator.power / Config.FixedFogNodeConfig.DEFAULT_COMPUTATION_POWER
+        # local_rem_cap = creator.remaining_power / Config.FixedFogNodeConfig.DEFAULT_COMPUTATION_POWER
 
-        # این متدها باید به کلاس پایه گره‌ها (Node) اضافه شوند
-        # todo: should change MAX_QUEUE_LEN to sth which i don't know now
-        if creator.id == "PKW135":
-            print(green_bg(
-                f"Local:\nget_best_queue_length: {creator.get_best_queue_length()}, get_avg_queue_length: {creator.get_avg_queue_length()}, get_idle_cores_count: {creator.get_idle_cores_count()}"))
+        # if creator.id == "PKW135":
+        #     print(green_bg(
+        #         f"Local:\nget_best_queue_length: {creator.get_best_queue_length()}, get_avg_queue_length: {creator.get_avg_queue_length()}, get_idle_cores_count: {creator.get_idle_cores_count()}"))
         local_best_q = min(creator.get_best_queue_length() / CNF.TaskConfig.DEADLINE_MAX_FREE_TIME, 1.0)
         local_avg_q = min(creator.get_avg_queue_length() / CNF.TaskConfig.DEADLINE_MAX_FREE_TIME, 1.0)
         local_idle_cores = -1
 
         local_idle_cores = creator.get_idle_cores_count() / len(creator.cores)
 
-        state_vector.extend([local_tot_cap, local_rem_cap, local_best_q, local_avg_q, local_idle_cores])
+        # state_vector.extend([local_tot_cap, local_rem_cap, local_best_q, local_avg_q, local_idle_cores])
+        state_vector.extend([local_best_q, local_avg_q, local_idle_cores])
 
         # ==========================================
         # (Environment & Context)
@@ -287,36 +287,37 @@ class DeepRLEnvironment(gym.Env):
                     (fog.x - creator.x) ** 2 + (fog.y - creator.y) ** 2) / Config.MobileFogNodeConfig.DEFAULT_RADIUS
                 dist = min(dist, 1.0)
 
-                f_rem_cap = fog.remaining_power / fog.power
-                # todo: should fix queue
-                if creator.id == "PKW135":
-                    print(green_bg(
-                        f"Fog{i}:\nget_best_queue_length: {fog.get_best_queue_length()}, get_avg_queue_length: {fog.get_avg_queue_length()}, get_idle_cores_count: {fog.get_idle_cores_count()}"))
+                # f_rem_cap = fog.remaining_power / fog.power
+
+                #     if creator.id == "PKW135":
+                #         print(green_bg(
+                #             f"Fog{i}:\nget_best_queue_length: {fog.get_best_queue_length()}, get_avg_queue_length: {fog.get_avg_queue_length()}, get_idle_cores_count: {fog.get_idle_cores_count()}"))
                 f_best_q = fog.get_best_queue_length() / CNF.TaskConfig.DEADLINE_MAX_FREE_TIME
                 f_avg_q = fog.get_avg_queue_length() / CNF.TaskConfig.DEADLINE_MAX_FREE_TIME
                 f_idle_cores = fog.get_idle_capable_cores_count(task) / len(fog.cores)
 
-                state_vector.extend([dist, f_rem_cap, f_best_q, f_avg_q, f_idle_cores])
+                state_vector.extend([dist, f_best_q, f_avg_q, f_idle_cores])
             else:
                 # pass the worst state if there is not enough fog
-                state_vector.extend([1.0, 0.0, 1.0, 1.0, 0.0])
+                state_vector.extend([1.0, 1.0, 1.0, 0.0])
 
         # ==========================================
         # Cloud
         # ==========================================
         cloud = self.simulator.cloud_node
         if cloud:
-            c_rem_cap = cloud.remaining_power / cloud.power
-            if creator.id == "PKW135":
-                print(green_bg(
-                    f"Cloud:\nget_best_queue_length: {cloud.get_best_queue_length()}, get_avg_queue_length: {cloud.get_avg_queue_length()}, get_idle_cores_count: {cloud.get_idle_cores_count()}"))
+            # todo: maybe i should uncomment this feature
+            # c_rem_cap = cloud.remaining_power / cloud.power
+            # if creator.id == "PKW135":
+            #     print(green_bg(
+            #         f"Cloud:\nget_best_queue_length: {cloud.get_best_queue_length()}, get_avg_queue_length: {cloud.get_avg_queue_length()}, get_idle_cores_count: {cloud.get_idle_cores_count()}"))
             c_best_q = cloud.get_best_queue_length() / CNF.TaskConfig.DEADLINE_MAX_FREE_TIME
             c_avg_q = cloud.get_avg_queue_length() / CNF.TaskConfig.DEADLINE_MAX_FREE_TIME
             c_idle_cores = cloud.get_idle_capable_cores_count(task) / len(cloud.cores)
 
-            state_vector.extend([c_rem_cap, c_best_q, c_avg_q, c_idle_cores])
+            state_vector.extend([c_best_q, c_avg_q, c_idle_cores])
         else:
-            state_vector.extend([0.0, 1.0, 0.0, 1.0, 1.0, 0.0])
+            state_vector.extend([1.0, 0.0, 1.0, 1.0, 0.0])
 
         # print(red_bg(state_vector))
         return np.array(state_vector, dtype=np.float32)
@@ -347,19 +348,48 @@ class DeepRLEnvironment(gym.Env):
     # todo: complete reward function
     def _compute_reward(self, task, executor) -> float:
         """
-        Calculates the REAL reward based on the ACTUAL finish time of the task.
-        This is called ONLY after the task has completely finished executing.
+        Calculates the REAL reward using a combination of Reward Shaping (from saved state)
+        and Ground Truth (from actual completion time).
         """
         reward = 0.0
 
-        idle_cores = getattr(executor, 'get_idle_capable_cores_count', lambda t: 0)(task)
-        if idle_cores > 0:
-            reward += 0.5
-        else:
-            best_queue = getattr(executor, 'get_best_queue_length', lambda: 0.0)()
-            reward -= (best_queue * 0.1)
+        # ==========================================================
+        # 1. Reward Shaping: Based on the state AT THE TIME OF DECISION
+        # ==========================================================
+        if hasattr(task, 'rl_state') and hasattr(task, 'rl_action'):
+            state = task.rl_state
+            action = task.rl_action
 
-        # We now have the exact ground truth of the deadline compliance
+            # Map the action to the exact indices in the 28-dimensional state array
+            # Format -> Action: (best_q_index, idle_cores_index)
+            state_indices = {
+                0: (3, 5),  # Local
+                1: (25, 27),  # Cloud
+                2: (14, 16),  # Fog 1
+                3: (18, 20),  # Fog 2
+                4: (22, 24)  # Fog 3
+            }
+
+            if action in state_indices:
+                q_idx, idle_idx = state_indices[action]
+                normalized_best_q = state[q_idx]
+                normalized_idle_cores = state[idle_idx]
+
+                if normalized_idle_cores > 0:
+                    # Reward for choosing a node with completely free cores
+                    # print(red_bg(
+                    #     f"---------------best_queue: {normalized_best_q}, executor: {executor.id}"))
+                    reward += 0.5
+                else:
+                    # Penalty based on how full the queue was (normalized 0.0 to 1.0)
+                    # We multiply by 5.0 to give it a meaningful weight in the reward function
+                    # print(red_bg(
+                    #     f"+++++++++++++++++++++++++++++++++++++++best_queue: {normalized_best_q}, executor: {executor.id}"))
+                    reward -= (normalized_best_q * 5.0)
+
+        # ==========================================================
+        # 2. Ground Truth Reward: Based on ACTUAL execution results
+        # ==========================================================
         is_deadline_miss = task.finish_time > task.deadline
         lateness = task.deadline - task.finish_time  # Positive means early, negative means late
 
@@ -371,7 +401,9 @@ class DeepRLEnvironment(gym.Env):
             base_penalty = -50.0
             reward += (base_penalty + lateness)
 
-        # Apply environmental penalty if offloaded
+        # ==========================================================
+        # 3. Environmental Penalty (Network/Transmission cost)
+        # ==========================================================
         if executor.id != task.creator.id:
             weather = self.simulator.current_weather_status
 
