@@ -58,13 +58,15 @@ class Config:
             4: 1.15,
             5: 1.20,
         }
-        # β(W): weather impact factor for W in {1..5}.
+        # β(W): weather impact factor for W in {1..7}.
         BETA_BY_WEATHER: dict = {
             1: 1.0,
             2: 1.05,
             3: 1.10,
             4: 1.15,
             5: 1.20,
+            6: 1.25,
+            7: 1.30,
         }
 
         max_alpha_key = max(ALPHA_BY_TRAFFIC_LEVEL)
@@ -86,15 +88,15 @@ class Config:
         }
         DEFAULT_TRAFFIC_LEVEL: int = 1
 
-        # Maps NoiseConfig rain class name → W ∈ {1..5}.
+        # Maps NoiseConfig rain class name → W ∈ {1..7}.
         WEATHER_NAME_TO_LEVEL: dict = {
             "Rain0": 1,
             "Rain13": 2,
-            "Rain23": 2,
-            "Rain50": 3,
-            "Rain100": 4,
-            "Rain150": 5,
-            "Rain200": 5,
+            "Rain23": 3,
+            "Rain50": 4,
+            "Rain100": 5,
+            "Rain150": 6,
+            "Rain200": 7,
         }
         DEFAULT_WEATHER_LEVEL: int = 1
 
