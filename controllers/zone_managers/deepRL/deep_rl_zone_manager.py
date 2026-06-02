@@ -51,95 +51,38 @@ class DeepRLZoneManager(ZoneManagerABC):
     # note : not important function
     def assign_task(self, task: Task) -> FogLayerABC:
         print("|||||||||||||||||||||||||||||||||||||||||||||||||||||||||||")
-        state = self.env._get_state(task)
-        action = self.agent.select_action(state)
+        pass
 
-        if action == 0:
-            candidate_executor = task.creator
-        elif action == 1:
-            candidate_executor = self._get_best_fog_node(task)
-        else:
-            candidate_executor = self.env.simulator.cloud_node
-
-        return candidate_executor
-
-    # todo: should remove usage of _get_best_fog_node
     def propose_candidate(self, task: Task, current_time: float):
         """
-        Uses Deep RL to decide where to offload a task.
+        Uses the Deep RL agent to decide where to offload a task.
         It just suggests a node and return (ZN, node)
         """
         state = self.env._get_state(task, current_time)
+
         if hasattr(self.env, "get_action_mask"):
             action_mask = self.env.get_action_mask(task)
         else:
             action_mask = None
 
         action = self.agent.select_action(state, mask=action_mask)
+        candidate_executor = None
+
         if action == 0:
             candidate_executor = task.creator
         elif action == 1:
-            candidate_executor = self._get_best_fog_node(task)
-        else:
             candidate_executor = self.env.simulator.cloud_node
+        elif action in [2, 3, 4]:
+            fog_index = action - 2
+            nearest_fogs = self.env._get_k_nearest_fogs(task.creator, k=3)
+            if fog_index < len(nearest_fogs):
+                candidate_executor = nearest_fogs[fog_index]
+            else:
+                candidate_executor = task.creator
+        else:
+            candidate_executor = task.creator
+
         return self, candidate_executor
-
-    # def _get_best_fog_node(self, task):
-    #     """
-    #     Finds the best fog node to offload the task based on available resources.
-    #     """
-    #     # print("nooooo")
-    #     fog_nodes = list(self.fixed_fog_nodes.values()) + list(self.mobile_fog_nodes.values())
-    #     fog_nodes = [node for node in fog_nodes if node.can_offload_task(task)]
-    #     # note: that was min , i changed another one too
-    #     return max(fog_nodes, key=lambda n: n.remaining_power, default=None)
-
-    def _get_best_fog_node(self, task):
-        creator = task.creator
-        all_fog_nodes = list(self.fixed_fog_nodes.values()) + list(self.mobile_fog_nodes.values())
-        eligible_nodes = [node for node in all_fog_nodes if node.can_offload_task(task)]
-
-        if not eligible_nodes:
-            return None
-
-        if len(eligible_nodes) == 1:
-            return eligible_nodes[0]
-
-        distances_by_id = {
-            node.id: get_distance(node.x, node.y, creator.x, creator.y)
-            for node in eligible_nodes
-        }
-
-        min_dist = min(distances_by_id.values())
-        max_dist = max(distances_by_id.values())
-
-        mobile_node_ids = {node.id for node in self.mobile_fog_nodes.values()}
-
-        def calculate_score(node):
-            if node.id in mobile_node_ids:
-                normalized_power = node.power / Config.MobileFogNodeConfig.DEFAULT_COMPUTATION_POWER
-            else:
-                normalized_power = node.power / Config.FixedFogNodeConfig.DEFAULT_COMPUTATION_POWER
-
-            distance = distances_by_id[node.id]
-
-            if max_dist == min_dist:
-                normalized_distance = 0.0
-            else:
-                normalized_distance = (distance - min_dist) / (max_dist - min_dist)
-
-            distance_score = 1.0 - normalized_distance
-
-            final_score = (0.5 * normalized_power) + (0.5 * distance_score)
-            return final_score
-
-        chosen_node = max(
-            eligible_nodes,
-            key=calculate_score,
-            default=None
-        )
-
-        return chosen_node
 
     def update(self, **kwargs: Unpack[ZoneManagerUpdate]):
         """
