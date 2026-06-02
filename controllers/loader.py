@@ -33,7 +33,15 @@ class Loader:
         Config.ZoneManagerConfig.ALGORITHM_SAC: DeepRLZoneManagerSAC
     }
 
-    def __init__(self, zone_file: str, fixed_fn_file: str, mobile_file: str, task_file: str, checkpoint_path: str, hard_task_file: str):
+    def __init__(
+            self,
+            zone_file: str,
+            fixed_fn_file: str,
+            mobile_file: str,
+            task_file: str,
+            checkpoint_path: str,
+            hard_task_file: str = "./data/hard_tasks",
+    ):
         self.current_chunk = 0
         self.chunk_size = Config.CHUNK_SIZE
         self.zone_parser = ZoneSumoXMLParser(zone_file)

@@ -332,10 +332,10 @@ class Generator:
             data_size = round(size_baseline * scaling * sensitivity, 2)
             cycles_per_bit = round(cycles_baseline * scaling * sensitivity, 2)
             exec_time = (
-                                data_size * cycles_per_bit
-                        ) / (vehicle.frequency * Config.HardTaskConfig.EXEC_TIME_DIVISOR)
+                data_size * cycles_per_bit
+            ) / (vehicle.frequency * Config.HardTaskConfig.EXEC_TIME_DIVISOR)
             task_index = self.hard_task_counters[vehicle.id]
-            task_id = f"{vehicle.id}_H_{step}_{task_index}_{period}"
+            task_id = f"{vehicle.id}_{task_index}"
             self.hard_task_counters[vehicle.id] += 1
             schedule[period] += period
 
@@ -343,7 +343,6 @@ class Generator:
                 id=task_id,
                 deadline=float(step + period),
                 exec_time=exec_time,
-                # todo: maybe i should change hard task power too. Actually maybe i should add hard tasks power.
                 power=Config.HardTaskConfig.HARD_TASK_POWER,
                 creator=vehicle.id,
                 cycles_per_bit=cycles_per_bit,

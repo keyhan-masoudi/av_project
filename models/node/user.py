@@ -4,7 +4,13 @@ from utils.enums import Layer
 
 
 class UserNode(MobileNodeABC):
-    """Represents users in the system which can move from one location to another."""
+    """User vehicle with one local multicore processor (TBS + EDF for hard and soft)."""
+
+    def __post_init__(self):
+        super().__post_init__()
+        self.power = Config.UserNodeConfig.DEFAULT_COMPUTATION_POWER
+        self.frequency = Config.UserNodeConfig.USER_NODE_FREQUENCY
+        self.remaining_power = self.power
 
     @property
     def max_tasks_queue_len(self) -> int:

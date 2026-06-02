@@ -40,6 +40,12 @@ class FixedFogNode(FogLayerABC):
 class MobileFogNode(FogLayerABC, MobileNodeABC):
     """Represents a fog node that can move around in the system, migrating from one zone to another."""
 
+    def __post_init__(self):
+        super().__post_init__()
+        self.power = Config.MobileFogNodeConfig.DEFAULT_COMPUTATION_POWER
+        self.frequency = Config.MobileFogNodeConfig.MOBILE_NODE_FREQUENCY
+        self.remaining_power = self.power
+
     @property
     def type(self) -> FogType:
         return FogType.MOBILE
@@ -51,4 +57,3 @@ class MobileFogNode(FogLayerABC, MobileNodeABC):
     @property
     def num_cores(self) -> int:
         return Config.MobileFogNodeConfig.NUM_CORE
-

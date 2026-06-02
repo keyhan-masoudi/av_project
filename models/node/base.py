@@ -9,10 +9,8 @@ from typing import Deque, List, Dict
 import xml.etree.ElementTree as ET
 
 import numpy as np
-import random
 
 from config import Config
-from controllers.metric import MetricsController
 from models.base import ModelBaseABC
 from utils.enums import Layer
 from utils.distance import get_distance
@@ -37,7 +35,6 @@ def findExecTimeInEachKindOfNode(task, executor=None):
     if executor:
         taskExecutor = executor
     if isinstance(taskExecutor, UserNode):
-        # print("UserNode()")
         return task.real_exec_time(executor=taskExecutor)
     elif isinstance(taskExecutor, CloudNode):
         # print("CloudNode()")

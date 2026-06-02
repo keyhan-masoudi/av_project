@@ -105,6 +105,9 @@ class Simulator:
                 zm.set_simulator(self)
 
     def schedule_retransmission(self, task: Task, scheduled_time: float):
+        if task.is_hard:
+            return
+
         if scheduled_time not in self.retransmission_tasks:
             self.retransmission_tasks[scheduled_time] = []
         self.retransmission_tasks[scheduled_time].append(task)
@@ -130,11 +133,20 @@ class Simulator:
 
         if tasks_to_retransmit:
             for task in tasks_to_retransmit:
-                possible_zone_managers = self.find_zone_manager_offload_task(zone_managers, task, current_time)
+                if task.is_hard:
+                    if task.creator is not None:
+                        self._assign_hard_task_locally(task, task.creator, current_time)
+                    continue
+                possible_zone_managers = self.find_zone_manager_offload_task(
+                    zone_managers, task, current_time
+                )
                 if self.choose_executor_and_assign(possible_zone_managers, task, partitions, current_time):
                     continue
 
     def find_zone_manager_offload_task(self, zone_managers, task, current_time):
+        if task.is_hard:
+            return []
+
         zone_manager_offload_task = []
         for zone_manager in zone_managers:
             # print(f"zone_manager:{zone_manager.zone}")
@@ -164,6 +176,9 @@ class Simulator:
         return calcAttenuation(task, nearest_node, intersecting_partitions)
 
     def choose_executor_and_assign(self, zone_manager_offload_task, task, partitions, current_time):
+        if task.is_hard:
+            return
+
         # if any ZM suggest any device to offload
         if len(zone_manager_offload_task) != 0:
             attenuationList = []
@@ -372,7 +387,6 @@ class Simulator:
 
             soft_tasks = self.load_soft_tasks(current_time)
             self.load_hard_tasks(current_time)
-
             user_possible_zones = self.assign_mobile_nodes_to_zones(self.user_nodes, layer=Layer.USER)
             mobile_possible_zones = self.assign_mobile_nodes_to_zones(self.mobile_fog_nodes, layer=Layer.FOG)
 
@@ -440,6 +454,41 @@ class Simulator:
                 task.creator = creator
                 tasks[creator_id].append(task)
         return tasks
+
+    def load_hard_tasks(self, current_time: float) -> int:
+        """Load hard tasks onto each vehicle's local processor."""
+        loaded_count = 0
+        for creator_id, creator_tasks in self.loader.load_nodes_hard_tasks(current_time).items():
+            creator = self._resolve_task_creator(creator_id)
+            if creator is None:
+                print(f"there is no creator for hard task: {creator_id}\n")
+                continue
+            # --- Added to complete the WFD algorithm ---
+            # Sort tasks on the same machine in descending order by productivity (C/T)
+            creator_tasks = sorted(
+                creator_tasks,
+                key=lambda t: t.exec_time / float(t.id.split('_')[-1]),
+                reverse=True
+            )
+            for task in creator_tasks:
+                self._assign_hard_task_locally(task, creator, current_time)
+                self.metrics.inc_total_tasks()
+                loaded_count += 1
+        return loaded_count
+
+    def _assign_hard_task_locally(
+            self,
+            task: Task,
+            creator: MobileNodeABC,
+            current_time: float,
+    ) -> None:
+        """Assign a pre-generated hard task to the creating vehicle's local processor."""
+        creator.assign_local_hard_task(task, current_time)
+
+    def load_tasks(self, current_time: float) -> Dict[str, List[Task]]:
+        """Load soft tasks; hard tasks are loaded via load_hard_tasks()."""
+        self.load_hard_tasks(current_time)
+        return self.load_soft_tasks(current_time)
 
     def load_hard_tasks(self, current_time: float) -> int:
         """Load hard tasks onto each vehicle's local processor."""
@@ -575,6 +624,9 @@ class Simulator:
         self.update_mobile_fog_nodes_coordinate()
 
     def offload_to_cloud(self, task: Task, current_time: float, partitions, cloud_node):
+        if task.is_hard:
+            return
+
         if self.cloud_node.can_offload_task(task):
             attenuationList = []
             intersecting_partitions = UtilsFunc().find_line_intersections(
