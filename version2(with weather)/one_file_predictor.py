@@ -11,8 +11,8 @@ from torch_geometric.nn import GCNConv
 # -----------------------------
 # Configuration
 # -----------------------------
-MODEL_PATH = "VANET-Copy\\version2(with weather)\\final_model"
-DATA_CSV = "VANET-Copy\\final.csv" # The script needs the original data to get a test slice
+MODEL_PATH = "./final_model300"
+DATA_CSV = "../testfile/final300.csv" # The script needs the original data to get a test slice
 X = 15  # Input sequence length (must match training)
 Y = 12  # Output prediction length (must match training)
 
@@ -20,7 +20,7 @@ NUM_CLASSES = 5
 DEVICE = "cuda" if torch.cuda.is_available() else "cpu"
 
 # The name for the single, combined output file
-SINGLE_OUTPUT_CSV = "all_predictions_output.csv"
+SINGLE_OUTPUT_CSV = "predictions_output300.csv"
 
 # ==========================================================
 # RE-DEFINE HELPER FUNCTIONS & MODEL CLASSES
@@ -180,9 +180,9 @@ def run_all_predictions():
         full_df['rainy'] = (full_df['weather'] == 2).astype(int)
 
         # **** LOOP CONFIGURATION ****
-        LOOP_START_TIME = 2586
+        LOOP_START_TIME = 2585
         LOOP_STEP = 10
-        NUM_PREDICTIONS_TO_RUN = 99
+        NUM_PREDICTIONS_TO_RUN = 100
         # ****************************
         
         # --- Load Model Components ONCE ---

@@ -14,10 +14,10 @@ from torch_geometric.nn import GCNConv
 # -----------------------------
 # Configuration
 # -----------------------------
-MODEL_PATH = "VANET-Copy\\version2(with weather)\\final_model"
+MODEL_PATH = "D:/code/final_av/av_project/version2(with weather)/final_model"
 # MODEL_PATH = "model_finetuned"
 # MODEL_PATH = "finetuned_models/run_2"
-DATA_CSV = "VANET-Copy\\final.csv"
+DATA_CSV = "D:/code/final_av/av_project/testfile/final300.csv"
 X = 15  # <-- Must match the training configuration
 Y = 12  # <-- Must match the training configuration
 NUM_CLASSES = 5
@@ -26,7 +26,7 @@ DEVICE = "cuda" if torch.cuda.is_available() else "cpu"
 # --- Benchmark Configuration ---
 NUM_RUNS = 100
 TIME_RANGE_START = 2600
-TIME_RANGE_END = 3600  # <-- Updated as requested
+TIME_RANGE_END = 3300  # <-- Updated as requested
 
 
 # ---

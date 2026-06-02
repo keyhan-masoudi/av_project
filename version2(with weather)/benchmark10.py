@@ -26,8 +26,18 @@ except ImportError:
 # -----------------------------
 # Configuration
 # -----------------------------
-MODEL_PATH = "final_model"  # <-- Make sure this is your trained model
-DATA_CSV = "../final.csv"
+MODEL_PATH = "./final_model300"  # <-- Make sure this is your trained model
+# MODEL_PATH = "./final_model250"
+# MODEL_PATH = "./final_model200"
+# MODEL_PATH = "./final_model150"
+# MODEL_PATH = "./final_model100"
+
+
+# DATA_CSV = "../testfile/final100.csv"
+# DATA_CSV = "../testfile/final150.csv"
+# DATA_CSV = "../testfile/final200.csv"
+# DATA_CSV = "../testfile/final250.csv"
+DATA_CSV = "../testfile/final300.csv"
 X = 15  # <-- Must match the training configuration
 Y = 12  # <-- Must match the training configuration (Model predicts 20 steps)
 NUM_CLASSES = 5
@@ -36,8 +46,8 @@ print(f"Using device: {DEVICE}")
 
 # --- Benchmark Configuration (UPDATED) ---
 # NUM_RUNS is removed, number of runs is determined by the range
-SEQ_TIME_START = 2600
-SEQ_TIME_END = 3560  # Inclusive end time
+SEQ_TIME_START = 2800
+SEQ_TIME_END = 3500  # Inclusive end time
 SEQ_TIME_STEP = 10  # Increment step
 ACCURACY_HORIZON_FULL = 12  # Compare all 20 steps
 
