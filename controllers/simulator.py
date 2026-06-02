@@ -675,7 +675,6 @@ class Simulator:
             mobile_nodes: dict[str, MobileNodeABC],
             layer: Layer
     ) -> Dict[str, List[ZoneManagerABC]]:
-
         nodes_possible_zones: Dict[str, List[ZoneManagerABC]] = defaultdict(list)
         for z_id, zone_manager in self.zone_managers.items():
             nodes: List[MobileNodeABC] = []

@@ -9,7 +9,6 @@ class Layer(IntEnum):
     USER = 3
     CriticalUser = 4
 
-
 class FogType(IntEnum):
     """Represents different types of fog nodes that are available in the system."""
 

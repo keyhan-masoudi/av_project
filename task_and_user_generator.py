@@ -202,7 +202,6 @@ class Task:
     cycles_per_bit: float
     dataSize: float
 
-
 class Generator:
     def __init__(self):
         self.current_chunk = 0

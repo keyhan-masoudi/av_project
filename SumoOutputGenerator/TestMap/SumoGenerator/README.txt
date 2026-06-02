@@ -1,0 +1,1 @@
+Should run osmWebWizard.py in sumo directory and select the map to generate sumo files.
