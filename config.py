@@ -87,7 +87,7 @@ class Config:
         NUM_CORE = 24
 
     class UserNodeConfig:
-        MAX_TASK_QUEUE_LEN = 10
+        MAX_TASK_QUEUE_LEN = 100
         DEFAULT_COMPUTATION_POWER = 20
         USER_NODE_FREQUENCY = 0.5
         LOCAL_OFFLOAD_POWER_OVERHEAD = 1
