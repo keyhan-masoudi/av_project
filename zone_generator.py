@@ -9,11 +9,21 @@ import math
 # -----------------------------
 # Config
 # -----------------------------
-xml_path = "data\\vehicles\chunk_0.xml"  # path to your SUMO XML file
-output_csv = "final.csv"
+# xml_path = "DATA\\Vehicles in Rain\\New100\\vehicles\\chunk_0.xml"  # path to your SUMO XML file
+# xml_path = "DATA\\Vehicles in Rain\\New150\\vehicles\\chunk_0.xml"
+# xml_path = "DATA\\Vehicles in Rain\\New200\\vehicles\\chunk_0.xml"
+# xml_path = "DATA\\Vehicles in Rain\\New250\\vehicles\\chunk_0.xml"
+xml_path = "DATA\\Vehicles in Rain\\New300\\vehicles\\chunk_0.xml"
+
+
+# output_csv = "testfile\\final100.csv"
+# output_csv = "testfile\\final150.csv"
+# output_csv = "testfile\\final200.csv"
+# output_csv = "testfile\\final250.csv"
+output_csv = "testfile\\final300.csv"
 hex_size = 200  # adjust to your map size
 # label thresholds
-THRESHOLDS = [15, 30, 45, 60]  # <=15->1, <=30->2, <=45->3, <=60->4, >60->5
+THRESHOLDS = [5, 10, 15, 20]  # <=5->1, <=10->2, <=15->3, <=20->4, >20->5
 
 
 # -----------------------------
