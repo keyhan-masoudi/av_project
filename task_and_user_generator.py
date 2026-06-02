@@ -1,5 +1,6 @@
 import csv
 import os
+import pickle
 import random
 import xml.etree.ElementTree as Et
 from collections import defaultdict
@@ -57,13 +58,15 @@ class Config:
             4: 1.15,
             5: 1.20,
         }
-        # β(W): weather impact factor for W in {1..5}.
+        # β(W): weather impact factor for W in {1..7}.
         BETA_BY_WEATHER: dict = {
             1: 1.0,
             2: 1.05,
             3: 1.10,
             4: 1.15,
             5: 1.20,
+            6: 1.25,
+            7: 1.30,
         }
 
         max_alpha_key = max(ALPHA_BY_TRAFFIC_LEVEL)
@@ -72,8 +75,30 @@ class Config:
         MAX_TASK_SIZE = 3000
         MAX_TASK_SIZE_WITH_ALPHA_BETA = max_beta_key * max_alpha_key * MAX_TASK_SIZE
 
-        # Lane vehicle count upper bounds map to traffic level 1..5.
-        TRAFFIC_LEVEL_THRESHOLDS: tuple = (5, 10, 15, 20)
+        VEHICLE_TRAFFIC_PKL: str = "./precalculated_vehicle_traffic.pkl"
+        WEATHER_PKL: str = "./precalculated_weather.pkl"
+
+        # Maps NoiseConfig traffic class name → TL ∈ {1..5}.
+        TRAFFIC_NAME_TO_LEVEL: dict = {
+            "GreenTraffic": 1,
+            "YellowTraffic": 2,
+            "OrangeTraffic": 3,
+            "RedTraffic": 4,
+            "BlackTraffic": 5,
+        }
+        DEFAULT_TRAFFIC_LEVEL: int = 1
+
+        # Maps NoiseConfig rain class name → W ∈ {1..7}.
+        WEATHER_NAME_TO_LEVEL: dict = {
+            "Rain0": 1,
+            "Rain13": 2,
+            "Rain23": 3,
+            "Rain50": 4,
+            "Rain100": 5,
+            "Rain150": 6,
+            "Rain200": 7,
+        }
+        DEFAULT_WEATHER_LEVEL: int = 1
 
         # todo: add more tasks
         TASKS: tuple = (
@@ -197,6 +222,43 @@ class Generator:
         os.makedirs("./data/tasks", exist_ok=True)
         os.makedirs("./data/hard_tasks", exist_ok=True)
 
+        self._vehicle_traffic_cache = self._load_pkl(
+            Config.HardTaskConfig.VEHICLE_TRAFFIC_PKL
+        )
+        self._weather_cache = self._load_pkl(Config.HardTaskConfig.WEATHER_PKL)
+
+    @staticmethod
+    def _load_pkl(path: str) -> dict:
+        if not os.path.exists(path):
+            print(f"warning: pkl not found at {path}; falling back to defaults.")
+            return {}
+        with open(path, "rb") as f:
+            return pickle.load(f)
+
+    def _lookup_traffic_level(self, step: int, vehicle_id: str) -> tuple:
+        """Return (TL, partition_name). TL is mapped from precalculated traffic class."""
+        info = self._vehicle_traffic_cache.get(step, {}).get(vehicle_id)
+        if info is None:
+            return Config.HardTaskConfig.DEFAULT_TRAFFIC_LEVEL, None
+
+        partition_name = info.get("zone")
+        traffic_str = str(info.get("traffic", ""))
+        for name, level in Config.HardTaskConfig.TRAFFIC_NAME_TO_LEVEL.items():
+            if name in traffic_str:
+                return level, partition_name
+        return Config.HardTaskConfig.DEFAULT_TRAFFIC_LEVEL, partition_name
+
+    def _lookup_weather_level(self, step: int, partition_name) -> int:
+        """Return W mapped from the precalculated rain class for the vehicle's zone."""
+        if partition_name is None:
+            return Config.HardTaskConfig.DEFAULT_WEATHER_LEVEL
+        weather_name = self._weather_cache.get(step, {}).get(partition_name)
+        if weather_name is None:
+            return Config.HardTaskConfig.DEFAULT_WEATHER_LEVEL
+        return Config.HardTaskConfig.WEATHER_NAME_TO_LEVEL.get(
+            str(weather_name), Config.HardTaskConfig.DEFAULT_WEATHER_LEVEL
+        )
+
     @staticmethod
     def get_chunk_number(step: int) -> int:
         return step // Config.CHUNK_SIZE
@@ -281,22 +343,10 @@ class Generator:
             f.write(xml_str)
 
     @staticmethod
-    def _traffic_level(lane_vehicle_count: int) -> int:
-        thresholds = Config.HardTaskConfig.TRAFFIC_LEVEL_THRESHOLDS
-        for level, threshold in enumerate(thresholds, start=1):
-            if lane_vehicle_count <= threshold:
-                return level
-        return len(thresholds) + 1
-
-    @staticmethod
     def _environment_scaling(traffic_level: int, weather_level: int) -> float:
         alpha = Config.HardTaskConfig.ALPHA_BY_TRAFFIC_LEVEL[traffic_level]
         beta = Config.HardTaskConfig.BETA_BY_WEATHER[weather_level]
         return alpha * beta
-
-    @staticmethod
-    def _clamp_level(value: float) -> int:
-        return max(1, min(5, int(round(value))))
 
     def _init_hard_task_schedule(self, vehicle_id: str, entry_step: int) -> None:
         """Start periodic releases when a vehicle enters the simulation."""
@@ -309,14 +359,13 @@ class Generator:
             self,
             step: int,
             vehicle: Vehicle,
-            lane_vehicle_count: int,
     ) -> list[Task]:
         """Generate periodic hard tasks while the vehicle is present in the system."""
         if vehicle.id not in self.hard_task_release_schedule:
             self._init_hard_task_schedule(vehicle.id, step)
 
-        traffic_level = self._traffic_level(lane_vehicle_count)
-        weather_level = self._clamp_level(vehicle.weather)
+        traffic_level, partition_name = self._lookup_traffic_level(step, vehicle.id)
+        weather_level = self._lookup_weather_level(step, partition_name)
         scaling = self._environment_scaling(traffic_level, weather_level)
         schedule = self.hard_task_release_schedule[vehicle.id]
         hard_tasks = []
@@ -503,11 +552,7 @@ class Generator:
                     current_tasks.append(task)
 
             current_hard_tasks.extend(
-                self.generate_hard_tasks_for_vehicle(
-                    step,
-                    vehicle_obj,
-                    lane_counter[vehicle_obj.lane],
-                )
+                self.generate_hard_tasks_for_vehicle(step, vehicle_obj)
             )
 
         self._clear_departed_vehicle_schedules({vehicle.id for vehicle in current_vehicles})
