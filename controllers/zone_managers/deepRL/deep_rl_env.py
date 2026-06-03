@@ -218,7 +218,8 @@ class DeepRLEnvironment(gym.Env):
         # Extract the environmental path loss exponent (n) for the vehicle's current location
         n_coefficient = self.simulator.get_n_coefficient(creator.x, creator.y)
         max_n = Config.AttenuationLevel.DEFAULT_AttenuationLevel[-1]
-        normalized_n = n_coefficient / max_n
+        min_n = Config.AttenuationLevel.DEFAULT_AttenuationLevel[0]
+        normalized_n = (n_coefficient - min_n) / (max_n - min_n)
         # print(f"n_coefficient: {n_coefficient}")
 
         state_vector.extend([current_traffic, pred_avg, pred_max])
