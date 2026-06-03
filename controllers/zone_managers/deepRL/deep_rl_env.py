@@ -11,6 +11,7 @@ from models.node.base import findExecTimeInEachKindOfNode, find_closest_fn, find
 from models.node.fog import FixedFogNode, MobileFogNode
 from utils.distance import get_distance
 from collections import deque
+from NoiseConfigs.noiseConfigGeneralAttribute import NoiseConfigGeneralAttribute as NCNF
 
 
 def red_bg(text):
@@ -195,6 +196,8 @@ class DeepRLEnvironment(gym.Env):
 
         local_idle_cores = creator.get_idle_cores_count() / len(creator.cores)
 
+        # print(green_bg(f"{creator.id}: {local_best_q}, {local_avg_q}, {local_idle_cores}"))
+
         # state_vector.extend([local_tot_cap, local_rem_cap, local_best_q, local_avg_q, local_idle_cores])
         state_vector.extend([local_best_q, local_avg_q, local_idle_cores])
 
@@ -205,8 +208,12 @@ class DeepRLEnvironment(gym.Env):
 
         pred_avg, pred_max = self.simulator.get_predicted_traffic_intensity(creator)
 
-        current_weather = self.simulator.current_weather_status
+        # print(green_bg(f"{creator.id}: {current_traffic}, {pred_avg}, {pred_max}"))
+
+        current_weather = self.simulator.get_current_weather(creator.x, creator.y) / (len(NCNF.Rain_options) - 1)
+
         self.weather_history.append(current_weather)
+        # print(self.weather_history)
 
         # Extract the environmental path loss exponent (n) for the vehicle's current location
         n_coefficient = self.simulator.get_n_coefficient(creator.x, creator.y)
@@ -347,13 +354,10 @@ class DeepRLEnvironment(gym.Env):
         # 3. Environmental Penalty (Network/Transmission cost)
         # ==========================================================
         if executor.id != task.creator.id:
-            weather = self.simulator.current_weather_status
+            normalized_weather = task.rl_state[11]
+            normalized_n = task.rl_state[12]
 
-            # Get the path loss exponent dynamically based on the urban area
-            n_coefficient = getattr(self.simulator, 'get_n_coefficient', lambda x, y: 2.0)(task.creator.x,
-                                                                                           task.creator.y)
-
-            env_penalty = (weather * 0.5) + (n_coefficient * 0.5)
+            env_penalty = (normalized_weather * 0.5) + (normalized_n * 0.5)
             reward -= env_penalty
 
         return reward

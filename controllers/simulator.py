@@ -944,16 +944,32 @@ class Simulator:
         p_name = self.spatial_grid_cache.get((grid_x, grid_y))
         return self._partition_name_map.get(p_name)
 
-    @property
-    def current_weather_status(self) -> float:
-        # check: should change if i change the Rain Scenario
-        current_time = self.clock.get_current_time()
+    def get_current_weather(self, x: float, y: float) -> float:
+        """
+        Reads the precalculated weather for the current time and location (partition).
+        Returns a float from 1.0 (Rain0) to 7.0 (Rain200) for RL state representation.
+        """
+        default_weather = 1.0
 
-        if ((Config.Scenario.RAIN1_START_TIME <= current_time <= Config.Scenario.RAIN1_END_TIME)
-                or (Config.Scenario.RAIN2_START_TIME <= current_time <= Config.Scenario.RAIN2_END_TIME)
-                or (Config.Scenario.RAIN3_START_TIME <= current_time <= Config.Scenario.RAIN3_END_TIME)):
-            return 1.0
-        return 0.0
+        current_time = int(self.clock.get_current_time())
+        p = self.get_partition_by_location(x, y)
+
+        p_name = p.__class__.__name__
+
+        if p_name in self.precalculated_weather[current_time]:
+            weather_str = self.precalculated_weather[current_time][p_name]
+            weather_map = {
+                "Rain0": 0.0,
+                "Rain13": 1.0,
+                "Rain23": 2.0,
+                "Rain50": 3.0,
+                "Rain100": 4.0,
+                "Rain150": 5.0,
+                "Rain200": 6.0
+            }
+            return weather_map.get(weather_str, default_weather)
+
+        return default_weather
 
     def get_current_traffic_intensity(self, x: float, y: float, vehicle_id: str = None,
                                       current_time: int = None) -> float:
