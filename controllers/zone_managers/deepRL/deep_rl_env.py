@@ -209,7 +209,6 @@ class DeepRLEnvironment(gym.Env):
         self.weather_history.append(current_weather)
 
         # Extract the environmental path loss exponent (n) for the vehicle's current location
-        # check: is it okay?
         n_coefficient = self.simulator.get_n_coefficient(creator.x, creator.y)
         max_n = Config.AttenuationLevel.DEFAULT_AttenuationLevel[-1]
         normalized_n = n_coefficient / max_n

@@ -19,7 +19,6 @@ from utils.xml_parser import *
 
 
 class Loader:
-    # TODO: Fill this map after adding zone managers completed.
     ALGORITHM_MAP: Dict[str, Type[ZoneManagerABC]] = {
         Config.ZoneManagerConfig.ALGORITHM_RANDOM: RandomZoneManager,
         Config.ZoneManagerConfig.ALGORITHM_HEURISTIC: HeuristicZoneManager,

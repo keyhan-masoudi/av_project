@@ -58,7 +58,6 @@ class Config:
         BANDWIDTH = 150
 
     class CloudConfig:
-        # todo: add number of core
         DEFAULT_X = 6000
         DEFAULT_Y = 1500
         DEFAULT_RADIUS = 10000
@@ -72,14 +71,12 @@ class Config:
 
 
     class FixedFogNodeConfig:
-        # todo: add number of core
         MAX_TASK_QUEUE_LEN = 400
         DEFAULT_COMPUTATION_POWER = 500
         Fixed_NODE_FREQUENCY = 2
         NUM_CORE = 32
 
     class MobileFogNodeConfig:
-        # todo: add number of core
         DEFAULT_RADIUS = 150
         MAX_TASK_QUEUE_LEN = 150
         DEFAULT_COMPUTATION_POWER = 200
@@ -132,18 +129,6 @@ class Config:
     class AntennaGain:
         TX: float = 27
         RX: float = -5
-
-    # class TaskConfig:
-        # note: PACKET_COST_PER_METER = 0.001
-        # PACKET_COST_PER_METER = 0.001
-        # PACKET_COST_PER_METER = 0.005
-
-        # note: TASK_COST_PER_METER = 0.005
-        # TASK_COST_PER_METER = 0.01
-        # TASK_COST_PER_METER = 0.005
-        #
-        # MIGRATION_OVERHEAD = 0.01
-        # CLOUD_PROCESSING_OVERHEAD = 0.5
 
     class NoiseConfig:
         T1 = 25
