@@ -174,9 +174,9 @@ class DeepRLEnvironment(gym.Env):
         # ==========================================
         # Task
         # ==========================================
-        data_size_ratio = task.dataSize / CNF.TaskConfig.MAX_DATASIZE
-        execution_time_ratio = task.total_exec_time / ((CNF.TaskConfig.MAX_DATASIZE * CNF.TaskConfig.MAX_CYCLE_PER_BIT)/Config.UserNodeConfig.USER_NODE_FREQUENCY)
-        deadline_ratio = min(((task.deadline - current_time) / CNF.TaskConfig.DEADLINE_MAX_FREE_TIME), 1)
+        data_size_ratio = (task.dataSize - CNF.TaskConfig.MIN_DATASIZE) / (CNF.TaskConfig.MAX_DATASIZE - CNF.TaskConfig.MIN_DATASIZE)
+        execution_time_ratio = (task.exec_time - ((CNF.TaskConfig.MIN_DATASIZE * CNF.TaskConfig.MIN_CYCLE_PER_BIT)/Config.UserNodeConfig.USER_NODE_FREQUENCY)) / (((CNF.TaskConfig.MAX_DATASIZE * CNF.TaskConfig.MAX_CYCLE_PER_BIT)/Config.UserNodeConfig.USER_NODE_FREQUENCY) - ((CNF.TaskConfig.MIN_DATASIZE * CNF.TaskConfig.MIN_CYCLE_PER_BIT)/Config.UserNodeConfig.USER_NODE_FREQUENCY))
+        deadline_ratio = min((((task.deadline - current_time) - CNF.TaskConfig.DEADLINE_MIN_FREE_TIME) / (CNF.TaskConfig.DEADLINE_MAX_FREE_TIME - CNF.TaskConfig.DEADLINE_MIN_FREE_TIME)), 1)
 
         state_vector.extend([data_size_ratio, execution_time_ratio, deadline_ratio])
 
