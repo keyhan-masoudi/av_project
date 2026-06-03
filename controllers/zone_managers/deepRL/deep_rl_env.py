@@ -112,7 +112,6 @@ class DeepRLEnvironment(gym.Env):
         if (local_best_q / CNF.TaskConfig.DEADLINE_MAX_FREE_TIME) > 0.85:
             mask[0] = 0.0
 
-        # todo: maybe it won't be bad if we mask fog with queue too
         # =====================================
         # Masking Fogs considering their coverage
         # =====================================
@@ -212,10 +211,13 @@ class DeepRLEnvironment(gym.Env):
         # Extract the environmental path loss exponent (n) for the vehicle's current location
         # check: is it okay?
         n_coefficient = self.simulator.get_n_coefficient(creator.x, creator.y)
+        max_n = Config.AttenuationLevel.DEFAULT_AttenuationLevel[-1]
+        normalized_n = n_coefficient / max_n
+        # print(f"n_coefficient: {n_coefficient}")
 
         state_vector.extend([current_traffic, pred_avg, pred_max])
         state_vector.extend(list(self.weather_history))
-        state_vector.extend([n_coefficient])
+        state_vector.extend([normalized_n])
 
         # ==========================================
         # Fogs Futures
