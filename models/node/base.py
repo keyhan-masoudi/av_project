@@ -159,7 +159,14 @@ class NodeABC(ModelBaseABC, abc.ABC):
         """
         Returns: The average processing load (in seconds) across all cores at this node.
         """
-        total_time_load = sum(task[-1].remaining_time for core in self.cores for task in core)
+        total_time_load = 0.0
+        for i, core in enumerate(self.cores):
+            core_load = sum(item[-1].remaining_time for item in core)
+
+            # node_id = self.id
+            # print(f"Node: {node_id} | Core {i} Load: {core_load:.4f} seconds")
+
+            total_time_load += core_load
         return float(total_time_load) / max(1, self.num_cores)
 
     def get_idle_cores_count(self) -> float:

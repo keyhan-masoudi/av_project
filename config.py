@@ -100,12 +100,10 @@ class Config:
     class ZoneManagerConfig:
         ALGORITHM_RANDOM = "Random"
         ALGORITHM_HEURISTIC = "Heuristic"
-        ALGORITHM_HRL = "HRL"
         ALGORITHM_ONLY_CLOUD = "Only Cloud"
         ALGORITHM_ONLY_FOG = "Only Fog"
         ALGORITHM_ONLY_LOCAL = "Only Local"
         ALGORITHM_DEEP_RL = "DeepRL"
-        # ALGORITHM_HEURISTIC2 = "Heuristic2"
         ALGORITHM_MADDPG = "MADDPG"
         ALGORITHM_DDPG = "DDPG"
         ALGORITHM_PPO = "PPO"
