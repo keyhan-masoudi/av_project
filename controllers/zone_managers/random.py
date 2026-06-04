@@ -27,7 +27,7 @@ class RandomZoneManager(ZoneManagerABC):
             if fog.can_offload_task(task):
                 possible_nodes.append(fog)
 
-        if self.simulator and self.simulator.cloud_node:
+        if self.simulator.cloud_node:
             if self.simulator.cloud_node.can_offload_task(task):
                 possible_nodes.append(self.simulator.cloud_node)
 
@@ -35,7 +35,7 @@ class RandomZoneManager(ZoneManagerABC):
             return False
 
         self.__possible_nodes = possible_nodes
-        return random.random() < Config.RandomZoneManagerConfig.OFFLOAD_CHANCE
+        return True
 
     def update(self, **kwargs: Unpack[ZoneManagerUpdate]):
         pass

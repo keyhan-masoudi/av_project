@@ -46,7 +46,6 @@ class DeepRLZoneManager(ZoneManagerABC):
         #     available_nodes.append(self.env.simulator.cloud_node)
         return any(node.can_offload_task(task) for node in
                    available_nodes)
-        # NOTE :I removed "or self.env.simulator.cloud_node.can_offload_task(task)"
 
     # note : not important function
     def assign_task(self, task: Task) -> FogLayerABC:
