@@ -32,7 +32,6 @@ class ZoneManagerABC(abc.ABC):
 
     def offload_task(self, task: Task, current_time: float) -> FogLayerABC:
         assigned_node = self.assign_task(task)
-        # todo: don't forget to check following code and add it in our new version !
         # assigned_node.assign_task(task, current_time)
         return assigned_node
 

@@ -9,8 +9,8 @@ from models.node.cloud import CloudNode
 from task_and_user_generator import Config as CNF
 from models.node.base import findExecTimeInEachKindOfNode, find_closest_fn, findDataRate, green_bg
 from models.node.fog import FixedFogNode, MobileFogNode
-from utils.distance import get_distance
 from collections import deque
+from NoiseConfigs.noiseConfigGeneralAttribute import NoiseConfigGeneralAttribute as NCNF
 
 
 def red_bg(text):
@@ -30,20 +30,6 @@ def get_vehicle_position(csv_file, target_id):
                 y = float(row['y'])
                 return x, y
     return None, None
-
-
-# def checkMigration(executor, task, finishTime):
-#     finishTime = math.floor(finishTime)
-#     if finishTime > 1200:
-#         return False
-#     fileName = f"E:\pythonProject\VANET\SumoDividedByTime\Outputs2\dataInTime{int(finishTime)}.csv"
-#     creatorX, creatorY = get_vehicle_position(fileName, task.creator_id)
-#     if (creatorX is None) or (creatorY is None):
-#         return True
-#     if executor.radius > np.sqrt((creatorX - executor.x) ** 2 + (creatorY - executor.y) ** 2):
-#         return False
-#     return True
-
 
 def calculate_distance(x1, y1, x2, y2):
     return math.sqrt((x2 - x1) ** 2 + (y2 - y1) ** 2)
@@ -112,7 +98,6 @@ class DeepRLEnvironment(gym.Env):
         if (local_best_q / CNF.TaskConfig.DEADLINE_MAX_FREE_TIME) > 0.85:
             mask[0] = 0.0
 
-        # todo: maybe it won't be bad if we mask fog with queue too
         # =====================================
         # Masking Fogs considering their coverage
         # =====================================
@@ -175,11 +160,11 @@ class DeepRLEnvironment(gym.Env):
         # ==========================================
         # Task
         # ==========================================
-        data_size_ratio = task.dataSize / CNF.TaskConfig.MAX_DATASIZE
-        workload_ratio = task.power / CNF.TaskConfig.MAX_POWER_CONSUMPTION
-        deadline_ratio = min(((task.deadline - current_time) / CNF.TaskConfig.DEADLINE_MAX_FREE_TIME), 1)
+        data_size_ratio = max(0.0, min((task.dataSize - CNF.TaskConfig.MIN_DATASIZE) / (CNF.TaskConfig.MAX_DATASIZE - CNF.TaskConfig.MIN_DATASIZE), 1.0))
+        execution_time_ratio = max(0.0, min((task.exec_time - ((CNF.TaskConfig.MIN_DATASIZE * CNF.TaskConfig.MIN_CYCLE_PER_BIT) / Config.UserNodeConfig.USER_NODE_FREQUENCY)) / (((CNF.TaskConfig.MAX_DATASIZE * CNF.TaskConfig.MAX_CYCLE_PER_BIT) / Config.UserNodeConfig.USER_NODE_FREQUENCY) - ((CNF.TaskConfig.MIN_DATASIZE * CNF.TaskConfig.MIN_CYCLE_PER_BIT) / Config.UserNodeConfig.USER_NODE_FREQUENCY)),1.0))
+        deadline_ratio = max(0.0, min((((task.deadline - current_time) - CNF.TaskConfig.DEADLINE_MIN_FREE_TIME) / (CNF.TaskConfig.DEADLINE_MAX_FREE_TIME - CNF.TaskConfig.DEADLINE_MIN_FREE_TIME)), 1.0))
 
-        state_vector.extend([data_size_ratio, workload_ratio, deadline_ratio])
+        state_vector.extend([data_size_ratio, execution_time_ratio, deadline_ratio])
 
         # ==========================================
         # Local Node
@@ -196,6 +181,8 @@ class DeepRLEnvironment(gym.Env):
 
         local_idle_cores = creator.get_idle_cores_count() / len(creator.cores)
 
+        # print(green_bg(f"{creator.id}: {local_best_q}, {local_avg_q}, {local_idle_cores}"))
+
         # state_vector.extend([local_tot_cap, local_rem_cap, local_best_q, local_avg_q, local_idle_cores])
         state_vector.extend([local_best_q, local_avg_q, local_idle_cores])
 
@@ -206,16 +193,23 @@ class DeepRLEnvironment(gym.Env):
 
         pred_avg, pred_max = self.simulator.get_predicted_traffic_intensity(creator)
 
-        current_weather = self.simulator.current_weather_status
+        # print(green_bg(f"{creator.id}: {current_traffic}, {pred_avg}, {pred_max}"))
+
+        current_weather = self.simulator.get_current_weather(creator.x, creator.y) / (len(NCNF.Rain_options) - 1)
+
         self.weather_history.append(current_weather)
+        # print(self.weather_history)
 
         # Extract the environmental path loss exponent (n) for the vehicle's current location
-        # check: is it okay?
         n_coefficient = self.simulator.get_n_coefficient(creator.x, creator.y)
+        max_n = Config.AttenuationLevel.DEFAULT_AttenuationLevel[-1]
+        min_n = Config.AttenuationLevel.DEFAULT_AttenuationLevel[0]
+        normalized_n = (n_coefficient - min_n) / (max_n - min_n)
+        # print(f"n_coefficient: {n_coefficient}")
 
         state_vector.extend([current_traffic, pred_avg, pred_max])
         state_vector.extend(list(self.weather_history))
-        state_vector.extend([n_coefficient])
+        state_vector.extend([normalized_n])
 
         # ==========================================
         # Fogs Futures
@@ -225,20 +219,19 @@ class DeepRLEnvironment(gym.Env):
         for i in range(3):
             if i < len(nearest_fogs):
                 fog = nearest_fogs[i]
-                dist = np.sqrt(
-                    (fog.x - creator.x) ** 2 + (fog.y - creator.y) ** 2) / Config.MobileFogNodeConfig.DEFAULT_RADIUS
-                dist = min(dist, 1.0)
+                dist = calculate_distance(creator.x, creator.y, fog.x, fog.y)
+                normalized_dist = min((dist / Config.MobileFogNodeConfig.DEFAULT_RADIUS), 1)
 
                 # f_rem_cap = fog.remaining_power / fog.power
 
                 #     if creator.id == "PKW135":
                 #         print(green_bg(
                 #             f"Fog{i}:\nget_best_queue_length: {fog.get_best_queue_length()}, get_avg_queue_length: {fog.get_avg_queue_length()}, get_idle_cores_count: {fog.get_idle_cores_count()}"))
-                f_best_q = fog.get_best_queue_length() / CNF.TaskConfig.DEADLINE_MAX_FREE_TIME
-                f_avg_q = fog.get_avg_queue_length() / CNF.TaskConfig.DEADLINE_MAX_FREE_TIME
+                f_best_q = min((fog.get_best_queue_length() / CNF.TaskConfig.DEADLINE_MAX_FREE_TIME), 1)
+                f_avg_q = min((fog.get_avg_queue_length() / CNF.TaskConfig.DEADLINE_MAX_FREE_TIME), 1)
                 f_idle_cores = fog.get_idle_capable_cores_count(task) / len(fog.cores)
 
-                state_vector.extend([dist, f_best_q, f_avg_q, f_idle_cores])
+                state_vector.extend([normalized_dist, f_best_q, f_avg_q, f_idle_cores])
             else:
                 # pass the worst state if there is not enough fog
                 state_vector.extend([1.0, 1.0, 1.0, 0.0])
@@ -252,13 +245,13 @@ class DeepRLEnvironment(gym.Env):
             # if creator.id == "PKW135":
             #     print(green_bg(
             #         f"Cloud:\nget_best_queue_length: {cloud.get_best_queue_length()}, get_avg_queue_length: {cloud.get_avg_queue_length()}, get_idle_cores_count: {cloud.get_idle_cores_count()}"))
-            c_best_q = cloud.get_best_queue_length() / CNF.TaskConfig.DEADLINE_MAX_FREE_TIME
-            c_avg_q = cloud.get_avg_queue_length() / CNF.TaskConfig.DEADLINE_MAX_FREE_TIME
+            c_best_q = min(cloud.get_best_queue_length() / CNF.TaskConfig.DEADLINE_MAX_FREE_TIME, 1.0)
+            c_avg_q = min(cloud.get_avg_queue_length() / CNF.TaskConfig.DEADLINE_MAX_FREE_TIME, 1.0)
             c_idle_cores = cloud.get_idle_capable_cores_count(task) / len(cloud.cores)
 
             state_vector.extend([c_best_q, c_avg_q, c_idle_cores])
         else:
-            state_vector.extend([1.0, 0.0, 1.0, 1.0, 0.0])
+            state_vector.extend([1.0, 1.0, 0.0])
 
         # print(red_bg(state_vector))
         return np.array(state_vector, dtype=np.float32)
@@ -270,8 +263,6 @@ class DeepRLEnvironment(gym.Env):
         Action 1: Cloud execution.
         Action 2, 3, 4: Nearest fog nodes.
         """
-        from models.node.cloud import CloudNode
-
         if executor.id == task.creator.id:
             return 0
         elif isinstance(executor, CloudNode):
@@ -346,13 +337,10 @@ class DeepRLEnvironment(gym.Env):
         # 3. Environmental Penalty (Network/Transmission cost)
         # ==========================================================
         if executor.id != task.creator.id:
-            weather = self.simulator.current_weather_status
+            normalized_weather = task.rl_state[11]
+            normalized_n = task.rl_state[12]
 
-            # Get the path loss exponent dynamically based on the urban area
-            n_coefficient = getattr(self.simulator, 'get_n_coefficient', lambda x, y: 2.0)(task.creator.x,
-                                                                                           task.creator.y)
-
-            env_penalty = (weather * 0.5) + (n_coefficient * 0.5)
+            env_penalty = (normalized_weather * 0.5) + (normalized_n * 0.5)
             reward -= env_penalty
 
         return reward

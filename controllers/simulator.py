@@ -47,7 +47,6 @@ def green_bg(text):
     return f"\033[42m{text}\033[0m"
 
 
-# note: check again
 def logAttenuation(attenuationList):
     sampleList = []
     for i in range(0, len(attenuationList)):
@@ -203,7 +202,6 @@ class Simulator:
                 attenuationList.append((zone_manager, candidate_executor, attenuation))
             # logAttenuation(attenuationList)
 
-            # todo: make decision to offload a task
             finalChoiceToOffload, plr = self.noise_controller.makeFinalChoice(attenuationList,
                                                                               task,
                                                                               partitions,
@@ -489,27 +487,6 @@ class Simulator:
         """Load soft tasks; hard tasks are loaded via load_hard_tasks()."""
         self.load_hard_tasks(current_time)
         return self.load_soft_tasks(current_time)
-
-    def load_hard_tasks(self, current_time: float) -> int:
-        """Load hard tasks onto each vehicle's local processor."""
-        loaded_count = 0
-        for creator_id, creator_tasks in self.loader.load_nodes_hard_tasks(current_time).items():
-            creator = self._resolve_task_creator(creator_id)
-            if creator is None:
-                print(f"there is no creator for hard task: {creator_id}\n")
-                continue
-            # --- Added to complete the WFD algorithm ---
-            # Sort tasks on the same machine in descending order by productivity (C/T)
-            creator_tasks = sorted(
-                creator_tasks,
-                key=lambda t: t.exec_time / float(t.id.split('_')[-1]),
-                reverse=True
-            )
-            for task in creator_tasks:
-                self._assign_hard_task_locally(task, creator, current_time)
-                self.metrics.inc_total_tasks()
-                loaded_count += 1
-        return loaded_count
 
     def _assign_hard_task_locally(
             self,
@@ -967,16 +944,32 @@ class Simulator:
         p_name = self.spatial_grid_cache.get((grid_x, grid_y))
         return self._partition_name_map.get(p_name)
 
-    @property
-    def current_weather_status(self) -> float:
-        # check: should change if i change the Rain Scenario
-        current_time = self.clock.get_current_time()
+    def get_current_weather(self, x: float, y: float) -> float:
+        """
+        Reads the precalculated weather for the current time and location (partition).
+        Returns a float from 1.0 (Rain0) to 7.0 (Rain200) for RL state representation.
+        """
+        default_weather = 1.0
 
-        if ((Config.Scenario.RAIN1_START_TIME <= current_time <= Config.Scenario.RAIN1_END_TIME)
-                or (Config.Scenario.RAIN2_START_TIME <= current_time <= Config.Scenario.RAIN2_END_TIME)
-                or (Config.Scenario.RAIN3_START_TIME <= current_time <= Config.Scenario.RAIN3_END_TIME)):
-            return 1.0
-        return 0.0
+        current_time = int(self.clock.get_current_time())
+        p = self.get_partition_by_location(x, y)
+
+        p_name = p.__class__.__name__
+
+        if p_name in self.precalculated_weather[current_time]:
+            weather_str = self.precalculated_weather[current_time][p_name]
+            weather_map = {
+                "Rain0": 0.0,
+                "Rain13": 1.0,
+                "Rain23": 2.0,
+                "Rain50": 3.0,
+                "Rain100": 4.0,
+                "Rain150": 5.0,
+                "Rain200": 6.0
+            }
+            return weather_map.get(weather_str, default_weather)
+
+        return default_weather
 
     def get_current_traffic_intensity(self, x: float, y: float, vehicle_id: str = None,
                                       current_time: int = None) -> float:
@@ -1061,13 +1054,6 @@ class Simulator:
                                                                                                              'x') else 0.5
             return float(fallback_val), float(fallback_val)
 
-    @property
-    def estimated_cloud_delay(self) -> float:
-        # todo: should change this too
-        if hasattr(self.cloud_node, 'get_best_queue_length'):
-            return min(self.cloud_node.get_best_queue_length() / 20.0, 1.0)
-        return 0.1
-
     def get_n_coefficient(self, x: float, y: float) -> float:
         """
         Returns the path loss exponent (n) based on the Urban Status of the zone
@@ -1077,9 +1063,9 @@ class Simulator:
 
         if hasattr(p, 'urbanStatus') and p.urbanStatus:
             # If you have explicitly defined 'n' inside your Urban classes
-            if hasattr(p.urbanStatus, 'n'):
-                print(blue_bg(f'{p.centerX}{p.centerY}{p.urbanStatus}'))
-                return float(p.urbanStatus.n)
+            if hasattr(p.urbanStatus, 'baseCoff'):
+                # print(blue_bg(f'{p.centerX}{p.centerY}{p.urbanStatus}'))
+                return float(p.urbanStatus.baseCoff)
         return 2.0
 
     def load_cached_spatial_grid(self):

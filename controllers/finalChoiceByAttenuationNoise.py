@@ -100,7 +100,6 @@ class FinalChoiceByAttenuationNoise:
         # print("---------------------------------------------------------------------------------------------------------")
         for i in range(0, len(attenuationList)):
             if attenuationList[i][2] != 0:
-                # todo : add transmit power check !
                 # TRANSMISSION_LIST = Cnf.VehicleConfig.TRANSMISSION_LIST
                 # for j in range(0, len(TRANSMISSION_LIST)):
 
@@ -147,7 +146,6 @@ class FinalChoiceByAttenuationNoise:
         # print(red_bg(attenuationList))
         for i in range(0, len(attenuationList)):
             if attenuationList[i][2] != 0:
-                # todo : add transmit power check !
                 # TRANSMISSION_LIST = Cnf.VehicleConfig.TRANSMISSION_LIST
                 # for j in range(0, len(TRANSMISSION_LIST)):
                 plr_result, SNR, Pr, avgNoise, ber_result, snr_linear = self.calcPlr(attenuationList, attenuationList[i][2], task,

@@ -24,7 +24,6 @@ def blue_bg(text):
 def green_bg(text):
     return f"\033[42m{text}\033[0m"
 
-# todo should change this
 def findExecTimeInEachKindOfNode(task, executor=None):
     from models.node.user import UserNode
     from models.node.cloud import CloudNode
@@ -106,7 +105,6 @@ class NodeABC(ModelBaseABC, abc.ABC):
 
     radius: float = 0  # The radius that this node can cover.
     frequency: float = 0
-    # todo : check if running_tasks is necessary
     # running_tasks: List[]
 
     remaining_power: float = 0  # The amount of computational resourced left after executing current tasks.
@@ -128,16 +126,11 @@ class NodeABC(ModelBaseABC, abc.ABC):
         # This IS the line that "creates the heaps"
         self.cores = [[] for _ in range(self.num_cores)]
 
-        self.running_tasks = [None] * self.num_cores
+        # self.running_tasks = [None] * self.num_cores
         self.core_loads = [0.0] * self.num_cores
 
     def can_offload_task(self, task) -> bool:
         """Checks whether the task can be offloaded in this node."""
-        # print("----------------------------------test----------------------------------")
-        # todo : improve this part
-        if getattr(task, "is_hard", False):
-            # print("1111111111111111111111")
-            return False
         # note: i think this section could help drl and make a maximisation for each node
         # todo: change queue limit number
         if len(self.tasks) >= self.max_tasks_queue_len:
@@ -151,8 +144,6 @@ class NodeABC(ModelBaseABC, abc.ABC):
         #     return False
 
         if get_distance(self.x, self.y, task.creator.x, task.creator.y) > self.radius:
-            # print(blue_bg(f"distance"))
-            # print(f"333333333333333333333:{get_distance(self.x, self.y, task.creator.x, task.creator.y)}")
             return False
         return True
 
@@ -212,10 +203,8 @@ class NodeABC(ModelBaseABC, abc.ABC):
         else:
             return 0.0
 
-    # todo: should change it
     def assign_task(self, task, current_time: float, fixed_fog_nodes) -> None:
         """Offload a task in the current node."""
-        # todo: should change power concept
         # 1. Initialize task execution parameters
         # Calculate the TOTAL discrete time steps this task needs to complete
         self.tasks.append(task)
@@ -367,9 +356,7 @@ class MobileNodeABC(NodeABC, abc.ABC):
         task.total_exec_time = findExecTimeInEachKindOfNode(task)
         task.remaining_time = task.total_exec_time
 
-        delay = 0
-        if hasattr(self, 'get_transmission_time') and fixed_fog_nodes is not None:
-            delay = self.get_transmission_time(task, fixed_fog_nodes)
+        delay = self.get_transmission_time(task, fixed_fog_nodes)
 
         task.start_time = current_time + delay
         rk = task.start_time

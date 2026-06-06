@@ -177,11 +177,10 @@ class UtilsFunc:
 
         for partition in partitions:
             vertices = UtilsFunc.get_hex_vertices_flat(partition.centerX, partition.centerY, partition.radius)
-            # Check if the line between p1 and p2 intersects any side of the hexagon
             for i in range(6):
                 if UtilsFunc.do_lines_intersect(p1, p2, vertices[i], vertices[(i + 1) % 6]):
                     intersecting_partitions.append(partition)
-                    break  # Once a partition is found, no need to check further sides
+                    break
 
         if len(intersecting_partitions) == 0 and ((p1[0] != p2[0]) or (p1[1] != p2[1])):
             intersecting_partitions.append(UtilsFunc().find_partition(partitions, p1[0], p1[1]))
@@ -193,15 +192,6 @@ class UtilsFunc:
             return None
 
         max_urban_status = float('-inf')
-
-        # note: removed! it was added to add HRL, but this feature has been canceled
-        # for partition in intersecting_partitions:
-        #     if hasattr(partition, 'urbanStatus'):
-        #         if partition.is_factory:
-        #             factory_n_factor = 5.0
-        #         else:
-        #             factory_n_factor = 0.0
-        #         max_urban_status = max(max_urban_status, partition.urbanStatus.random_noise_coff(), factory_n_factor)
 
         for partition in intersecting_partitions:
             if hasattr(partition, 'urbanStatus'):
