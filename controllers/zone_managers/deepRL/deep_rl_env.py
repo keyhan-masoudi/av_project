@@ -119,33 +119,33 @@ class DeepRLEnvironment(gym.Env):
 
         return mask
 
-    def _execute_action(self, task, action):
-        """Perform the task offloading based on the action and return the reward."""
-        candidate_executor = None
-
-        if action == 0:
-            candidate_executor = task.creator
-
-        elif action == 1:
-            candidate_executor = self.simulator.cloud_node
-
-        elif action in [2, 3, 4]:
-            fog_index = action - 2
-            nearest_fogs = self._get_k_nearest_fogs(task.creator, k=3)
-
-            if fog_index < len(nearest_fogs):
-                candidate_executor = nearest_fogs[fog_index]
-
-        # If the agent randomly selects a non-existent fog in Exploration mode
-        if candidate_executor is None:
-            return -1.0
-
-        if candidate_executor.can_offload_task(task):
-            print(green_bg("are we here?????????????????????????????????"))
-            reward = self._compute_reward(task, candidate_executor)
-        else:
-            reward = -10.0
-        return reward
+    # def _execute_action(self, task, action):
+    #     """Perform the task offloading based on the action and return the reward."""
+    #     candidate_executor = None
+    #
+    #     if action == 0:
+    #         candidate_executor = task.creator
+    #
+    #     elif action == 1:
+    #         candidate_executor = self.simulator.cloud_node
+    #
+    #     elif action in [2, 3, 4]:
+    #         fog_index = action - 2
+    #         nearest_fogs = self._get_k_nearest_fogs(task.creator, k=3)
+    #
+    #         if fog_index < len(nearest_fogs):
+    #             candidate_executor = nearest_fogs[fog_index]
+    #
+    #     # If the agent randomly selects a non-existent fog in Exploration mode
+    #     if candidate_executor is None:
+    #         return -1.0
+    #
+    #     if candidate_executor.can_offload_task(task):
+    #         print(green_bg("are we here?????????????????????????????????"))
+    #         reward = self._compute_reward(task, candidate_executor)
+    #     else:
+    #         reward = -10.0
+    #     return reward
 
     def _get_k_nearest_fogs(self, vehicle, k=3):
         all_fogs = list(self.simulator.fixed_fog_nodes.values()) + list(self.simulator.mobile_fog_nodes.values())
@@ -287,7 +287,7 @@ class DeepRLEnvironment(gym.Env):
             # Fallback (Should not occur if the mask logic is correct)
             return 0
 
-    def _compute_reward(self, task, executor) -> float:
+    def _compute_reward(self, task, executor, all_fog_nodes) -> float:
         """
         Calculates the REAL reward using a combination of Reward Shaping (from saved state)
         and Ground Truth (from actual completion time).
@@ -376,23 +376,46 @@ class DeepRLEnvironment(gym.Env):
             lateness_penalty = lateness
             reward += (base_penalty + lateness_penalty)
 
-        # ==========================================================
-        # 3. Environmental Penalty (Network/Transmission cost)
-        # ==========================================================
-        if executor.id != task.creator.id:
-            # Extract historical environment states from the decision moment
-            current_traffic = task.rl_state[6]
-            normalized_weather = task.rl_state[11]
-            normalized_n = task.rl_state[12]
+            # ==========================================================
+            # 3. Environmental Penalty (Network/Transmission cost)
+            # ==========================================================
+            if executor.id != task.creator.id:
+                state = task.rl_state
+                action = task.rl_action
 
-            # Environmental penalty formulation derived from RATO-VFC channel modeling:
-            # Combines Path Loss (normalized_n), Rain Attenuation (normalized_weather),
-            # and Traffic-induced interference/noise (current_traffic).
-            env_penalty = (normalized_n * 0.5) + (normalized_weather * 0.25) + (current_traffic * 0.25)
+                # Extract historical environment states from the decision moment
+                current_traffic = state[6]
+                normalized_weather = state[11]
+                normalized_n = state[12]
 
-            # Alpha factor to scale environmental transmission costs in the final reward function
-            alpha = 3.0
-            reward -= alpha * env_penalty
+                # Extract normalized distance based on the chosen action
+                # Indices: Fog1(13), Fog2(17), Fog3(21)
+                if action == 2:
+                    normalized_dist = state[13]
+                elif action == 3:
+                    normalized_dist = state[17]
+                elif action == 4:
+                    normalized_dist = state[21]
+                elif action == 1:
+                    # Cloud transmission goes through the nearest BS or involves multi-hop,
+                    # assuming maximum wireless exposure (worst-case distance)
+                    _ , normalized_dist = find_closest_fn(task.creator.x, task.creator.y, all_fog_nodes)
 
-        print(green_bg(f"reward: {reward} => lateness:{lateness}"))
+                # 1. Base Environmental Degradation (Without Distance)
+                base_env_penalty = (normalized_n * 0.5) + (normalized_weather * 0.25) + (current_traffic * 0.25)
+
+                # 2. Distance Multiplier
+                # We use (0.2 + 0.8 * dist) so that even at very close distances (dist ~ 0),
+                # there is a baseline 20% penalty for leaving the local node.
+                # At max distance (dist = 1.0), the penalty is 100%.
+                distance_factor = 0.2 + (0.8 * normalized_dist)
+
+                # 3. Final Formulated Penalty
+                env_penalty = base_env_penalty * distance_factor
+
+                # Alpha factor to scale environmental transmission costs in the final reward function
+                alpha = 3.0
+                reward -= alpha * env_penalty
+
+        # print(green_bg(f"reward: {reward} => lateness:{lateness}"))
         return reward
