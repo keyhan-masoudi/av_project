@@ -17,11 +17,19 @@ from torch_geometric.nn import GCNConv
 # CONFIGURATION
 # ==========================================================
 DATA_CSV = "../testfile/final300.csv"
+# DATA_CSV = "../testfile/final250.csv"
+# DATA_CSV = "../testfile/final200.csv"
+# DATA_CSV = "../testfile/final150.csv"
+# DATA_CSV = "../testfile/final100.csv"
 X = 15
 Y = 12
 EPOCHS = 60  # Max epochs
 BATCH_SIZE = 128
 NUM_CLASSES = 5
+# MODEL_SAVE_PATH = "final_model100"  # Save to a new folder
+# MODEL_SAVE_PATH = "final_model150"  # Save to a new folder
+# MODEL_SAVE_PATH = "final_model200"  # Save to a new folder
+# MODEL_SAVE_PATH = "final_model250"  # Save to a new folder
 MODEL_SAVE_PATH = "final_model300"  # Save to a new folder
 
 MIN_X = 29.24
