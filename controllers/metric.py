@@ -17,6 +17,7 @@ class MetricsController:
         self.no_device_found_to_run_becauseOf_Noise = 0
         self.migrations_count = 0  # Total number of migrations happened in system.
         self.deadline_misses = 0  # Total number of deadline misses happened in system.
+        self.hard_deadline_misses = 0
         self.no_resource_found = 0  # Total number of tasks that did not find resource to execute in system.
         self.migrate_and_miss = 0
         self.local_execution = 0
@@ -95,6 +96,9 @@ class MetricsController:
         self.current_step_deadline_misses += 1
         self.deadline_misses += 1
 
+    def inc_hard_deadline_miss(self):
+        self.hard_deadline_misses += 1
+
     def inc_total_tasks(self):
         self.total_tasks += 1
 
@@ -133,7 +137,8 @@ class MetricsController:
         print(f"\tTotal packet loss: {self.packet_loss}")
         print(f"\tTotal no_device_found_to_run_becauseOf_Noise: {self.no_device_found_to_run_becauseOf_Noise}")
         # print(f"\tTotal migrations: {self.migrations_count}")
-        print(f"\tTotal deadline misses: {self.deadline_misses}")
+        print(f"\tTotal soft deadline misses: {self.deadline_misses}")
+        print(f"\tTotal hard deadline misses: {self.hard_deadline_misses}")
         # print(f"\tTotal migrate and misses: {self.migrate_and_miss}")
         print(f"\tTotal cloud tasks: {self.cloud_tasks}")
         print(f"\tTotal local execution tasks: {self.local_execution}")
@@ -146,7 +151,7 @@ class MetricsController:
         if self.total_tasks != 0:
             print(f"\tPacket loss ratio: {'{:.3f}'.format(self.packet_loss * 100 / self.total_tasks)}%")
             # print(f"\tMigration ratio: {'{:.3f}'.format(self.migrations_count * 100 / self.total_tasks)}%")
-            print(f"\tDeadline miss ratio: {'{:.3f}'.format(self.deadline_misses * 100 / self.total_tasks)}%")
+            print(f"\tDeadline miss ratio: {'{:.3f}'.format((self.deadline_misses + self.hard_deadline_misses) * 100 / self.total_tasks)}%")
             if self.deadline_misses:
                 print(
                     f"\tNo Resource found by deadline miss ratio: "
@@ -160,7 +165,7 @@ class MetricsController:
 
         if self.total_tasks != 0:
             packet_loss_ratio = self.packet_loss * 100 / self.total_tasks
-            deadline_miss_ratio = self.deadline_misses * 100 / self.total_tasks
+            deadline_miss_ratio = (self.deadline_misses + self.hard_deadline_misses) * 100 / self.total_tasks
 
             if self.deadline_misses != 0:
                 no_resource_ratio = self.no_resource_found * 100 / self.deadline_misses
@@ -168,6 +173,7 @@ class MetricsController:
         metrics_data = {
             'timeStep': current_time,
             'Total deadline misses': self.deadline_misses,
+            'Total hard deadline misses': self.hard_deadline_misses,
             'Total cloud tasks': self.cloud_tasks,
             'Total local execution tasks': self.local_execution,
             'Total Hard execution tasks': self.local_hard_execution,

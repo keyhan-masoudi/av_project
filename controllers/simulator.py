@@ -580,7 +580,12 @@ class Simulator:
                         'deadline_diff': task.finish_time - task.deadline
                     }
                     self.missed_deadline_data.append(missed_info)
-                    self.metrics.inc_deadline_miss()
+                    if task.is_hard:
+                        # print(red_bg(task.id))
+                        self.metrics.inc_hard_deadline_miss()
+                    else:
+                        # print(blue_bg(task.id))
+                        self.metrics.inc_deadline_miss()
                 else:
                     success_task_info = {
                         'task_id': task.id,
@@ -701,7 +706,7 @@ class Simulator:
             if hasattr(node, "local_hard_tasks"):
                 left_tasks.extend(node.local_hard_tasks)
                 for _ in range(len(node.local_hard_tasks)):
-                    self.metrics.inc_deadline_miss()
+                    self.metrics.inc_hard_deadline_miss()
         return left_tasks
 
     def save_missed_deadlines_to_excel(self, filename: str = "missed_deadlines.csv"):
