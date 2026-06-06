@@ -50,6 +50,13 @@ class MetricsController:
         self.cloudDataRate: list[float] = []
         self.fogDataRate: list[float] = []
 
+        self.convergence_data: List[Dict] = []
+
+        self.total_reward = 0.0
+        self.total_rl_tasks = 0
+        self.current_step_reward = 0.0
+        self.current_step_rl_tasks = 0
+
     def addFogDataRate(self, dataRate: float):
         self.fogDataRate.append(dataRate)
 
@@ -131,6 +138,8 @@ class MetricsController:
         self.current_step_completed_tasks = 0
         self.current_step_transmission = 0
         self.count_step_transmission = 0
+        self.current_step_reward = 0.0
+        self.current_step_rl_tasks = 0
 
     def log_metrics(self):
         print("Metrics:")
@@ -151,7 +160,7 @@ class MetricsController:
         if self.total_tasks != 0:
             print(f"\tPacket loss ratio: {'{:.3f}'.format(self.packet_loss * 100 / self.total_tasks)}%")
             # print(f"\tMigration ratio: {'{:.3f}'.format(self.migrations_count * 100 / self.total_tasks)}%")
-            print(f"\tDeadline miss ratio: {'{:.3f}'.format((self.deadline_misses + self.hard_deadline_misses) * 100 / self.total_tasks)}%")
+            print(f"\tDeadline miss ratio: {'{:.3f}'.format(self.deadline_misses * 100 / self.total_tasks)}%")
             if self.deadline_misses:
                 print(
                     f"\tNo Resource found by deadline miss ratio: "
@@ -165,10 +174,23 @@ class MetricsController:
 
         if self.total_tasks != 0:
             packet_loss_ratio = self.packet_loss * 100 / self.total_tasks
-            deadline_miss_ratio = (self.deadline_misses + self.hard_deadline_misses) * 100 / self.total_tasks
+            deadline_miss_ratio = self.deadline_misses * 100 / self.total_tasks
 
             if self.deadline_misses != 0:
                 no_resource_ratio = self.no_resource_found * 100 / self.deadline_misses
+
+        step_avg_reward = (self.current_step_reward / self.current_step_rl_tasks) if self.current_step_rl_tasks > 0 else 0
+        cumulative_avg_reward = (self.total_reward / self.total_rl_tasks) if self.total_rl_tasks > 0 else 0
+
+        convergence_record = {
+            'TimeStep': current_time,
+            'PacketLossRatio': packet_loss_ratio,
+            'DeadlineMissRatio': deadline_miss_ratio,
+            'StepAvgReward': step_avg_reward,
+            'CumulativeAvgReward': cumulative_avg_reward
+        }
+
+        self.convergence_data.append(convergence_record)
 
         metrics_data = {
             'timeStep': current_time,
@@ -188,6 +210,12 @@ class MetricsController:
         }
         self.dataPerStep.append(metrics_data)
 
+    def add_reward(self, reward: float):
+        self.total_reward += reward
+        self.total_rl_tasks += 1
+        self.current_step_reward += reward
+        self.current_step_rl_tasks += 1
+
     def save_to_excel(self, filename: str = "final_metrics.xlsx"):
         df = pd.DataFrame(self.dataPerStep)
         output_dir = "Results_Metrics"
@@ -203,3 +231,19 @@ class MetricsController:
             print(f"Successfully saved metrics to {full_path}")
         except Exception as e:
             print(f"Error saving metrics to Excel file: {e}")
+
+    def save_convergence_to_csv(self, filename: str):
+        df = pd.DataFrame(self.convergence_data)
+        output_dir = "convergence"
+
+        if not os.path.exists(output_dir):
+            os.makedirs(output_dir)
+            print(f"Directory '{output_dir}' created.")
+
+        full_path = os.path.join(output_dir, filename)
+
+        try:
+            df.to_csv(full_path, index=False)
+            print(f"Successfully saved convergence data to {full_path}")
+        except Exception as e:
+            print(f"Error saving convergence to CSV file: {e}")

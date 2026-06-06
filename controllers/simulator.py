@@ -239,6 +239,7 @@ class Simulator:
 
                         if not chosen_executor.can_offload_task(task):
                             reward = Config.NEGATIVE_REWARD
+                            self.metrics.add_reward(reward)
                             next_state = chosen_zone_manager.env._get_state(task=None, current_time=current_time)
                             chosen_zone_manager.agent.store_experience(state, action, reward, next_state, done=False)
 
@@ -432,7 +433,8 @@ class Simulator:
             f"success_deadlines_report_{Config.ZoneManagerConfig.DEFAULT_ALGORITHM}_{Config.NoiseMethod.DEFAULT_METHOD}_{Config.NoiseConfig.DEFAULT_THRESHOLD}_{Config.TrafficNoise.DEFAULT_TrafficNoiseLevel}_{Config.AttenuationLevel.DEFAULT_AttenuationLevelName}_{Config.City.DEFAULT_CITY}.csv")
         self.metrics.save_to_excel(
             f"final_metrics_summary_{Config.ZoneManagerConfig.DEFAULT_ALGORITHM}_{Config.NoiseMethod.DEFAULT_METHOD}_{Config.NoiseConfig.DEFAULT_THRESHOLD}_{Config.TrafficNoise.DEFAULT_TrafficNoiseLevel}_{Config.AttenuationLevel.DEFAULT_AttenuationLevelName}_{Config.City.DEFAULT_CITY}.xlsx")
-
+        self.metrics.save_convergence_to_csv(
+            f"convergence_{Config.ZoneManagerConfig.DEFAULT_ALGORITHM}_{Config.NoiseMethod.DEFAULT_METHOD}_{Config.NoiseConfig.DEFAULT_THRESHOLD}_{Config.TrafficNoise.DEFAULT_TrafficNoiseLevel}_{Config.AttenuationLevel.DEFAULT_AttenuationLevelName}_{Config.City.DEFAULT_CITY}.csv")
     def _resolve_task_creator(self, creator_id: str) -> Optional[MobileNodeABC]:
         if creator_id in self.user_nodes:
             return self.user_nodes[creator_id]
@@ -546,7 +548,8 @@ class Simulator:
                         if rl_zm and isinstance(rl_zm, DeepRLZoneManager):
                             # 1. Calculate the REAL reward now that we know the exact finish_time
                             # print(green_bg(f"{task.id}"))
-                            real_reward = rl_zm.env._compute_reward(task, task.executor)
+                            real_reward = rl_zm.env._compute_reward(task, task.executor, all_fog_nodes)
+                            self.metrics.add_reward(real_reward)
 
                             # 2. Get the next state (the environment state at this exact completion moment)
                             current_time = self.clock.get_current_time()
