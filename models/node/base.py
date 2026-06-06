@@ -68,7 +68,7 @@ def find_closest_fn(x, y, fn_nodes):
             min_distance = distance
             closest_fn = fn
 
-    return closest_fn
+    return closest_fn, min_distance
 
 
 def findDataRate(task, executor, closest_fn) -> float:
@@ -87,7 +87,10 @@ def findDataRate(task, executor, closest_fn) -> float:
     # print(green_bg(
     #     f"task.id: {task.id}, task.executor.id: {executor.id}, task.power: {task.power}, task.executor.power: {executor.power}, eta : {eta}"))
     if task.SNR != 0:
-        return eta * Config.SimulatorConfig.BANDWIDTH * np.log2(1 + task.SNR)
+        dataRate = eta * Config.SimulatorConfig.BANDWIDTH * np.log2(1 + task.SNR)
+        # print(green_bg(f"executor: {task.executor.id} => eta: {eta}"))
+        # print(blue_bg(f"DataRate: {dataRate}, DataSize:{task.dataSize} => {task.dataSize/dataRate}"))
+        return dataRate
     else:
         return 1e-9
 
@@ -196,7 +199,7 @@ class NodeABC(ModelBaseABC, abc.ABC):
                 # print(blue_bg(f"executor: {task.executor.id}::: delay: {task.dataSize / dataRate}, dataRate: {dataRate}"))
             elif self.layer == Layer.CLOUD:
 
-                closest_fn = find_closest_fn(task.creator.x, task.creator.y, fixed_fog_nodes)
+                closest_fn, _ = find_closest_fn(task.creator.x, task.creator.y, fixed_fog_nodes)
                 dataRate = findDataRate(task, task.executor, closest_fn)
 
                 if closest_fn.x == Config.CloudConfig.CLOSEST_FOG_X and closest_fn.y == Config.CloudConfig.CLOSEST_FOG_Y:
