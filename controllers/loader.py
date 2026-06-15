@@ -15,6 +15,7 @@ from controllers.zone_managers.MADDPG.deep_rl_zone_manager_maddpg import DeepRLZ
 from controllers.zone_managers.DDPG.deep_rl_zone_manager_ddpg import DeepRLZoneManager_DDPG
 from controllers.zone_managers.PPO.deep_rl_zone_manager_PPO import DeepRLZoneManagerPPO
 from controllers.zone_managers.SAC.deep_rl_zone_manager_sac import DeepRLZoneManagerSAC
+from controllers.zone_managers.greedy import GreedyZoneManager
 from utils.xml_parser import *
 
 
@@ -29,7 +30,8 @@ class Loader:
         Config.ZoneManagerConfig.ALGORITHM_MADDPG: DeepRLZoneManagerMADDGP,
         Config.ZoneManagerConfig.ALGORITHM_DDPG: DeepRLZoneManager_DDPG,
         Config.ZoneManagerConfig.ALGORITHM_PPO: DeepRLZoneManagerPPO,
-        Config.ZoneManagerConfig.ALGORITHM_SAC: DeepRLZoneManagerSAC
+        Config.ZoneManagerConfig.ALGORITHM_SAC: DeepRLZoneManagerSAC,
+        Config.ZoneManagerConfig.ALGORITHM_GREEDY: GreedyZoneManager
     }
 
     def __init__(

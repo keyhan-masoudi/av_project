@@ -110,6 +110,7 @@ class Config:
         ALGORITHM_DDPG = "DDPG"
         ALGORITHM_PPO = "PPO"
         ALGORITHM_SAC = "SAC"
+        ALGORITHM_GREEDY = "Greedy"
 
         DEFAULT_ALGORITHM = ALGORITHM_RANDOM
 

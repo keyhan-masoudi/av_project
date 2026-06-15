@@ -10,6 +10,7 @@ from controllers.simulator_maddpg import SimulatorMADDPG
 from controllers.Simulator.simulator_ddpg import SimulatorDDPG
 from controllers.Simulator.simulator_ppo import SimulatorPPO
 from controllers.Simulator.simulator_sac import SimulatorSAC
+from controllers.Simulator.simulator_greedy import SimulatorGreedy
 
 
 def run_one(params):
@@ -76,7 +77,7 @@ def run_one(params):
         remaining_power=Config.CloudConfig.DEFAULT_COMPUTATION_POWER,
         radius=Config.CloudConfig.DEFAULT_RADIUS,
     )
-
+    
     if Config.ZoneManagerConfig.DEFAULT_ALGORITHM == Config.ZoneManagerConfig.ALGORITHM_MADDPG:
         simulator = SimulatorMADDPG(loader, Clock(), cloud)
     elif Config.ZoneManagerConfig.DEFAULT_ALGORITHM == Config.ZoneManagerConfig.ALGORITHM_DDPG:
@@ -85,6 +86,8 @@ def run_one(params):
         simulator = SimulatorPPO(loader, Clock(), cloud)
     elif Config.ZoneManagerConfig.DEFAULT_ALGORITHM == Config.ZoneManagerConfig.ALGORITHM_SAC:
         simulator = SimulatorSAC(loader, Clock(), cloud)
+    elif Config.ZoneManagerConfig.DEFAULT_ALGORITHM == Config.ZoneManagerConfig.ALGORITHM_GREEDY:
+        simulator = SimulatorGreedy(loader, Clock(), cloud)
     else:
         simulator = Simulator(loader, Clock(), cloud)
 
@@ -108,11 +111,12 @@ if __name__ == "__main__":
         # Config.ZoneManagerConfig.ALGORITHM_ONLY_CLOUD,
         # Config.ZoneManagerConfig.ALGORITHM_ONLY_FOG,
         # Config.ZoneManagerConfig.ALGORITHM_ONLY_LOCAL,
-        Config.ZoneManagerConfig.ALGORITHM_DEEP_RL,
+        # Config.ZoneManagerConfig.ALGORITHM_DEEP_RL,
         # Config.ZoneManagerConfig.ALGORITHM_DDPG,
         # Config.ZoneManagerConfig.ALGORITHM_PPO,
         # Config.ZoneManagerConfig.ALGORITHM_SAC,
         # Config.ZoneManagerConfig.ALGORITHM_MADDPG,
+        Config.ZoneManagerConfig.ALGORITHM_GREEDY,
     ]
 
     methods = [
