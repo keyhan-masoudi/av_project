@@ -2,14 +2,14 @@
 """
 Generate schedulable hard-task specs via UUniFast-Discard + WFD.
 
-Usage:
-  python task_parameter_generation_uunifast.py \
-    --num-tasks 9 \
-    --periods 7,5,6,4,9,12,3,10,2 \
-    --num-cores 8 \
-    --total-util 5.6 \
-    --output hard_tasks.json \
-    --seed 42
+Sample Usage:
+  python3 task_parameter_generation_uunifast.py \
+  --num-tasks 50 \
+  --periods 2,2,2,2,2,2,3,3,3,3,3,3,4,4,4,4,4,4,5,5,5,5,5,5,5,6,6,6,6,6,6,8,8,8,8,8,8,10,10,10,10,10,10,10,12,12,12,12,12,12 \
+  --num-cores 8 \
+  --total-util 5 \
+  --output data/hard_task_parameters_uunifast.json \
+  --seed 37
 """
 
 from __future__ import annotations
