@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Generate schedulable hard-task specs via UUnifast + WFD.
+Generate schedulable hard-task specs via UUniFast-Discard + WFD.
 
 Usage:
   python task_parameter_generation_uunifast.py \
@@ -54,62 +54,45 @@ class GeneratedTask:
 
 
 def uunifast(n: int, u_total: float, rng: random.Random) -> List[float]:
-    """Generate n utilizations summing to u_total (Bini & Buttazzo UUnifast)."""
+    """
+    Standard UUnifast (Bini & Buttazzo).
+
+    Generates n utilizations that sum exactly to u_total.
+    """
     if n <= 0:
         raise ValueError("n must be positive")
     if u_total <= 0:
         raise ValueError("u_total must be positive")
 
-    remaining = u_total
-    utils: List[float] = []
-    for i in range(n - 1):
-        exp = 1.0 / (n - i)
-        ui = remaining * (rng.random() ** exp)
-        utils.append(ui)
-        remaining -= ui
-    utils.append(remaining)
-    return utils
+    utilizations: List[float] = []
+    sum_u = u_total
+
+    for i in range(1, n):
+        next_sum_u = sum_u * (rng.random() ** (1.0 / (n - i)))
+        utilizations.append(sum_u - next_sum_u)
+        sum_u = next_sum_u
+
+    utilizations.append(sum_u)
+    return utilizations
 
 
-def uunifast_bounded(
+def uunifast_discard(
     n: int,
     u_total: float,
     rng: random.Random,
-    u_max: float = 1.0 - 1e-9,
-    u_min: float = 0.0,
+    max_discards: int = 100_000,
 ) -> Optional[List[float]]:
     """
-    UUnifast-style draw with each utilization capped at u_max.
+    UUniFast-Discard: repeat UUnifast until every u_i <= 1.
 
-    Plain UUnifast can produce u_i > 1 even when the mean is low; that breaks
-    partitioned scheduling where every task must fit on a single core.
+    Required for partitioned multiprocessor task sets where each task
+    must fit on a single core.
     """
-    if u_min < 0:
-        raise ValueError("u_min must be non-negative")
-    if u_total < n * u_min:
-        return None
-    if u_total > n * u_max:
-        return None
-
-    remaining = u_total
-    utils: List[float] = []
-    for i in range(n - 1):
-        left = n - i
-        low = max(u_min, remaining - (left - 1) * u_max)
-        high = min(u_max, remaining - (left - 1) * u_min)
-        if low > high + 1e-12:
-            return None
-
-        exp = 1.0 / left
-        ui = remaining * (rng.random() ** exp)
-        ui = min(max(ui, low), high)
-        utils.append(ui)
-        remaining -= ui
-
-    if remaining < u_min - 1e-9 or remaining > u_max + 1e-9:
-        return None
-    utils.append(remaining)
-    return utils
+    for _ in range(max_discards):
+        utils = uunifast(n, u_total, rng)
+        if max(utils) <= 1.0:
+            return utils
+    return None
 
 
 def wfd_assign(
@@ -263,13 +246,11 @@ def generate(
     rng = random.Random(seed)
 
     min_wcet = compute_wcet(ABS_MIN_SIZE, ABS_MIN_CYCLES, lambda_)
-    # Each task must be representable and get a fair minimum share.
-    fair_share = total_util / num_tasks
-    u_min = max(min_wcet / min(periods), fair_share * 0.05)
 
     for attempt in range(1, max_attempts + 1):
-        utils = uunifast_bounded(num_tasks, total_util, rng, u_min=u_min)
-        if utils is None:
+        # UUniFast-Discard: reject if any task does not fit on one core.
+        utils = uunifast(num_tasks, total_util, rng)
+        if max(utils) > 1.0:
             continue
 
         if any(u * period < min_wcet for u, period in zip(utils, periods)):
@@ -323,7 +304,6 @@ def generate(
                 "exec_time_divisor": EXEC_TIME_DIVISOR,
                 "scaling_max": SCALING_MAX,
                 "lambda": lambda_,
-                "u_min": round(u_min, 9),
                 "min_wcet": round(min_wcet, 9),
                 "seed": seed,
                 "attempts": attempt,
@@ -356,7 +336,7 @@ def parse_periods(s: str) -> List[int]:
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(description="Generate hard tasks via UUnifast + WFD")
+    parser = argparse.ArgumentParser(description="Generate hard tasks via UUniFast-Discard + WFD")
     parser.add_argument("--num-tasks", type=int, required=True)
     parser.add_argument("--periods", type=str, required=True, help="Comma-separated, e.g. 7,5,6")
     parser.add_argument("--num-cores", type=int, required=True)
