@@ -248,9 +248,8 @@ def generate(
     min_wcet = compute_wcet(ABS_MIN_SIZE, ABS_MIN_CYCLES, lambda_)
 
     for attempt in range(1, max_attempts + 1):
-        # UUniFast-Discard: reject if any task does not fit on one core.
-        utils = uunifast(num_tasks, total_util, rng)
-        if max(utils) > 1.0:
+        utils = uunifast_discard(num_tasks, total_util, rng)
+        if utils is None:
             continue
 
         if any(u * period < min_wcet for u, period in zip(utils, periods)):
