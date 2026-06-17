@@ -33,6 +33,8 @@ SIZE_MIN_BOUND = 200
 SIZE_MAX_BOUND = 3000
 CYCLES_MIN_BOUND = 100
 CYCLES_MAX_BOUND = 2000
+ABS_MIN_SIZE = 1
+ABS_MIN_CYCLES = 1
 
 # min/max spread inside each task spec (for random generation later)
 INTRA_TASK_SPREAD = 0.85  # min = max * this
@@ -74,6 +76,7 @@ def uunifast_bounded(
     u_total: float,
     rng: random.Random,
     u_max: float = 1.0 - 1e-9,
+    u_min: float = 0.0,
 ) -> Optional[List[float]]:
     """
     UUnifast-style draw with each utilization capped at u_max.
@@ -81,6 +84,10 @@ def uunifast_bounded(
     Plain UUnifast can produce u_i > 1 even when the mean is low; that breaks
     partitioned scheduling where every task must fit on a single core.
     """
+    if u_min < 0:
+        raise ValueError("u_min must be non-negative")
+    if u_total < n * u_min:
+        return None
     if u_total > n * u_max:
         return None
 
@@ -88,8 +95,8 @@ def uunifast_bounded(
     utils: List[float] = []
     for i in range(n - 1):
         left = n - i
-        low = max(0.0, remaining - (left - 1) * u_max)
-        high = min(u_max, remaining)
+        low = max(u_min, remaining - (left - 1) * u_max)
+        high = min(u_max, remaining - (left - 1) * u_min)
         if low > high + 1e-12:
             return None
 
@@ -99,7 +106,7 @@ def uunifast_bounded(
         utils.append(ui)
         remaining -= ui
 
-    if remaining < -1e-9 or remaining > u_max + 1e-9:
+    if remaining < u_min - 1e-9 or remaining > u_max + 1e-9:
         return None
     utils.append(remaining)
     return utils
@@ -129,20 +136,50 @@ def wfd_assign(
     return assignment, core_loads
 
 
-def wcet_from_product(size_max: float, cycles_max: float, lambda_: float) -> float:
-    return (
-        size_max
-        * cycles_max
-        * (SCALING_MAX ** 2)
-        * (lambda_ ** 2)
-        / (FREQUENCY * EXEC_TIME_DIVISOR)
-    )
+def compute_exec_time(
+    size_baseline: float,
+    cycles_baseline: float,
+    scaling: float,
+    sensitivity: float,
+    frequency: float = FREQUENCY,
+) -> float:
+    """
+    data_size       = size_baseline * scaling * sensitivity
+    cycles_per_bit  = cycles_baseline * scaling * sensitivity
+    exec_time       = (data_size * cycles_per_bit) / (frequency * EXEC_TIME_DIVISOR)
+    """
+    data_size = size_baseline * scaling * sensitivity
+    cycles_per_bit = cycles_baseline * scaling * sensitivity
+    return (data_size * cycles_per_bit) / (frequency * EXEC_TIME_DIVISOR)
 
 
-def target_product(u: float, period: float, lambda_: float) -> float:
-    """size_max * cycles_max needed for WCET = u * period."""
-    c_wcet = u * period
-    return c_wcet * FREQUENCY * EXEC_TIME_DIVISOR / ((SCALING_MAX ** 2) * (lambda_ ** 2))
+def compute_wcet(
+    size_baseline: float,
+    cycles_baseline: float,
+    lambda_: float = DEFAULT_LAMBDA,
+    scaling: float = SCALING_MAX,
+    frequency: float = FREQUENCY,
+) -> float:
+    """WCET at max environment scaling for the given baselines."""
+    return compute_exec_time(size_baseline, cycles_baseline, scaling, lambda_, frequency)
+
+
+def max_baseline_product(target_wcet: float, lambda_: float = DEFAULT_LAMBDA) -> float:
+    """Largest size_baseline * cycles_baseline with exec_time <= target_wcet at WCET."""
+    unit = compute_exec_time(1.0, 1.0, SCALING_MAX, lambda_)
+    return target_wcet / unit
+
+
+def _effective_bounds(product: float) -> tuple[int, int, int, int]:
+    """Lower/upper search bounds for size and cycles baselines."""
+    if product >= SIZE_MIN_BOUND * CYCLES_MIN_BOUND:
+        return SIZE_MIN_BOUND, SIZE_MAX_BOUND, CYCLES_MIN_BOUND, CYCLES_MAX_BOUND
+
+    lo_size = max(ABS_MIN_SIZE, int(math.ceil(product / CYCLES_MAX_BOUND)))
+    lo_cycles = max(ABS_MIN_CYCLES, int(math.ceil(product / SIZE_MAX_BOUND)))
+    hi_size = min(SIZE_MAX_BOUND, max(lo_size, int(math.ceil(math.sqrt(product)))))
+    hi_cycles = min(CYCLES_MAX_BOUND, max(lo_cycles, int(math.ceil(math.sqrt(product)))))
+    return lo_size, hi_size, lo_cycles, hi_cycles
 
 
 def pick_size_cycles(
@@ -156,28 +193,40 @@ def pick_size_cycles(
     Retry with different sizes until cycles fall in bounds.
     Falls back to balanced sqrt split.
     """
-    product = target_product(u, period, lambda_)
+    target_wcet = u * period
+    product = max_baseline_product(target_wcet, lambda_)
+    lo_size, hi_size, lo_cycles, hi_cycles = _effective_bounds(product)
 
-    for _ in range(200):
-        size_max = rng.randint(SIZE_MIN_BOUND, SIZE_MAX_BOUND)
+    for _ in range(500):
+        size_max = rng.randint(lo_size, hi_size)
         cycles_max = int(product // size_max)
-        if cycles_max < CYCLES_MIN_BOUND:
+        if cycles_max < lo_cycles:
             continue
-        if cycles_max > CYCLES_MAX_BOUND:
-            cycles_max = CYCLES_MAX_BOUND
-        if wcet_from_product(size_max, cycles_max, lambda_) <= u * period + 1e-9:
-            size_min = max(SIZE_MIN_BOUND, int(round(size_max * INTRA_TASK_SPREAD)))
-            cycles_min = max(CYCLES_MIN_BOUND, int(round(cycles_max * INTRA_TASK_SPREAD)))
+        if cycles_max > hi_cycles:
+            cycles_max = hi_cycles
+        if compute_wcet(size_max, cycles_max, lambda_) <= target_wcet + 1e-9:
+            spread_size_lo = max(lo_size, ABS_MIN_SIZE)
+            spread_cycles_lo = max(lo_cycles, ABS_MIN_CYCLES)
+            size_min = max(spread_size_lo, int(round(size_max * INTRA_TASK_SPREAD)))
+            cycles_min = max(spread_cycles_lo, int(round(cycles_max * INTRA_TASK_SPREAD)))
             return size_min, size_max, cycles_min, cycles_max
 
     side = math.sqrt(product)
-    size_max = int(max(SIZE_MIN_BOUND, min(SIZE_MAX_BOUND, round(side))))
-    cycles_max = int(min(CYCLES_MAX_BOUND, max(CYCLES_MIN_BOUND, product // size_max)))
-    while cycles_max >= CYCLES_MIN_BOUND and wcet_from_product(size_max, cycles_max, lambda_) > u * period + 1e-9:
+    size_max = int(max(lo_size, min(hi_size, round(side))))
+    cycles_max = int(min(hi_cycles, max(lo_cycles, product // size_max)))
+    while cycles_max >= lo_cycles and compute_wcet(size_max, cycles_max, lambda_) > target_wcet + 1e-9:
         cycles_max -= 1
 
-    size_min = max(SIZE_MIN_BOUND, int(round(size_max * INTRA_TASK_SPREAD)))
-    cycles_min = max(CYCLES_MIN_BOUND, int(round(cycles_max * INTRA_TASK_SPREAD)))
+    if cycles_max < lo_cycles:
+        raise ValueError(
+            f"Cannot fit WCET={target_wcet:.6f} within size/cycles bounds; "
+            "try higher total_util per task or widen bounds."
+        )
+
+    spread_size_lo = max(lo_size, ABS_MIN_SIZE)
+    spread_cycles_lo = max(lo_cycles, ABS_MIN_CYCLES)
+    size_min = max(spread_size_lo, int(round(size_max * INTRA_TASK_SPREAD)))
+    cycles_min = max(spread_cycles_lo, int(round(cycles_max * INTRA_TASK_SPREAD)))
     return size_min, size_max, cycles_min, cycles_max
 
 
@@ -213,9 +262,17 @@ def generate(
     validate_inputs(num_tasks, periods, num_cores, total_util)
     rng = random.Random(seed)
 
+    min_wcet = compute_wcet(ABS_MIN_SIZE, ABS_MIN_CYCLES, lambda_)
+    # Each task must be representable and get a fair minimum share.
+    fair_share = total_util / num_tasks
+    u_min = max(min_wcet / min(periods), fair_share * 0.05)
+
     for attempt in range(1, max_attempts + 1):
-        utils = uunifast_bounded(num_tasks, total_util, rng)
+        utils = uunifast_bounded(num_tasks, total_util, rng, u_min=u_min)
         if utils is None:
+            continue
+
+        if any(u * period < min_wcet for u, period in zip(utils, periods)):
             continue
 
         assignment, core_loads = wfd_assign(utils, num_cores)
@@ -227,10 +284,14 @@ def generate(
         valid = True
 
         for i, (u, period) in enumerate(zip(utils, periods)):
-            size_min, size_max, cycles_min, cycles_max = pick_size_cycles(
-                u, period, lambda_, rng
-            )
-            wcet = wcet_from_product(size_max, cycles_max, lambda_)
+            try:
+                size_min, size_max, cycles_min, cycles_max = pick_size_cycles(
+                    u, period, lambda_, rng
+                )
+            except ValueError:
+                valid = False
+                break
+            wcet = compute_wcet(size_max, cycles_max, lambda_)
 
             if wcet > u * period + 1e-9:
                 valid = False
@@ -262,6 +323,8 @@ def generate(
                 "exec_time_divisor": EXEC_TIME_DIVISOR,
                 "scaling_max": SCALING_MAX,
                 "lambda": lambda_,
+                "u_min": round(u_min, 9),
+                "min_wcet": round(min_wcet, 9),
                 "seed": seed,
                 "attempts": attempt,
                 "core_loads": [round(x, 6) for x in core_loads],
