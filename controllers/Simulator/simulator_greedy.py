@@ -1,9 +1,10 @@
-from controllers.simulator import Simulator
+from controllers.simulator import Simulator, blue_bg, red_bg
 from models.task import Task
 from models.node.base import MobileNodeABC, findExecTimeInEachKindOfNode
 from typing import Dict, List
 from config import Config
-
+from utils.enums import Layer
+from controllers.zone_managers.base import ZoneManagerABC
 
 class SimulatorGreedy(Simulator):
     def __init__(self, loader, clock, cloud):
@@ -245,5 +246,99 @@ class SimulatorGreedy(Simulator):
         # 3. Push to Execution Engine
         # Since aperiodic tasks don't have a repeating period, we push them into the heap
         # using their absolute deadline so they run in the background safely.
-        heapq.heappush(creator.cores[core_idx], (task.deadline, task.release_time, task))
+        heapq.heappush(creator.cores[core_idx], (task.deadline, task.release_time, task))     
         
+    def start_simulation(self):
+        self.init_simulation()
+        self.load_cached_traffic()
+        self.load_cached_vehicle_traffic()
+        self.load_cached_weather()
+        self.load_cached_spatial_grid()
+        self.load_cached_future_predictions()
+
+        while (current_time := self.clock.get_current_time()) < Config.SimulatorConfig.SIMULATION_DURATION:
+
+            print(red_bg(f"current_time:{current_time}"))
+
+            time_int = int(current_time)
+            cached_data_str_keys = self.traffic_cache.get(time_int, {})
+
+            traffic_data = {}
+            for p in self.partitions:
+                p_name = p.__class__.__name__
+                if p_name in cached_data_str_keys:
+                    traffic_data[p] = cached_data_str_keys[p_name]
+
+            self.update_weather_from_cache(current_time)
+
+            for partition in self.partitions:
+                partition.update_traffic_status(traffic_data)
+            # self.logTrafficStatus(partitions)
+
+            # =====================================================================
+            # OFFLINE PHASE: ALGORITHMS 1, 2, & 3 (Local Mathematical Packing)
+            # ==========================================================
+            # 1. Algorithms 1 & 2: Pack Hard Tasks safely into the vehicle's cores first.
+            self.load_hard_tasks(current_time)
+            
+            # 2. Algorithm 3: Squeeze Soft Tasks into the leftover space on the vehicle.
+            # Returns ONLY the soft tasks that mathematically failed to fit.
+            soft_tasks = self.load_soft_tasks(current_time)
+            # =====================================================================
+
+            user_possible_zones = self.assign_mobile_nodes_to_zones(self.user_nodes, layer=Layer.USER)
+            mobile_possible_zones = self.assign_mobile_nodes_to_zones(self.mobile_fog_nodes, layer=Layer.FOG)
+
+            merged_possible_zones: Dict[str, List[ZoneManagerABC]] = {**user_possible_zones, **mobile_possible_zones}
+
+            # =====================================================================
+            # ONLINE PHASE: ALGORITHM 4 (Dynamic Slack Reclaiming & Offloading)
+            # ==========================================================
+            # Iterate through the leftovers from Alg 3 and pass them to the Zone Manager
+            for creator_id, tasks in soft_tasks.items():
+                zone_managers = merged_possible_zones.get(creator_id, [])
+                # print(f"zoneManagers : {zone_managers}")
+                self.retransmission(zone_managers, current_time, self.partitions)
+
+                for task in tasks:
+                    self.metrics.inc_total_tasks()
+
+                    # This explicitly triggers GreedyZoneManager.can_offload_task() (Algorithm 4)
+                    zone_manager_offload_task = self.find_zone_manager_offload_task(zone_managers, task, current_time)
+                    
+                    # This physically handles the network execution (Noise, Packet Loss, Routing)
+                    # based on the target node the GreedyZoneManager selected!
+                    self.choose_executor_and_assign(zone_manager_offload_task, task, self.partitions, current_time)
+            # =====================================================================
+
+            target_id = "PKW364"
+            target_id2 = "FN0006"
+            # self.print_node_schedule_status(current_time, target_id)
+
+            # Execute the queued tasks inside all cores
+            self.execute_tasks_for_one_step()
+            self.update_graph()
+            self.metrics.flush()
+
+            if current_time >= 320.0 and not getattr(self, '_gantt_340_drawn', False):
+                print(blue_bg(f"--- Attempting to draw Gantt chart at time {current_time} ---"))
+                self.draw_gantt_chart(target_id, window_start=300.0, window_end=320.0)
+                self.draw_gantt_chart(target_id2, window_start=300.0, window_end=320.0)
+                self._gantt_340_drawn = True
+            # --------------------------------------------------------------------------
+
+            self.metrics.log_metrics()
+            self.metrics.add_data(current_time)
+
+            # if current_time % 50 == 0:
+            #     self.metrics.print_node_tasks()
+            # if current_time == 500:
+            #     self.metrics.saveToExcel("test.csv")
+
+        self.drop_not_completed_tasks()
+        self.save_missed_deadlines_to_excel(
+            f"missed_deadlines_report_{Config.ZoneManagerConfig.DEFAULT_ALGORITHM}_{Config.NoiseMethod.DEFAULT_METHOD}_{Config.NoiseConfig.DEFAULT_THRESHOLD}_{Config.TrafficNoise.DEFAULT_TrafficNoiseLevel}_{Config.AttenuationLevel.DEFAULT_AttenuationLevelName}_{Config.City.DEFAULT_CITY}.csv")
+        self.save_success_deadlines_to_excel(
+            f"success_deadlines_report_{Config.ZoneManagerConfig.DEFAULT_ALGORITHM}_{Config.NoiseMethod.DEFAULT_METHOD}_{Config.NoiseConfig.DEFAULT_THRESHOLD}_{Config.TrafficNoise.DEFAULT_TrafficNoiseLevel}_{Config.AttenuationLevel.DEFAULT_AttenuationLevelName}_{Config.City.DEFAULT_CITY}.csv")
+        self.metrics.save_to_excel(
+            f"final_metrics_summary_{Config.ZoneManagerConfig.DEFAULT_ALGORITHM}_{Config.NoiseMethod.DEFAULT_METHOD}_{Config.NoiseConfig.DEFAULT_THRESHOLD}_{Config.TrafficNoise.DEFAULT_TrafficNoiseLevel}_{Config.AttenuationLevel.DEFAULT_AttenuationLevelName}_{Config.City.DEFAULT_CITY}.xlsx")
