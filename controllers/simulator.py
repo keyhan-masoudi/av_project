@@ -452,7 +452,7 @@ class Simulator:
                 task.creator = creator
                 tasks[creator_id].append(task)
         return tasks
-
+    
     def load_hard_tasks(self, current_time: float) -> int:
         """Load hard tasks onto each vehicle's local processor."""
         loaded_count = 0
