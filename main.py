@@ -106,7 +106,7 @@ def run_one(params):
 
 if __name__ == "__main__":
     algorithms = [
-        # Config.ZoneManagerConfig.ALGORITHM_RANDOM,
+        Config.ZoneManagerConfig.ALGORITHM_RANDOM,
         # Config.ZoneManagerConfig.ALGORITHM_HEURISTIC,
         # Config.ZoneManagerConfig.ALGORITHM_ONLY_CLOUD,
         # Config.ZoneManagerConfig.ALGORITHM_ONLY_FOG,

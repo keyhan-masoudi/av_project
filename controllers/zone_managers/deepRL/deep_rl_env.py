@@ -7,7 +7,7 @@ from gymnasium import spaces
 from config import Config
 from models.node.cloud import CloudNode
 from task_and_user_generator import Config as CNF
-from models.node.base import findExecTimeInEachKindOfNode, find_closest_fn, findDataRate, green_bg
+from models.node.base import findExecTimeInEachKindOfNode, find_closest_fn, findDataRate, green_bg, blue_bg
 from models.node.fog import FixedFogNode, MobileFogNode
 from collections import deque
 from NoiseConfigs.noiseConfigGeneralAttribute import NoiseConfigGeneralAttribute as NCNF
@@ -31,8 +31,10 @@ def get_vehicle_position(csv_file, target_id):
                 return x, y
     return None, None
 
+
 def calculate_distance(x1, y1, x2, y2):
     return math.sqrt((x2 - x1) ** 2 + (y2 - y1) ** 2)
+
 
 class DeepRLEnvironment(gym.Env):
     """
@@ -117,33 +119,33 @@ class DeepRLEnvironment(gym.Env):
 
         return mask
 
-    def _execute_action(self, task, action):
-        """Perform the task offloading based on the action and return the reward."""
-        candidate_executor = None
-
-        if action == 0:
-            candidate_executor = task.creator
-
-        elif action == 1:
-            candidate_executor = self.simulator.cloud_node
-
-        elif action in [2, 3, 4]:
-            fog_index = action - 2
-            nearest_fogs = self._get_k_nearest_fogs(task.creator, k=3)
-
-            if fog_index < len(nearest_fogs):
-                candidate_executor = nearest_fogs[fog_index]
-
-        # If the agent randomly selects a non-existent fog in Exploration mode
-        if candidate_executor is None:
-            return -1.0
-
-        if candidate_executor.can_offload_task(task):
-            print(green_bg("are we here?????????????????????????????????"))
-            reward = self._compute_reward(task, candidate_executor)
-        else:
-            reward = -10.0
-        return reward
+    # def _execute_action(self, task, action):
+    #     """Perform the task offloading based on the action and return the reward."""
+    #     candidate_executor = None
+    #
+    #     if action == 0:
+    #         candidate_executor = task.creator
+    #
+    #     elif action == 1:
+    #         candidate_executor = self.simulator.cloud_node
+    #
+    #     elif action in [2, 3, 4]:
+    #         fog_index = action - 2
+    #         nearest_fogs = self._get_k_nearest_fogs(task.creator, k=3)
+    #
+    #         if fog_index < len(nearest_fogs):
+    #             candidate_executor = nearest_fogs[fog_index]
+    #
+    #     # If the agent randomly selects a non-existent fog in Exploration mode
+    #     if candidate_executor is None:
+    #         return -1.0
+    #
+    #     if candidate_executor.can_offload_task(task):
+    #         print(green_bg("are we here?????????????????????????????????"))
+    #         reward = self._compute_reward(task, candidate_executor)
+    #     else:
+    #         reward = -10.0
+    #     return reward
 
     def _get_k_nearest_fogs(self, vehicle, k=3):
         all_fogs = list(self.simulator.fixed_fog_nodes.values()) + list(self.simulator.mobile_fog_nodes.values())
@@ -160,9 +162,17 @@ class DeepRLEnvironment(gym.Env):
         # ==========================================
         # Task
         # ==========================================
-        data_size_ratio = max(0.0, min((task.dataSize - CNF.TaskConfig.MIN_DATASIZE) / (CNF.TaskConfig.MAX_DATASIZE - CNF.TaskConfig.MIN_DATASIZE), 1.0))
-        execution_time_ratio = max(0.0, min((task.exec_time - ((CNF.TaskConfig.MIN_DATASIZE * CNF.TaskConfig.MIN_CYCLE_PER_BIT) / Config.UserNodeConfig.USER_NODE_FREQUENCY)) / (((CNF.TaskConfig.MAX_DATASIZE * CNF.TaskConfig.MAX_CYCLE_PER_BIT) / Config.UserNodeConfig.USER_NODE_FREQUENCY) - ((CNF.TaskConfig.MIN_DATASIZE * CNF.TaskConfig.MIN_CYCLE_PER_BIT) / Config.UserNodeConfig.USER_NODE_FREQUENCY)),1.0))
-        deadline_ratio = max(0.0, min((((task.deadline - current_time) - CNF.TaskConfig.DEADLINE_MIN_FREE_TIME) / (CNF.TaskConfig.DEADLINE_MAX_FREE_TIME - CNF.TaskConfig.DEADLINE_MIN_FREE_TIME)), 1.0))
+        data_size_ratio = max(0.0, min((task.dataSize - CNF.TaskConfig.MIN_DATASIZE) / (
+                CNF.TaskConfig.MAX_DATASIZE - CNF.TaskConfig.MIN_DATASIZE), 1.0))
+        execution_time_ratio = max(0.0, min((task.exec_time - ((
+                                                                       CNF.TaskConfig.MIN_DATASIZE * CNF.TaskConfig.MIN_CYCLE_PER_BIT) / Config.UserNodeConfig.USER_NODE_FREQUENCY)) / (
+                                                    ((
+                                                             CNF.TaskConfig.MAX_DATASIZE * CNF.TaskConfig.MAX_CYCLE_PER_BIT) / Config.UserNodeConfig.USER_NODE_FREQUENCY) - (
+                                                            (
+                                                                    CNF.TaskConfig.MIN_DATASIZE * CNF.TaskConfig.MIN_CYCLE_PER_BIT) / Config.UserNodeConfig.USER_NODE_FREQUENCY)),
+                                            1.0))
+        deadline_ratio = max(0.0, min((((task.deadline - current_time) - CNF.TaskConfig.DEADLINE_MIN_FREE_TIME) / (
+                CNF.TaskConfig.DEADLINE_MAX_FREE_TIME - CNF.TaskConfig.DEADLINE_MIN_FREE_TIME)), 1.0))
 
         state_vector.extend([data_size_ratio, execution_time_ratio, deadline_ratio])
 
@@ -277,13 +287,13 @@ class DeepRLEnvironment(gym.Env):
             # Fallback (Should not occur if the mask logic is correct)
             return 0
 
-    # todo: complete reward function
-    def _compute_reward(self, task, executor) -> float:
+    def _compute_reward(self, task, executor, all_fog_nodes) -> float:
         """
         Calculates the REAL reward using a combination of Reward Shaping (from saved state)
         and Ground Truth (from actual completion time).
         """
         reward = 0.0
+        lateness = 0.0
 
         # ==========================================================
         # 1. Reward Shaping: Based on the state AT THE TIME OF DECISION
@@ -295,11 +305,11 @@ class DeepRLEnvironment(gym.Env):
             # Map the action to the exact indices in the 28-dimensional state array
             # Format -> Action: (best_q_index, idle_cores_index)
             state_indices = {
-                0: (3, 5),  # Local
-                1: (25, 27),  # Cloud
-                2: (14, 16),  # Fog 1
-                3: (18, 20),  # Fog 2
-                4: (22, 24)  # Fog 3
+                0: (3, 5),  # Local Execution
+                1: (25, 27),  # Cloud Execution
+                2: (14, 16),  # Fog 1 Execution
+                3: (18, 20),  # Fog 2 Execution
+                4: (22, 24)  # Fog 3 Execution
             }
 
             if action in state_indices:
@@ -309,15 +319,47 @@ class DeepRLEnvironment(gym.Env):
 
                 if normalized_idle_cores > 0:
                     # Reward for choosing a node with completely free cores
-                    # print(red_bg(
-                    #     f"---------------best_queue: {normalized_best_q}, executor: {executor.id}"))
-                    reward += 0.5
+                    reward += 1.5
                 else:
                     # Penalty based on how full the queue was (normalized 0.0 to 1.0)
-                    # We multiply by 5.0 to give it a meaningful weight in the reward function
-                    # print(red_bg(
-                    #     f"+++++++++++++++++++++++++++++++++++++++best_queue: {normalized_best_q}, executor: {executor.id}"))
                     reward -= (normalized_best_q * 5.0)
+
+        # ==========================================================
+        # 1.5. Dynamic Contextual Penalties (Local vs. Network)
+        # ==========================================================
+        if hasattr(task, 'rl_state') and task.rl_state is not None:
+            state = task.rl_state
+            action = task.rl_action
+
+            # Extract exact values from the saved state at decision time
+            current_traffic = state[6]
+            traffic_avg = state[7]
+            traffic_max = state[8]
+            normalized_weather = state[11]
+            normalized_n = state[12]
+
+            # Calculate Local Stress (traffic density and rain disruptive effect on periodic vehicle tasks)
+            traffic_component = (traffic_avg * 0.75) + (traffic_max * 0.25)
+            local_stress = (traffic_component * 0.5) + (normalized_weather * 0.5)
+
+            # Calculate Network Stress (physical path loss and weather/traffic noise affecting transmission)
+            network_stress = (normalized_n * 0.75) + (normalized_weather * 0.25)
+
+            if action == 0:
+                # Action 0 (Local Execution): Apply quadratic penalty if local conditions are critical
+                if local_stress > 0.75:
+                    reward -= (local_stress ** 2) * 5.0
+            else:
+                # Action 1-4 (Offloading): Apply quadratic penalty if network conditions are poor
+                if network_stress > 0.5:
+                    reward -= (network_stress ** 2) * 5.0
+
+                # Dynamic Relative Offloading Bonus (Courage Bonus)
+                # Condition A: Local state must be highly critical (> 0.5)
+                # Condition B: Local state must be strictly worse than the network state
+                if local_stress > 0.5 and local_stress > network_stress:
+                    courage_bonus = local_stress - network_stress
+                    reward += (courage_bonus * 5.0)
 
         # ==========================================================
         # 2. Ground Truth Reward: Based on ACTUAL execution results
@@ -327,20 +369,53 @@ class DeepRLEnvironment(gym.Env):
 
         if not is_deadline_miss:
             # Positive reward for finishing early
-            reward += lateness * 1.0
+            reward += lateness
         else:
-            # Heavy penalty for missing the deadline, plus the amount of lateness
-            base_penalty = -50.0
-            reward += (base_penalty + lateness)
+            # Linear penalty with a steep slope to prevent gradient explosion
+            base_penalty = -15.0
+            lateness_penalty = lateness
+            reward += (base_penalty + lateness_penalty)
 
-        # ==========================================================
-        # 3. Environmental Penalty (Network/Transmission cost)
-        # ==========================================================
-        if executor.id != task.creator.id:
-            normalized_weather = task.rl_state[11]
-            normalized_n = task.rl_state[12]
+            # ==========================================================
+            # 3. Environmental Penalty (Network/Transmission cost)
+            # ==========================================================
+            if executor.id != task.creator.id:
+                state = task.rl_state
+                action = task.rl_action
 
-            env_penalty = (normalized_weather * 0.5) + (normalized_n * 0.5)
-            reward -= env_penalty
+                # Extract historical environment states from the decision moment
+                current_traffic = state[6]
+                normalized_weather = state[11]
+                normalized_n = state[12]
 
+                # Extract normalized distance based on the chosen action
+                # Indices: Fog1(13), Fog2(17), Fog3(21)
+                if action == 2:
+                    normalized_dist = state[13]
+                elif action == 3:
+                    normalized_dist = state[17]
+                elif action == 4:
+                    normalized_dist = state[21]
+                elif action == 1:
+                    # Cloud transmission goes through the nearest BS or involves multi-hop,
+                    # assuming maximum wireless exposure (worst-case distance)
+                    _ , normalized_dist = find_closest_fn(task.creator.x, task.creator.y, all_fog_nodes)
+
+                # 1. Base Environmental Degradation (Without Distance)
+                base_env_penalty = (normalized_n * 0.5) + (normalized_weather * 0.25) + (current_traffic * 0.25)
+
+                # 2. Distance Multiplier
+                # We use (0.2 + 0.8 * dist) so that even at very close distances (dist ~ 0),
+                # there is a baseline 20% penalty for leaving the local node.
+                # At max distance (dist = 1.0), the penalty is 100%.
+                distance_factor = 0.2 + (0.8 * normalized_dist)
+
+                # 3. Final Formulated Penalty
+                env_penalty = base_env_penalty * distance_factor
+
+                # Alpha factor to scale environmental transmission costs in the final reward function
+                alpha = 3.0
+                reward -= alpha * env_penalty
+
+        # print(green_bg(f"reward: {reward} => lateness:{lateness}"))
         return reward

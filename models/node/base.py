@@ -68,7 +68,7 @@ def find_closest_fn(x, y, fn_nodes):
             min_distance = distance
             closest_fn = fn
 
-    return closest_fn
+    return closest_fn, min_distance
 
 
 def findDataRate(task, executor, closest_fn) -> float:
@@ -87,7 +87,10 @@ def findDataRate(task, executor, closest_fn) -> float:
     # print(green_bg(
     #     f"task.id: {task.id}, task.executor.id: {executor.id}, task.power: {task.power}, task.executor.power: {executor.power}, eta : {eta}"))
     if task.SNR != 0:
-        return eta * Config.SimulatorConfig.BANDWIDTH * np.log2(1 + task.SNR)
+        dataRate = eta * Config.SimulatorConfig.BANDWIDTH * np.log2(1 + task.SNR)
+        # print(green_bg(f"executor: {task.executor.id} => eta: {eta}"))
+        # print(blue_bg(f"DataRate: {dataRate}, DataSize:{task.dataSize} => {task.dataSize/dataRate}"))
+        return dataRate
     else:
         return 1e-9
 
@@ -196,7 +199,7 @@ class NodeABC(ModelBaseABC, abc.ABC):
                 # print(blue_bg(f"executor: {task.executor.id}::: delay: {task.dataSize / dataRate}, dataRate: {dataRate}"))
             elif self.layer == Layer.CLOUD:
 
-                closest_fn = find_closest_fn(task.creator.x, task.creator.y, fixed_fog_nodes)
+                closest_fn, _ = find_closest_fn(task.creator.x, task.creator.y, fixed_fog_nodes)
                 dataRate = findDataRate(task, task.executor, closest_fn)
 
                 if closest_fn.x == Config.CloudConfig.CLOSEST_FOG_X and closest_fn.y == Config.CloudConfig.CLOSEST_FOG_Y:
@@ -330,6 +333,7 @@ class MobileNodeABC(NodeABC, abc.ABC):
         self.last_tbs_deadline = [0.0] * self.num_cores
         self.periodic_allocation = [[] for _ in range(self.num_cores)]
 
+    # todo: fix WFD
     def assign_local_hard_task(self, task, current_time: float) -> None:
         """Register a hard task on its offline WFD-assigned core (from task.core)."""
         if task.core is None:
@@ -379,6 +383,7 @@ class MobileNodeABC(NodeABC, abc.ABC):
         best_core_idx = 0
         min_prospective_deadline = float('inf')
 
+        # todo: check this part
         for i in range(self.num_cores):
             Us = self.core_Us[i]
             last_dl = self.last_tbs_deadline[i]

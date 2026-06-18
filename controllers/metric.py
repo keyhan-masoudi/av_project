@@ -17,6 +17,7 @@ class MetricsController:
         self.no_device_found_to_run_becauseOf_Noise = 0
         self.migrations_count = 0  # Total number of migrations happened in system.
         self.deadline_misses = 0  # Total number of deadline misses happened in system.
+        self.hard_deadline_misses = 0
         self.no_resource_found = 0  # Total number of tasks that did not find resource to execute in system.
         self.migrate_and_miss = 0
         self.local_execution = 0
@@ -48,6 +49,13 @@ class MetricsController:
 
         self.cloudDataRate: list[float] = []
         self.fogDataRate: list[float] = []
+
+        self.convergence_data: List[Dict] = []
+
+        self.total_reward = 0.0
+        self.total_rl_tasks = 0
+        self.current_step_reward = 0.0
+        self.current_step_rl_tasks = 0
 
     def addFogDataRate(self, dataRate: float):
         self.fogDataRate.append(dataRate)
@@ -95,6 +103,9 @@ class MetricsController:
         self.current_step_deadline_misses += 1
         self.deadline_misses += 1
 
+    def inc_hard_deadline_miss(self):
+        self.hard_deadline_misses += 1
+
     def inc_total_tasks(self):
         self.total_tasks += 1
 
@@ -127,13 +138,16 @@ class MetricsController:
         self.current_step_completed_tasks = 0
         self.current_step_transmission = 0
         self.count_step_transmission = 0
+        self.current_step_reward = 0.0
+        self.current_step_rl_tasks = 0
 
     def log_metrics(self):
         print("Metrics:")
         print(f"\tTotal packet loss: {self.packet_loss}")
         print(f"\tTotal no_device_found_to_run_becauseOf_Noise: {self.no_device_found_to_run_becauseOf_Noise}")
         # print(f"\tTotal migrations: {self.migrations_count}")
-        print(f"\tTotal deadline misses: {self.deadline_misses}")
+        print(f"\tTotal soft deadline misses: {self.deadline_misses}")
+        print(f"\tTotal hard deadline misses: {self.hard_deadline_misses}")
         # print(f"\tTotal migrate and misses: {self.migrate_and_miss}")
         print(f"\tTotal cloud tasks: {self.cloud_tasks}")
         print(f"\tTotal local execution tasks: {self.local_execution}")
@@ -165,9 +179,23 @@ class MetricsController:
             if self.deadline_misses != 0:
                 no_resource_ratio = self.no_resource_found * 100 / self.deadline_misses
 
+        step_avg_reward = (self.current_step_reward / self.current_step_rl_tasks) if self.current_step_rl_tasks > 0 else 0
+        cumulative_avg_reward = (self.total_reward / self.total_rl_tasks) if self.total_rl_tasks > 0 else 0
+
+        convergence_record = {
+            'TimeStep': current_time,
+            'PacketLossRatio': packet_loss_ratio,
+            'DeadlineMissRatio': deadline_miss_ratio,
+            'StepAvgReward': step_avg_reward,
+            'CumulativeAvgReward': cumulative_avg_reward
+        }
+
+        self.convergence_data.append(convergence_record)
+
         metrics_data = {
             'timeStep': current_time,
             'Total deadline misses': self.deadline_misses,
+            'Total hard deadline misses': self.hard_deadline_misses,
             'Total cloud tasks': self.cloud_tasks,
             'Total local execution tasks': self.local_execution,
             'Total Hard execution tasks': self.local_hard_execution,
@@ -181,6 +209,12 @@ class MetricsController:
             # 'Transmission delay per step': self.transmission_delay_per_step
         }
         self.dataPerStep.append(metrics_data)
+
+    def add_reward(self, reward: float):
+        self.total_reward += reward
+        self.total_rl_tasks += 1
+        self.current_step_reward += reward
+        self.current_step_rl_tasks += 1
 
     def save_to_excel(self, filename: str = "final_metrics.xlsx"):
         df = pd.DataFrame(self.dataPerStep)
@@ -197,3 +231,19 @@ class MetricsController:
             print(f"Successfully saved metrics to {full_path}")
         except Exception as e:
             print(f"Error saving metrics to Excel file: {e}")
+
+    def save_convergence_to_csv(self, filename: str):
+        df = pd.DataFrame(self.convergence_data)
+        output_dir = "convergence"
+
+        if not os.path.exists(output_dir):
+            os.makedirs(output_dir)
+            print(f"Directory '{output_dir}' created.")
+
+        full_path = os.path.join(output_dir, filename)
+
+        try:
+            df.to_csv(full_path, index=False)
+            print(f"Successfully saved convergence data to {full_path}")
+        except Exception as e:
+            print(f"Error saving convergence to CSV file: {e}")

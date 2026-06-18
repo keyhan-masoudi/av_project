@@ -52,6 +52,7 @@ class Config:
         HARD_TASK_POWER: float = 0.0
 
         # α(TL): traffic impact factor for TL in {1..5}.
+        # todo: change it
         ALPHA_BY_TRAFFIC_LEVEL: dict = {
             1: 1.0,
             2: 1.05,
@@ -343,7 +344,8 @@ class Generator:
                 data_size * cycles_per_bit
             ) / (vehicle.frequency * Config.HardTaskConfig.EXEC_TIME_DIVISOR)
             task_index = self.hard_task_counters[vehicle.id]
-            task_id = f"{vehicle.id}_{task_index}"
+            task_id = f"{vehicle.id}_H_{step}_{task_index}_{period}"
+
             self.hard_task_counters[vehicle.id] += 1
             schedule[type_index] += period
 
