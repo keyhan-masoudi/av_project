@@ -1,6 +1,6 @@
 from __future__ import annotations
 from dataclasses import dataclass
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Optional
 
 import numpy as np
 
@@ -32,6 +32,8 @@ class Task(ModelBaseABC):
     creator: MobileNodeABC = None
     executor: NodeABC = None
     is_hard: bool = False
+    core: Optional[int] = None
+    type_index: Optional[int] = None
 
     rl_state = None
     rl_action = None
