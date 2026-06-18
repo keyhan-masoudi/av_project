@@ -1,4 +1,5 @@
 import csv
+import json
 import os
 import pickle
 import random
@@ -100,81 +101,35 @@ class Config:
         }
         DEFAULT_WEATHER_LEVEL: int = 1
 
-        # todo: add more tasks
-        TASKS: tuple = (
-            {
-                "period": 7,
-                "size_min": 800,
-                "size_max": 1200,
-                "cycles_min": 1000,
-                "cycles_max": 1200,
-                "lambda": 1.0,
-            },
-            {
-                "period": 5,
-                "size_min": 1000,
-                "size_max": MAX_TASK_SIZE,
-                "cycles_min": 600,
-                "cycles_max": 800,
-                "lambda": 1.0,
-            },
-            {
-                "period": 6,
-                "size_min": 500,
-                "size_max": 1000,
-                "cycles_min": 500,
-                "cycles_max": 1000,
-                "lambda": 1.0,
-            },
-            {
-                "period": 4,
-                "size_min": 800,
-                "size_max": 900,
-                "cycles_min": 100,
-                "cycles_max": 700,
-                "lambda": 1.0,
-            },
-            {
-                "period": 9,
-                "size_min": 800,
-                "size_max": 1000,
-                "cycles_min": 1000,
-                "cycles_max": 1100,
-                "lambda": 1.0,
-            },
-            {
-                "period": 12,
-                "size_min": 300,
-                "size_max": 500,
-                "cycles_min": 1100,
-                "cycles_max": 1300,
-                "lambda": 1.0,
-            },
-            {
-                "period": 3,
-                "size_min": 1000,
-                "size_max": 2000,
-                "cycles_min": 300,
-                "cycles_max": 600,
-                "lambda": 1.0,
-            },
-            {
-                "period": 10,
-                "size_min": 400,
-                "size_max": 700,
-                "cycles_min": 700,
-                "cycles_max": 900,
-                "lambda": 1.0,
-            },
-            {
-                "period": 2,
-                "size_min": 200,
-                "size_max": 400,
-                "cycles_min": 100,
-                "cycles_max": 200,
-                "lambda": 1.0,
-            },
-        )
+        HARD_TASK_SPECS_JSON: str = "./data/hard_task_parameters_uunifast.json"
+
+        @classmethod
+        def load_tasks(cls) -> tuple:
+            """Load hard-task specs produced by task_parameter_generation_uunifast.py."""
+            path = cls.HARD_TASK_SPECS_JSON
+            if not os.path.exists(path):
+                raise FileNotFoundError(
+                    f"Hard task specs not found at {path}. "
+                    "Run task_parameter_generation_uunifast.py first."
+                )
+            with open(path, encoding="utf-8") as f:
+                data = json.load(f)
+
+            tasks = []
+            for type_index, spec in enumerate(data["tasks"]):
+                tasks.append({
+                    "type_index": type_index,
+                    "period": spec["period"],
+                    "size_min": spec["size_min"],
+                    "size_max": spec["size_max"],
+                    "cycles_min": spec["cycles_min"],
+                    "cycles_max": spec["cycles_max"],
+                    "lambda": spec["lambda"],
+                    "core": spec["core"],
+                })
+            return tuple(tasks)
+
+        TASKS: tuple = ()
 
 
 @dataclass
@@ -201,6 +156,8 @@ class Task:
     creator: str  # Thd id of the node who created the task.
     cycles_per_bit: float
     dataSize: float
+    core: int = 0
+    type_index: int = 0
 
 class Generator:
     def __init__(self):
@@ -210,7 +167,7 @@ class Generator:
         self.current_hard_tasks = []
         self.hard_task_counters = defaultdict(int)
         self.soft_task_counters = defaultdict(int)
-        # Per-vehicle next release step keyed by period; cleared when vehicle leaves.
+        # Per-vehicle next release step keyed by task type_index; cleared when vehicle leaves.
         self.hard_task_release_schedule: dict[str, dict[int, float]] = {}
         self.tasks_count_per_step = defaultdict(int)
         self.average_speed_per_step = defaultdict(float)
@@ -336,6 +293,8 @@ class Generator:
                 t_elem.set('creator', task.creator)
                 t_elem.set('cycles_per_bit', f"{task.cycles_per_bit:.2f}")
                 t_elem.set('dataSize', f"{task.dataSize:.2f}")
+                t_elem.set('core', str(task.core))
+                t_elem.set('type_index', str(task.type_index))
 
         xml_str = minidom.parseString(Et.tostring(root)).toprettyxml(indent="    ")
         with open(f"./data/hard_tasks/chunk_{self.current_chunk}.xml", 'w', encoding='utf-8') as f:
@@ -350,7 +309,7 @@ class Generator:
     def _init_hard_task_schedule(self, vehicle_id: str, entry_step: int) -> None:
         """Start periodic releases when a vehicle enters the simulation."""
         self.hard_task_release_schedule[vehicle_id] = {
-            task_spec["period"]: float(entry_step)
+            task_spec["type_index"]: float(entry_step)
             for task_spec in Config.HardTaskConfig.TASKS
         }
 
@@ -370,8 +329,9 @@ class Generator:
         hard_tasks = []
 
         for task_spec in Config.HardTaskConfig.TASKS:
+            type_index = task_spec["type_index"]
             period = task_spec["period"]
-            if step < schedule[period] - 1e-9:
+            if step < schedule[type_index] - 1e-9:
                 continue
 
             size_baseline = random.uniform(task_spec["size_min"], task_spec["size_max"])
@@ -385,7 +345,7 @@ class Generator:
             task_index = self.hard_task_counters[vehicle.id]
             task_id = f"{vehicle.id}_{task_index}"
             self.hard_task_counters[vehicle.id] += 1
-            schedule[period] += period
+            schedule[type_index] += period
 
             hard_tasks.append(Task(
                 id=task_id,
@@ -395,6 +355,8 @@ class Generator:
                 creator=vehicle.id,
                 cycles_per_bit=cycles_per_bit,
                 dataSize=data_size,
+                core=task_spec["core"],
+                type_index=type_index,
             ))
 
         return hard_tasks
@@ -639,6 +601,7 @@ class Generator:
 
 def main(path: str):
     """Main function to run the task generator."""
+    Config.HardTaskConfig.TASKS = Config.HardTaskConfig.load_tasks()
     generator = Generator()
     generator.generate_data(path)
     generator.save_metrics_to_csv("./data/metrics.csv")
