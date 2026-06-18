@@ -314,6 +314,7 @@ class MobileNodeABC(NodeABC, abc.ABC):
     last_tbs_deadline: List[float] = field(init=False)
     periodic_allocation: List[List[dict]] = field(init=False)
     local_hard_tasks = []
+    registered_hard_task_types: set = field(init=False, default_factory=set)
 
     def __post_init__(self):
         super().__post_init__()
@@ -323,7 +324,16 @@ class MobileNodeABC(NodeABC, abc.ABC):
         self.periodic_allocation = [[] for _ in range(self.num_cores)]
 
     def assign_local_hard_task(self, task, current_time: float) -> None:
-        """Register a hard task on this vehicle's local processor using Worst Fit (Utilization-based)."""
+        """Register a hard task on its offline WFD-assigned core (from task.core)."""
+        if task.core is None:
+            raise ValueError(f"Hard task {task.id} is missing offline core assignment")
+
+        core_idx = int(task.core)
+        if not 0 <= core_idx < self.num_cores:
+            raise ValueError(
+                f"Hard task {task.id} core {core_idx} out of range for {self.num_cores} cores"
+            )
+
         task.creator = self
         task.executor = self
         task.creator_id = self.id
@@ -336,19 +346,17 @@ class MobileNodeABC(NodeABC, abc.ABC):
         task.is_hard = True
         self.local_hard_tasks.append(task)
 
-
         period = task.deadline - task.release_time
         task_utilization = task.total_exec_time / period if period > 0 else task.total_exec_time
 
-        best_core_idx = self.core_Up.index(min(self.core_Up))
+        if task.type_index is not None and task.type_index not in self.registered_hard_task_types:
+            self.core_Up[core_idx] += task_utilization
+            self.core_Us[core_idx] = max(0.01, 1.0 - self.core_Up[core_idx])
+            self.registered_hard_task_types.add(task.type_index)
 
-        self.core_Up[best_core_idx] += task_utilization
+        self.core_loads[core_idx] += task.total_exec_time
 
-        self.core_Us[best_core_idx] = max(0.01, 1.0 - self.core_Up[best_core_idx])
-
-        self.core_loads[best_core_idx] += task.total_exec_time
-
-        heapq.heappush(self.cores[best_core_idx], (task.deadline, task.release_time, task))
+        heapq.heappush(self.cores[core_idx], (task.deadline, task.release_time, task))
 
     def assign_task(self, task, current_time: float, fixed_fog_nodes=None) -> None:
         self.tasks.append(task)
