@@ -134,6 +134,8 @@ class TaskSumoXMLParser(SumoXMLParserABC):
 
             tasks: List[Task] = []
             for task in time.findall('task'):
+                core_attr = task.get('core')
+                type_index_attr = task.get('type_index')
                 tasks.append(
                     Task(
                         id=task.get('id'),
@@ -144,7 +146,9 @@ class TaskSumoXMLParser(SumoXMLParserABC):
                         creator_id=task.get('creator'),
                         dataSize=float(task.get('dataSize')),
                         cycles_per_bit=float(task.get('cycles_per_bit')),
-                        remaining_time=-1.0
+                        remaining_time=-1.0,
+                        core=int(core_attr) if core_attr is not None else None,
+                        type_index=int(type_index_attr) if type_index_attr is not None else None,
                     )
                 )
             data[step] = tasks
