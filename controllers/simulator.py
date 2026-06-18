@@ -461,13 +461,6 @@ class Simulator:
             if creator is None:
                 print(f"there is no creator for hard task: {creator_id}\n")
                 continue
-            # --- Added to complete the WFD algorithm ---
-            # Sort tasks on the same machine in descending order by productivity (C/T)
-            creator_tasks = sorted(
-                creator_tasks,
-                key=lambda t: t.exec_time / float(t.id.split('_')[-1]),
-                reverse=True
-            )
             for task in creator_tasks:
                 self._assign_hard_task_locally(task, creator, current_time)
                 self.metrics.inc_total_tasks()
