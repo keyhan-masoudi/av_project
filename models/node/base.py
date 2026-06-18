@@ -332,6 +332,7 @@ class MobileNodeABC(NodeABC, abc.ABC):
         self.last_tbs_deadline = [0.0] * self.num_cores
         self.periodic_allocation = [[] for _ in range(self.num_cores)]
 
+    # todo: fix WFD
     def assign_local_hard_task(self, task, current_time: float) -> None:
         """Register a hard task on this vehicle's local processor using Worst Fit (Utilization-based)."""
         task.creator = self
@@ -374,6 +375,7 @@ class MobileNodeABC(NodeABC, abc.ABC):
         best_core_idx = 0
         min_prospective_deadline = float('inf')
 
+        # todo: check this part
         for i in range(self.num_cores):
             Us = self.core_Us[i]
             last_dl = self.last_tbs_deadline[i]
