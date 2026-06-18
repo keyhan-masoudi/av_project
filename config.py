@@ -55,13 +55,15 @@ class Config:
         SIMULATION_START_TIME = 300
         SIMULATION_DURATION = 1300
         TIMEOUT_TIME = 1
-        BANDWIDTH = 150
+        # todo: should change this variable
+        BANDWIDTH = 3
 
     class CloudConfig:
         DEFAULT_X = 6000
         DEFAULT_Y = 1500
         DEFAULT_RADIUS = 10000
-        CLOUD_BANDWIDTH = 60
+        # todo: should change this variable
+        CLOUD_BANDWIDTH = 1
         MAX_TASK_QUEUE_LEN = 2000
         DEFAULT_COMPUTATION_POWER = 3500
         CLOUD_NODE_FREQUENCY = 5
