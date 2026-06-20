@@ -106,11 +106,14 @@ class PPOAgent:
             advantages.insert(0, last_gae_lam)
             returns.insert(0, last_gae_lam + old_values[i])
 
+        # Convert lists to single numpy arrays FIRST to avoid PyTorch's slow conversion warning
         old_states = torch.FloatTensor(np.array(states)).to(self.device)
         old_actions = torch.LongTensor(np.array(actions)).to(self.device).view(-1, 1)
         old_log_probs = torch.FloatTensor(np.array(old_log_probs)).to(self.device).view(-1, 1)
-        advantages = torch.FloatTensor(advantages).to(self.device).view(-1, 1)
-        returns = torch.FloatTensor(returns).to(self.device).view(-1, 1)
+
+        # Fixed: Wrapping advantages and returns in np.array()
+        advantages = torch.FloatTensor(np.array(advantages)).to(self.device).view(-1, 1)
+        returns = torch.FloatTensor(np.array(returns)).to(self.device).view(-1, 1)
 
         advantages = (advantages - advantages.mean()) / (advantages.std() + 1e-7)
 
