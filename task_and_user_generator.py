@@ -127,10 +127,10 @@ class Config:
                     "cycles_max": spec["cycles_max"],
                     "lambda": spec["lambda"],
                     "core": spec["core"],
+                    "utilization": spec.get("utilization", 0.0),
+                    "wcet": spec.get("wcet", 0.0)
                 })
             return tuple(tasks)
-
-        TASKS: tuple = ()
 
 
 @dataclass

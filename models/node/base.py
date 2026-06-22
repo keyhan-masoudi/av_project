@@ -323,7 +323,7 @@ class MobileNodeABC(NodeABC, abc.ABC):
     core_Us: List[float] = field(init=False)
     last_tbs_deadline: List[float] = field(init=False)
     periodic_allocation: List[List[dict]] = field(init=False)
-    local_hard_tasks = []
+    local_hard_tasks: list = field(init=False, default_factory=list)
     registered_hard_task_types: set = field(init=False, default_factory=set)
 
     def __post_init__(self):
@@ -333,7 +333,31 @@ class MobileNodeABC(NodeABC, abc.ABC):
         self.last_tbs_deadline = [0.0] * self.num_cores
         self.periodic_allocation = [[] for _ in range(self.num_cores)]
 
-    # todo: fix WFD
+        import json
+        import os
+
+        # Load utilization parameters directly from the JSON file
+        json_path = os.path.join(Config.VehiclesTraffic.PROJECT_ROOT, "data", "hard_task_parameters_uunifast.json")
+        if not os.path.exists(json_path):
+            json_path = "hard_tasks.json"
+
+        if os.path.exists(json_path):
+            try:
+                with open(json_path, "r", encoding="utf-8") as f:
+                    data = json.load(f)
+                for spec in data.get("tasks", []):
+                    core_idx = spec.get("core", -1)
+                    if 0 <= core_idx < self.num_cores:
+                        self.core_Up[core_idx] += spec.get("utilization", 0.0)
+            except Exception as e:
+                print(blue_bg(f"Warning: Failed to load JSON: {e}"))
+        else:
+            print(blue_bg(f"Warning: WFD JSON not found at {json_path}. TBS will use default bandwidth."))
+
+        # Calculate final Us for TBS based on the offline worst-case parameters
+        for i in range(self.num_cores):
+            self.core_Us[i] = max(0.01, 1.0 - self.core_Up[i])
+
     def assign_local_hard_task(self, task, current_time: float) -> None:
         """Register a hard task on its offline WFD-assigned core (from task.core)."""
         if task.core is None:
@@ -356,15 +380,6 @@ class MobileNodeABC(NodeABC, abc.ABC):
         task.start_time = current_time
         task.is_hard = True
         self.local_hard_tasks.append(task)
-
-        period = task.deadline - task.release_time
-        task_utilization = task.total_exec_time / period if period > 0 else task.total_exec_time
-
-        if task.type_index is not None and task.type_index not in self.registered_hard_task_types:
-            self.core_Up[core_idx] += task_utilization
-            self.core_Us[core_idx] = max(0.01, 1.0 - self.core_Up[core_idx])
-            self.registered_hard_task_types.add(task.type_index)
-
         self.core_loads[core_idx] += task.total_exec_time
 
         heapq.heappush(self.cores[core_idx], (task.deadline, task.release_time, task))

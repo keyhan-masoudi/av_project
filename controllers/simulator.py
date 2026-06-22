@@ -425,6 +425,8 @@ class Simulator:
             #     self.metrics.print_node_tasks()
             # if current_time == 500:
             #     self.metrics.saveToExcel("test.csv")
+            self.process_debug_logs(current_time)
+        self.process_debug_logs(current_time, force_all=True)
 
         self.drop_not_completed_tasks()
         self.save_missed_deadlines_to_excel(
@@ -579,6 +581,18 @@ class Simulator:
                     if task.is_hard:
                         # print(red_bg(task.id))
                         self.metrics.inc_hard_deadline_miss()
+                        self.pending_debug_logs = []
+                        current_time = self.clock.get_current_time()
+                        print(red_bg(
+                            f" HARD TASK MISS DETECTED: {task.id}. Scheduling Gantt chart for T={current_time + 10.0}"))
+
+                        self.pending_debug_logs.append({
+                            'trigger_time': current_time + 10.0,
+                            'target_node_id': task.executor.id,
+                            'window_start': max(0, current_time - 10.0),
+                            'window_end': current_time + 10.0,
+                            'missed_task_id': task.id
+                        })
                     else:
                         # print(blue_bg(task.id))
                         self.metrics.inc_deadline_miss()
@@ -1088,3 +1102,193 @@ class Simulator:
 
         except Exception as e:
             print(f"Error loading Spatial Grid Pickle file: {e}")
+
+    def process_debug_logs(self, current_time: float, force_all: bool = False):
+        """Processes and prints debug logs for delayed hard task misses."""
+        if not hasattr(self, 'pending_debug_logs'):
+            return
+
+        ready_logs = [log for log in self.pending_debug_logs if force_all or current_time >= log['trigger_time']]
+        for log in ready_logs:
+            target_node_id = log['target_node_id']
+            w_start = log['window_start']
+            w_end = log['window_end']
+            missed_task = log['missed_task_id']
+
+            merged_nodes = {
+                **self.mobile_fog_nodes,
+                **self.user_nodes,
+                **self.fixed_fog_nodes,
+                self.cloud_node.id: self.cloud_node,
+            }
+            node = merged_nodes.get(target_node_id)
+
+            print(f"\n{red_bg('=' * 80)}")
+            print(red_bg(f" DEBUG LOG FOR HARD DEADLINE MISS: {missed_task} on Node {target_node_id} "))
+            print(f"{red_bg('=' * 80)}")
+
+            if node and hasattr(node, 'execution_log') and node.execution_log:
+                relevant_logs = [
+                    l for l in node.execution_log
+                    if l['start'] + l['duration'] >= w_start and l['start'] <= w_end
+                ]
+                for l in relevant_logs:
+                    mark = " <<< ❌ MISSED DEADLINE" if l['task_id'] == missed_task else ""
+                    print(
+                        f"Time: {l['start']:.2f} -> {l['start'] + l['duration']:.2f} | Core: {l['core']} | Task: {l['task_id']} | Hard: {l['is_hard']}{mark}")
+            else:
+                print("No execution logs found for this node in this time window.")
+
+            print(f"{red_bg('=' * 80)}\n")
+
+            # Draw the gantt chart
+            self.draw_gantt_chart2(target_node_id, w_start, w_end, highlight_task_id=missed_task)
+
+            self.pending_debug_logs.remove(log)
+
+    def draw_gantt_chart2(self, target_node_id: str, window_start: float, window_end: float, highlight_task_id: str = None):
+        import matplotlib.pyplot as plt
+        import matplotlib.colors as mcolors
+        import matplotlib.patches as mpatches
+        from matplotlib.ticker import MultipleLocator
+        import os
+
+        merged_nodes = {
+            **self.mobile_fog_nodes,
+            **self.user_nodes,
+            **self.fixed_fog_nodes,
+            self.cloud_node.id: self.cloud_node,
+        }
+
+        node = merged_nodes.get(target_node_id)
+        if not node:
+            print(red_bg(f"Node {target_node_id} not found for Gantt chart."))
+            return
+
+        if not hasattr(node, 'execution_log') or not node.execution_log:
+            print(yellow_bg(f"No execution history found for {target_node_id}."))
+            return
+
+        fig, ax = plt.subplots(figsize=(30, 10))
+
+        base_colors = list(mcolors.TABLEAU_COLORS.values())
+        period_colors = {}
+        color_idx = 0
+
+        relevant_logs = [
+            log for log in node.execution_log
+            if log['start'] + log['duration'] > window_start and log['start'] < window_end
+        ]
+
+        if not relevant_logs:
+            print(yellow_bg(f"No tasks executed for {target_node_id} between {window_start} and {window_end}."))
+            return
+
+        for log in relevant_logs:
+            core = log['core']
+            task_id = log['task_id']
+
+            start = max(log['start'], window_start)
+            end = min(log['start'] + log['duration'], window_end)
+            duration = end - start
+
+            if duration <= 0:
+                continue
+
+            parts = task_id.split("_")
+
+            if "_S_" in task_id:
+                color = "black"
+                if len(parts) >= 3:
+                    label = f"S{parts[2]}"
+                else:
+                    label = "S"
+            elif "_H_" in task_id and len(parts) >= 5:
+                period = parts[-1]
+                if period not in period_colors:
+                    period_colors[period] = base_colors[color_idx % len(base_colors)]
+                    color_idx += 1
+                color = period_colors[period]
+                label = f"P{period}"
+            else:
+                color = "gray"
+                label = "?"
+
+            # Highlight specific task if provided
+            edgecolor = 'black'
+            linewidth = 0.8
+            label_color = 'white'
+
+            if highlight_task_id and task_id == highlight_task_id:
+                color = "red"
+                edgecolor = "yellow"
+                linewidth = 2.5
+                label = f"MISS: {label}"
+                label_color = "yellow"
+
+            ax.broken_barh(
+                [(start, duration)],
+                (core - 0.4, 0.8),
+                facecolors=color,
+                edgecolor=edgecolor,
+                linewidth=linewidth
+            )
+
+            if duration > (window_end - window_start) * 0.01:
+                ax.text(
+                    start + duration / 2,
+                    core,
+                    label,
+                    ha='center',
+                    va='center',
+                    color=label_color,
+                    fontsize=9,
+                    weight='bold'
+                )
+
+        ax.set_ylim(-1, node.num_cores)
+        ax.set_yticks(range(node.num_cores))
+        ax.set_yticklabels([f"Core {i}" for i in range(node.num_cores)])
+
+        ax.set_xlim(window_start, window_end)
+        ax.xaxis.set_major_locator(MultipleLocator(1))
+
+        ax.set_xlabel('Simulation Time (Seconds)', fontsize=12, weight='bold')
+        ax.set_ylabel('CPU Cores', fontsize=12, weight='bold')
+
+        ax.set_title(
+            f'Scheduling Gantt Chart for {target_node_id} (Time {window_start} to {window_end})',
+            fontsize=14,
+            weight='bold'
+        )
+
+        ax.grid(True, axis='x', linestyle='--', alpha=0.6)
+
+        legend_patches = [
+            mpatches.Patch(color=color, label=f"Hard - Period {period}")
+            for period, color in period_colors.items()
+        ]
+
+        legend_patches.append(mpatches.Patch(color="black", label="Soft Tasks"))
+
+        ax.legend(
+            handles=legend_patches,
+            loc='center left',
+            bbox_to_anchor=(1.02, 0.5)
+        )
+
+        plt.tight_layout()
+
+        output_dir = "Gantt"
+        if not os.path.exists(output_dir):
+            os.makedirs(output_dir)
+
+        filepath = os.path.join(
+            output_dir,
+            f"gantt_{target_node_id}_t{int(window_start)}_to_{int(window_end)}.png"
+        )
+
+        plt.savefig(filepath, dpi=400, bbox_inches='tight')
+        plt.close()
+
+        print(green_bg(f"✅ Gantt chart saved successfully at: {filepath}"))
