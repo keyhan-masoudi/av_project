@@ -24,9 +24,9 @@ class Config:
         DEADLINE_MIN_FREE_TIME: float = 3.0  # Less deadline flexibility # note : next time make it a little bit more
         DEADLINE_MAX_FREE_TIME: float = 15.0
         MIN_CYCLE_PER_BIT: float = 1  # *10^3
-        MAX_CYCLE_PER_BIT: float = 1.5
-        MIN_DATASIZE: float = 0.5  # *10^6
-        MAX_DATASIZE: float = 0.8
+        MAX_CYCLE_PER_BIT: float = 2
+        MIN_DATASIZE: float = 0.25  # *10^6
+        MAX_DATASIZE: float = 1.5
 
     class VehicleConfig:
         TASK_GENERATION_RATE: float = 0.35  # More frequent task generation
