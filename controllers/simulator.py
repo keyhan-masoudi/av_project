@@ -459,6 +459,9 @@ class Simulator:
     
     def load_hard_tasks(self, current_time: float) -> int:
         """Load hard tasks onto each vehicle's local processor."""
+        if not Config.SimulatorConfig.ENABLE_HARD_TASKS:
+            return 0
+
         loaded_count = 0
         for creator_id, creator_tasks in self.loader.load_nodes_hard_tasks(current_time).items():
             creator = self._resolve_task_creator(creator_id)
@@ -467,7 +470,7 @@ class Simulator:
                 continue
             for task in creator_tasks:
                 self._assign_hard_task_locally(task, creator, current_time)
-                self.metrics.inc_total_tasks()
+                # self.metrics.inc_total_tasks()
                 loaded_count += 1
         return loaded_count
 

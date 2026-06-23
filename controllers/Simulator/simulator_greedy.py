@@ -44,7 +44,7 @@ class SimulatorGreedy(Simulator):
                     if creator.core_Up[core_idx] + task_utilization <= 0.693:
                         # Success: Assign via Alg 1
                         self._assign_hard_task_locally(task, creator, current_time, core_idx)
-                        self.metrics.inc_total_tasks()
+                        # self.metrics.inc_total_tasks()
                         loaded_count += 1
                         assigned = True
                         break # Stop checking cores
@@ -72,7 +72,7 @@ class SimulatorGreedy(Simulator):
                     if sbf_time_available >= dbf:
                         # Success: Assign via Alg 2
                         self._assign_hard_task_locally(task, creator, current_time, core_idx)
-                        self.metrics.inc_total_tasks()
+                        # self.metrics.inc_total_tasks()
                         loaded_count += 1
                         assigned = True
                         break # Stop checking cores

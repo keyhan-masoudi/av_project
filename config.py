@@ -57,6 +57,7 @@ class Config:
         TIMEOUT_TIME = 1
         # todo: should change this variable
         BANDWIDTH = 3
+        ENABLE_HARD_TASKS = True
 
     class CloudConfig:
         DEFAULT_X = 6000

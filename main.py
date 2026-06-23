@@ -14,7 +14,7 @@ from controllers.Simulator.simulator_greedy import SimulatorGreedy
 
 
 def run_one(params):
-    algorithm, method, threshold, traffic_noise_profile, attenuationLevel, city, local_cores = params
+    algorithm, method, threshold, traffic_noise_profile, attenuationLevel, city, local_cores, enable_hard_tasks = params
     Config.ZoneManagerConfig.DEFAULT_ALGORITHM = algorithm
     Config.NoiseMethod.DEFAULT_METHOD = method
     Config.NoiseConfig.DEFAULT_THRESHOLD = threshold
@@ -22,6 +22,7 @@ def run_one(params):
     Config.TrafficNoise.DEFAULT_TrafficNoiseLevel = traffic_noise_profile
     Config.City.DEFAULT_CITY = city
     Config.UserNodeConfig.NUM_CORE = local_cores
+    Config.SimulatorConfig.ENABLE_HARD_TASKS = enable_hard_tasks
     print(f"=====================================================")
     print(f"=== Start of : {algorithm} ===")
     print(f"=====================================================")
@@ -106,17 +107,17 @@ def run_one(params):
 
 if __name__ == "__main__":
     algorithms = [
-        Config.ZoneManagerConfig.ALGORITHM_RANDOM,
+        # Config.ZoneManagerConfig.ALGORITHM_RANDOM,
         # Config.ZoneManagerConfig.ALGORITHM_HEURISTIC,
         # Config.ZoneManagerConfig.ALGORITHM_ONLY_CLOUD,
         # Config.ZoneManagerConfig.ALGORITHM_ONLY_FOG,
-        # Config.ZoneManagerConfig.ALGORITHM_ONLY_LOCAL,
+        Config.ZoneManagerConfig.ALGORITHM_ONLY_LOCAL,
         # Config.ZoneManagerConfig.ALGORITHM_DEEP_RL,
         # Config.ZoneManagerConfig.ALGORITHM_DDPG,
         # Config.ZoneManagerConfig.ALGORITHM_PPO,
         # Config.ZoneManagerConfig.ALGORITHM_SAC,
         # Config.ZoneManagerConfig.ALGORITHM_MADDPG,
-        Config.ZoneManagerConfig.ALGORITHM_GREEDY,
+        # Config.ZoneManagerConfig.ALGORITHM_GREEDY,
     ]
 
     methods = [
@@ -149,6 +150,12 @@ if __name__ == "__main__":
         # Config.City.HAMBURG,
     ]
 
+    # add just for ablation study
+    enable_hard_tasks_options = [
+        True,
+        # False
+    ]
+
     all_results = []
     # for algorithm in algorithms:
     #     print(f"=====================================================")
@@ -174,9 +181,11 @@ if __name__ == "__main__":
     #
     #
 
-    tasks_for_current_algo = [(algorithm, m, t, n, at, city, lc) for algorithm in algorithms for m in methods for t in
+    tasks_for_current_algo = [(algorithm, m, t, n, at, city, lc, eht) for algorithm in algorithms for m in methods for t in
                               thresholds for n in
-                              traffic_noise_profiles for at in attenuationLevels for city in cities for lc in local_cores]
+                              traffic_noise_profiles for at in attenuationLevels for city in cities for lc in local_cores
+                              for eht in enable_hard_tasks_options
+                              ]
 
     with ProcessPoolExecutor() as executor:
         futures = {executor.submit(run_one, t): t for t in tasks_for_current_algo}
