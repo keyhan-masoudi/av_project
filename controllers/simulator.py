@@ -411,7 +411,7 @@ class Simulator:
             self.update_graph()
             self.metrics.flush()
 
-            if current_time >= 320.0 and not getattr(self, '_gantt_340_drawn', False):
+            if current_time >= 320.0 and not getattr(self, '_gantt_340_drawn', False) and not Config.SimulatorConfig.BASELINE_PARALLEL_FREQUENCY:
                 print(blue_bg(f"--- Attempting to draw Gantt chart at time {current_time} ---"))
                 self.draw_gantt_chart(target_id, window_start=300.0, window_end=320.0)
                 self.draw_gantt_chart(target_id2, window_start=300.0, window_end=320.0)
@@ -429,14 +429,21 @@ class Simulator:
         self.process_debug_logs(current_time, force_all=True)
 
         self.drop_not_completed_tasks()
+        hardTasks = Config.SimulatorConfig.ENABLE_HARD_TASKS and "withHardTasks" or "withoutHardTasks"
+        parallel = Config.SimulatorConfig.BASELINE_PARALLEL_FREQUENCY and "withParallel" or "withoutParallel"
         self.save_missed_deadlines_to_excel(
-            f"missed_deadlines_report_{Config.ZoneManagerConfig.DEFAULT_ALGORITHM}_{Config.NoiseMethod.DEFAULT_METHOD}_{Config.NoiseConfig.DEFAULT_THRESHOLD}_{Config.TrafficNoise.DEFAULT_TrafficNoiseLevel}_{Config.AttenuationLevel.DEFAULT_AttenuationLevelName}_{Config.City.DEFAULT_CITY}.csv")
+            f"missed_deadlines_report_{Config.ZoneManagerConfig.DEFAULT_ALGORITHM}_{Config.NoiseMethod.DEFAULT_METHOD}_{Config.NoiseConfig.DEFAULT_THRESHOLD}_{Config.TrafficNoise.DEFAULT_TrafficNoiseLevel}"
+            f"_{Config.AttenuationLevel.DEFAULT_AttenuationLevelName}_{Config.City.DEFAULT_CITY}_{hardTasks}_{parallel}.csv")
         self.save_success_deadlines_to_excel(
-            f"success_deadlines_report_{Config.ZoneManagerConfig.DEFAULT_ALGORITHM}_{Config.NoiseMethod.DEFAULT_METHOD}_{Config.NoiseConfig.DEFAULT_THRESHOLD}_{Config.TrafficNoise.DEFAULT_TrafficNoiseLevel}_{Config.AttenuationLevel.DEFAULT_AttenuationLevelName}_{Config.City.DEFAULT_CITY}.csv")
+            f"success_deadlines_report_{Config.ZoneManagerConfig.DEFAULT_ALGORITHM}_{Config.NoiseMethod.DEFAULT_METHOD}_{Config.NoiseConfig.DEFAULT_THRESHOLD}_{Config.TrafficNoise.DEFAULT_TrafficNoiseLevel}"
+            f"_{Config.AttenuationLevel.DEFAULT_AttenuationLevelName}_{Config.City.DEFAULT_CITY}_{hardTasks}_{parallel}.csv")
         self.metrics.save_to_excel(
-            f"final_metrics_summary_{Config.ZoneManagerConfig.DEFAULT_ALGORITHM}_{Config.NoiseMethod.DEFAULT_METHOD}_{Config.NoiseConfig.DEFAULT_THRESHOLD}_{Config.TrafficNoise.DEFAULT_TrafficNoiseLevel}_{Config.AttenuationLevel.DEFAULT_AttenuationLevelName}_{Config.City.DEFAULT_CITY}.xlsx")
+            f"final_metrics_summary_{Config.ZoneManagerConfig.DEFAULT_ALGORITHM}_{Config.NoiseMethod.DEFAULT_METHOD}_{Config.NoiseConfig.DEFAULT_THRESHOLD}_{Config.TrafficNoise.DEFAULT_TrafficNoiseLevel}"
+            f"_{Config.AttenuationLevel.DEFAULT_AttenuationLevelName}_{Config.City.DEFAULT_CITY}_{hardTasks}_{parallel}.xlsx")
         self.metrics.save_convergence_to_csv(
-            f"convergence_{Config.ZoneManagerConfig.DEFAULT_ALGORITHM}_{Config.NoiseMethod.DEFAULT_METHOD}_{Config.NoiseConfig.DEFAULT_THRESHOLD}_{Config.TrafficNoise.DEFAULT_TrafficNoiseLevel}_{Config.AttenuationLevel.DEFAULT_AttenuationLevelName}_{Config.City.DEFAULT_CITY}.csv")
+            f"convergence_{Config.ZoneManagerConfig.DEFAULT_ALGORITHM}_{Config.NoiseMethod.DEFAULT_METHOD}_{Config.NoiseConfig.DEFAULT_THRESHOLD}_{Config.TrafficNoise.DEFAULT_TrafficNoiseLevel}"
+            f"_{Config.AttenuationLevel.DEFAULT_AttenuationLevelName}_{Config.City.DEFAULT_CITY}_{hardTasks}_{parallel}.csv")
+
     def _resolve_task_creator(self, creator_id: str) -> Optional[MobileNodeABC]:
         if creator_id in self.user_nodes:
             return self.user_nodes[creator_id]
@@ -456,7 +463,7 @@ class Simulator:
                 task.creator = creator
                 tasks[creator_id].append(task)
         return tasks
-    
+
     def load_hard_tasks(self, current_time: float) -> int:
         """Load hard tasks onto each vehicle's local processor."""
         if not Config.SimulatorConfig.ENABLE_HARD_TASKS:
@@ -1145,7 +1152,8 @@ class Simulator:
             print(f"{red_bg('=' * 80)}\n")
 
             # Draw the gantt chart
-            self.draw_gantt_chart2(target_node_id, w_start, w_end, highlight_task_id=missed_task)
+            if not Config.SimulatorConfig.BASELINE_PARALLEL_FREQUENCY:
+                self.draw_gantt_chart2(target_node_id, w_start, w_end, highlight_task_id=missed_task)
 
             self.pending_debug_logs.remove(log)
 

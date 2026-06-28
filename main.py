@@ -14,7 +14,7 @@ from controllers.Simulator.simulator_greedy import SimulatorGreedy
 
 
 def run_one(params):
-    algorithm, method, threshold, traffic_noise_profile, attenuationLevel, city, local_cores, enable_hard_tasks = params
+    algorithm, method, threshold, traffic_noise_profile, attenuationLevel, city, local_cores, enable_hard_tasks, baseline_parallel_freq = params
     Config.ZoneManagerConfig.DEFAULT_ALGORITHM = algorithm
     Config.NoiseMethod.DEFAULT_METHOD = method
     Config.NoiseConfig.DEFAULT_THRESHOLD = threshold
@@ -23,6 +23,7 @@ def run_one(params):
     Config.City.DEFAULT_CITY = city
     Config.UserNodeConfig.NUM_CORE = local_cores
     Config.SimulatorConfig.ENABLE_HARD_TASKS = enable_hard_tasks
+    Config.SimulatorConfig.BASELINE_PARALLEL_FREQUENCY = baseline_parallel_freq
     print(f"=====================================================")
     print(f"=== Start of : {algorithm} ===")
     print(f"=====================================================")
@@ -78,7 +79,7 @@ def run_one(params):
         remaining_power=Config.CloudConfig.DEFAULT_COMPUTATION_POWER,
         radius=Config.CloudConfig.DEFAULT_RADIUS,
     )
-    
+
     if Config.ZoneManagerConfig.DEFAULT_ALGORITHM == Config.ZoneManagerConfig.ALGORITHM_MADDPG:
         simulator = SimulatorMADDPG(loader, Clock(), cloud)
     elif Config.ZoneManagerConfig.DEFAULT_ALGORITHM == Config.ZoneManagerConfig.ALGORITHM_DDPG:
@@ -111,11 +112,11 @@ if __name__ == "__main__":
         # Config.ZoneManagerConfig.ALGORITHM_HEURISTIC,
         # Config.ZoneManagerConfig.ALGORITHM_ONLY_CLOUD,
         # Config.ZoneManagerConfig.ALGORITHM_ONLY_FOG,
-        Config.ZoneManagerConfig.ALGORITHM_ONLY_LOCAL,
+        # Config.ZoneManagerConfig.ALGORITHM_ONLY_LOCAL,
         # Config.ZoneManagerConfig.ALGORITHM_DEEP_RL,
         # Config.ZoneManagerConfig.ALGORITHM_DDPG,
         # Config.ZoneManagerConfig.ALGORITHM_PPO,
-        # Config.ZoneManagerConfig.ALGORITHM_SAC,
+        Config.ZoneManagerConfig.ALGORITHM_SAC,
         # Config.ZoneManagerConfig.ALGORITHM_MADDPG,
         # Config.ZoneManagerConfig.ALGORITHM_GREEDY,
     ]
@@ -152,8 +153,13 @@ if __name__ == "__main__":
 
     # add just for ablation study
     enable_hard_tasks_options = [
-        True,
+        True,  # Normal execution
         # False
+    ]
+
+    baseline_parallel_freq_options = [
+        False,   # Normal DRL execution
+        # True,  # Baseline: Splitting frequency between hard and soft tasks
     ]
 
     all_results = []
@@ -181,10 +187,14 @@ if __name__ == "__main__":
     #
     #
 
-    tasks_for_current_algo = [(algorithm, m, t, n, at, city, lc, eht) for algorithm in algorithms for m in methods for t in
+    tasks_for_current_algo = [(algorithm, m, t, n, at, city, lc, eht, bsf) for algorithm in algorithms for m in methods
+                              for t
+                              in
                               thresholds for n in
-                              traffic_noise_profiles for at in attenuationLevels for city in cities for lc in local_cores
+                              traffic_noise_profiles for at in attenuationLevels for city in cities for lc in
+                              local_cores
                               for eht in enable_hard_tasks_options
+                              for bsf in baseline_parallel_freq_options
                               ]
 
     with ProcessPoolExecutor() as executor:
