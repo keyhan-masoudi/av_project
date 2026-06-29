@@ -242,6 +242,7 @@ class Simulator:
                             self.metrics.add_reward(reward)
                             next_state = chosen_zone_manager.env._get_state(task=None, current_time=current_time)
                             chosen_zone_manager.agent.store_experience(state, action, reward, next_state, done=False)
+                            chosen_zone_manager.agent.train()
 
                             timeout_time = current_time + 1
                             self.schedule_retransmission(task, timeout_time)
@@ -525,7 +526,7 @@ class Simulator:
             for task in tasks:
                 zone_manager = self.task_zone_managers.get(task.id)
                 if zone_manager:
-                    zone_manager.update(current_task=task)
+                    # zone_manager.update(current_task=task)
                     all_fog_nodes = {**zone_manager.fixed_fog_nodes, **zone_manager.mobile_fog_nodes}
                     loads = [len(node.tasks) for node in all_fog_nodes.values() if node.can_offload_task(task)]
                     if loads:
@@ -568,6 +569,7 @@ class Simulator:
                                 next_state,
                                 done=False
                             )
+                            rl_zm.agent.train()
                     # -----------------------------------------------------------------
 
                 # if task.has_migrated:
