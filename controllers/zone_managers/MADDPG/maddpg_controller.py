@@ -83,9 +83,11 @@ class MADDPGController:
 
         global_states = torch.FloatTensor(np.vstack(batch.global_states)).to(self.device)
         global_actions = torch.FloatTensor(np.vstack(batch.global_actions)).to(self.device)
-        rewards = torch.FloatTensor(batch.rewards).to(self.device)
+
+        # Fixed the warning by wrapping lists in np.array() first
+        rewards = torch.FloatTensor(np.array(batch.rewards)).to(self.device)
         global_next_states = torch.FloatTensor(np.vstack(batch.global_next_states)).to(self.device)
-        dones = torch.FloatTensor(batch.dones).to(self.device)
+        dones = torch.FloatTensor(np.array(batch.dones)).to(self.device)
 
         for i in range(self.num_agents):
             next_actions = []
