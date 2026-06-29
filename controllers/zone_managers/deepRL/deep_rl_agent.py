@@ -35,6 +35,10 @@ class DeepRLAgent:
         self.min_epsilon = min_epsilon
         self.lr = lr
 
+        self.train_step_counter = 0
+        self.update_target = 1000
+
+
         # Experience Replay Memory
         self.memory = deque(maxlen=10000)
 
@@ -113,6 +117,10 @@ class DeepRLAgent:
 
         # Decay epsilon
         self.epsilon = max(self.min_epsilon, self.epsilon * self.epsilon_decay)
+
+        self.train_step_counter += 1
+        if self.train_step_counter % self.update_target == 0:
+            self.update_target_network()
 
     def update_target_network(self):
         """
