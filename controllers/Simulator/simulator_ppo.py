@@ -117,7 +117,7 @@ class SimulatorPPO(Simulator):
                             chosen_zone_manager.agent.store_experience(state, action, reward, done, log_prob, value)
 
                             self.time_step_counter += 1
-                            if self.time_step_counter % self.update_timestep == 0 and self.time_step_counter > 0:
+                            if self.time_step_counter > self.update_timestep == 0 and self.time_step_counter > 0:
                                 print(yellow_bg(f"Updating PPO agent at time {current_time}..."))
                                 chosen_zone_manager.agent.update()
 
@@ -169,7 +169,6 @@ class SimulatorPPO(Simulator):
             for task in tasks:
                 zone_manager = self.task_zone_managers.get(task.id)
                 if zone_manager:
-                    zone_manager.update(current_task=task)
                     all_fog_nodes = {**zone_manager.fixed_fog_nodes, **zone_manager.mobile_fog_nodes}
                     loads = [len(n.tasks) for n in all_fog_nodes.values() if n.can_offload_task(task)]
                     if loads:
@@ -211,7 +210,7 @@ class SimulatorPPO(Simulator):
 
                             # 3. Step the timer and update network if needed
                             self.time_step_counter += 1
-                            if self.time_step_counter % self.update_timestep == 0 and self.time_step_counter > 0:
+                            if self.time_step_counter > self.update_timestep == 0 and self.time_step_counter > 0:
                                 print(yellow_bg(f"Updating PPO agent at time {self.clock.get_current_time()}..."))
                                 rl_zm.agent.update()
                     # -----------------------------------------------------------------

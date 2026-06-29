@@ -81,6 +81,7 @@ class SimulatorSAC(Simulator):
 
                             # Store experience immediately since the task will not execute
                             chosen_zone_manager.agent.store_experience(state, action, reward, next_state, done=False)
+                            chosen_zone_manager.agent.train()
 
                             # Schedule retransmission
                             timeout_time = current_time + 1
@@ -122,7 +123,6 @@ class SimulatorSAC(Simulator):
             for task in tasks:
                 zone_manager = self.task_zone_managers.get(task.id)
                 if zone_manager:
-                    zone_manager.update(current_task=task)
                     all_fog_nodes = {**zone_manager.fixed_fog_nodes, **zone_manager.mobile_fog_nodes}
                     loads = [len(n.tasks) for n in all_fog_nodes.values() if n.can_offload_task(task)]
                     if loads:
@@ -169,6 +169,7 @@ class SimulatorSAC(Simulator):
                                 next_state,
                                 done=False
                             )
+                            rl_zm.agent.train()
                     # =================================================================
 
                 # Handle metrics for missed or successfully completed tasks
