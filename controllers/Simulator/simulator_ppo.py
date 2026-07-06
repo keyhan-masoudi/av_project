@@ -192,8 +192,8 @@ class SimulatorPPO(Simulator):
                         if rl_zm and isinstance(rl_zm, DeepRLZoneManagerPPO):
 
                             # 1. Calculate REAL reward using the new compute function
-                            all_fogs_list = list(self.fixed_fog_nodes.values()) + list(self.mobile_fog_nodes.values())
-                            real_reward = rl_zm.env._compute_reward(task, task.executor, all_fogs_list)
+                            all_fogs_dict = {**self.fixed_fog_nodes, **self.mobile_fog_nodes}
+                            real_reward = rl_zm.env._compute_reward(task, task.executor, all_fogs_dict)
                             self.metrics.add_reward(real_reward)
 
                             # 2. Store the actual experience including specific PPO outputs
