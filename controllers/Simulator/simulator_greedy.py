@@ -165,7 +165,7 @@ class SimulatorGreedy(Simulator):
                 
         # 2. Check if we are running the Paper Baseline
         # If not, just return the raw tasks so your other algorithms work normally.
-        if self.zone_manager.__class__.__name__ != "GreedyZoneManager":
+        if self.zone_managers.__class__.__name__ != "GreedyZoneManager":
             return raw_tasks
             
         # ==========================================================
