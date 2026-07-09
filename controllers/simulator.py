@@ -242,6 +242,7 @@ class Simulator:
                             self.metrics.add_reward(reward)
                             next_state = chosen_zone_manager.env._get_state(task=None, current_time=current_time)
                             chosen_zone_manager.agent.store_experience(state, action, reward, next_state, done=False)
+                            chosen_zone_manager.agent.train()
 
                             timeout_time = current_time + 1
                             self.schedule_retransmission(task, timeout_time)
@@ -411,7 +412,7 @@ class Simulator:
             self.update_graph()
             self.metrics.flush()
 
-            if current_time >= 320.0 and not getattr(self, '_gantt_340_drawn', False):
+            if current_time >= 320.0 and not getattr(self, '_gantt_340_drawn', False) and not Config.SimulatorConfig.BASELINE_PARALLEL_FREQUENCY:
                 print(blue_bg(f"--- Attempting to draw Gantt chart at time {current_time} ---"))
                 self.draw_gantt_chart(target_id, window_start=300.0, window_end=320.0)
                 self.draw_gantt_chart(target_id2, window_start=300.0, window_end=320.0)
@@ -425,16 +426,25 @@ class Simulator:
             #     self.metrics.print_node_tasks()
             # if current_time == 500:
             #     self.metrics.saveToExcel("test.csv")
+            self.process_debug_logs(current_time)
+        self.process_debug_logs(current_time, force_all=True)
 
         self.drop_not_completed_tasks()
+        hardTasks = Config.SimulatorConfig.ENABLE_HARD_TASKS and "withHardTasks" or "withoutHardTasks"
+        parallel = Config.SimulatorConfig.BASELINE_PARALLEL_FREQUENCY and "withParallel" or "withoutParallel"
         self.save_missed_deadlines_to_excel(
-            f"missed_deadlines_report_{Config.ZoneManagerConfig.DEFAULT_ALGORITHM}_{Config.NoiseMethod.DEFAULT_METHOD}_{Config.NoiseConfig.DEFAULT_THRESHOLD}_{Config.TrafficNoise.DEFAULT_TrafficNoiseLevel}_{Config.AttenuationLevel.DEFAULT_AttenuationLevelName}_{Config.City.DEFAULT_CITY}.csv")
+            f"missed_deadlines_report_{Config.ZoneManagerConfig.DEFAULT_ALGORITHM}_{Config.NoiseMethod.DEFAULT_METHOD}_{Config.NoiseConfig.DEFAULT_THRESHOLD}_{Config.TrafficNoise.DEFAULT_TrafficNoiseLevel}"
+            f"_{Config.AttenuationLevel.DEFAULT_AttenuationLevelName}_{Config.City.DEFAULT_CITY}_{hardTasks}_{parallel}.csv")
         self.save_success_deadlines_to_excel(
-            f"success_deadlines_report_{Config.ZoneManagerConfig.DEFAULT_ALGORITHM}_{Config.NoiseMethod.DEFAULT_METHOD}_{Config.NoiseConfig.DEFAULT_THRESHOLD}_{Config.TrafficNoise.DEFAULT_TrafficNoiseLevel}_{Config.AttenuationLevel.DEFAULT_AttenuationLevelName}_{Config.City.DEFAULT_CITY}.csv")
+            f"success_deadlines_report_{Config.ZoneManagerConfig.DEFAULT_ALGORITHM}_{Config.NoiseMethod.DEFAULT_METHOD}_{Config.NoiseConfig.DEFAULT_THRESHOLD}_{Config.TrafficNoise.DEFAULT_TrafficNoiseLevel}"
+            f"_{Config.AttenuationLevel.DEFAULT_AttenuationLevelName}_{Config.City.DEFAULT_CITY}_{hardTasks}_{parallel}.csv")
         self.metrics.save_to_excel(
-            f"final_metrics_summary_{Config.ZoneManagerConfig.DEFAULT_ALGORITHM}_{Config.NoiseMethod.DEFAULT_METHOD}_{Config.NoiseConfig.DEFAULT_THRESHOLD}_{Config.TrafficNoise.DEFAULT_TrafficNoiseLevel}_{Config.AttenuationLevel.DEFAULT_AttenuationLevelName}_{Config.City.DEFAULT_CITY}.xlsx")
+            f"final_metrics_summary_{Config.ZoneManagerConfig.DEFAULT_ALGORITHM}_{Config.NoiseMethod.DEFAULT_METHOD}_{Config.NoiseConfig.DEFAULT_THRESHOLD}_{Config.TrafficNoise.DEFAULT_TrafficNoiseLevel}"
+            f"_{Config.AttenuationLevel.DEFAULT_AttenuationLevelName}_{Config.City.DEFAULT_CITY}_{hardTasks}_{parallel}.xlsx")
         self.metrics.save_convergence_to_csv(
-            f"convergence_{Config.ZoneManagerConfig.DEFAULT_ALGORITHM}_{Config.NoiseMethod.DEFAULT_METHOD}_{Config.NoiseConfig.DEFAULT_THRESHOLD}_{Config.TrafficNoise.DEFAULT_TrafficNoiseLevel}_{Config.AttenuationLevel.DEFAULT_AttenuationLevelName}_{Config.City.DEFAULT_CITY}.csv")
+            f"convergence_{Config.ZoneManagerConfig.DEFAULT_ALGORITHM}_{Config.NoiseMethod.DEFAULT_METHOD}_{Config.NoiseConfig.DEFAULT_THRESHOLD}_{Config.TrafficNoise.DEFAULT_TrafficNoiseLevel}"
+            f"_{Config.AttenuationLevel.DEFAULT_AttenuationLevelName}_{Config.City.DEFAULT_CITY}_{hardTasks}_{parallel}.csv")
+
     def _resolve_task_creator(self, creator_id: str) -> Optional[MobileNodeABC]:
         if creator_id in self.user_nodes:
             return self.user_nodes[creator_id]
@@ -454,9 +464,12 @@ class Simulator:
                 task.creator = creator
                 tasks[creator_id].append(task)
         return tasks
-    
+
     def load_hard_tasks(self, current_time: float) -> int:
         """Load hard tasks onto each vehicle's local processor."""
+        if not Config.SimulatorConfig.ENABLE_HARD_TASKS:
+            return 0
+
         loaded_count = 0
         for creator_id, creator_tasks in self.loader.load_nodes_hard_tasks(current_time).items():
             creator = self._resolve_task_creator(creator_id)
@@ -465,7 +478,7 @@ class Simulator:
                 continue
             for task in creator_tasks:
                 self._assign_hard_task_locally(task, creator, current_time)
-                self.metrics.inc_total_tasks()
+                # self.metrics.inc_total_tasks()
                 loaded_count += 1
         return loaded_count
 
@@ -513,7 +526,7 @@ class Simulator:
             for task in tasks:
                 zone_manager = self.task_zone_managers.get(task.id)
                 if zone_manager:
-                    zone_manager.update(current_task=task)
+                    # zone_manager.update(current_task=task)
                     all_fog_nodes = {**zone_manager.fixed_fog_nodes, **zone_manager.mobile_fog_nodes}
                     loads = [len(node.tasks) for node in all_fog_nodes.values() if node.can_offload_task(task)]
                     if loads:
@@ -556,6 +569,7 @@ class Simulator:
                                 next_state,
                                 done=False
                             )
+                            rl_zm.agent.train()
                     # -----------------------------------------------------------------
 
                 # if task.has_migrated:
@@ -579,6 +593,18 @@ class Simulator:
                     if task.is_hard:
                         # print(red_bg(task.id))
                         self.metrics.inc_hard_deadline_miss()
+                        self.pending_debug_logs = []
+                        current_time = self.clock.get_current_time()
+                        print(red_bg(
+                            f" HARD TASK MISS DETECTED: {task.id}. Scheduling Gantt chart for T={current_time + 10.0}"))
+
+                        self.pending_debug_logs.append({
+                            'trigger_time': current_time + 10.0,
+                            'target_node_id': task.executor.id,
+                            'window_start': max(0, current_time - 10.0),
+                            'window_end': current_time + 10.0,
+                            'missed_task_id': task.id
+                        })
                     else:
                         # print(blue_bg(task.id))
                         self.metrics.inc_deadline_miss()
@@ -1088,3 +1114,194 @@ class Simulator:
 
         except Exception as e:
             print(f"Error loading Spatial Grid Pickle file: {e}")
+
+    def process_debug_logs(self, current_time: float, force_all: bool = False):
+        """Processes and prints debug logs for delayed hard task misses."""
+        if not hasattr(self, 'pending_debug_logs'):
+            return
+
+        ready_logs = [log for log in self.pending_debug_logs if force_all or current_time >= log['trigger_time']]
+        for log in ready_logs:
+            target_node_id = log['target_node_id']
+            w_start = log['window_start']
+            w_end = log['window_end']
+            missed_task = log['missed_task_id']
+
+            merged_nodes = {
+                **self.mobile_fog_nodes,
+                **self.user_nodes,
+                **self.fixed_fog_nodes,
+                self.cloud_node.id: self.cloud_node,
+            }
+            node = merged_nodes.get(target_node_id)
+
+            print(f"\n{red_bg('=' * 80)}")
+            print(red_bg(f" DEBUG LOG FOR HARD DEADLINE MISS: {missed_task} on Node {target_node_id} "))
+            print(f"{red_bg('=' * 80)}")
+
+            if node and hasattr(node, 'execution_log') and node.execution_log:
+                relevant_logs = [
+                    l for l in node.execution_log
+                    if l['start'] + l['duration'] >= w_start and l['start'] <= w_end
+                ]
+                for l in relevant_logs:
+                    mark = " <<< ❌ MISSED DEADLINE" if l['task_id'] == missed_task else ""
+                    print(
+                        f"Time: {l['start']:.2f} -> {l['start'] + l['duration']:.2f} | Core: {l['core']} | Task: {l['task_id']} | Hard: {l['is_hard']}{mark}")
+            else:
+                print("No execution logs found for this node in this time window.")
+
+            print(f"{red_bg('=' * 80)}\n")
+
+            # Draw the gantt chart
+            if not Config.SimulatorConfig.BASELINE_PARALLEL_FREQUENCY:
+                self.draw_gantt_chart2(target_node_id, w_start, w_end, highlight_task_id=missed_task)
+
+            self.pending_debug_logs.remove(log)
+
+    def draw_gantt_chart2(self, target_node_id: str, window_start: float, window_end: float, highlight_task_id: str = None):
+        import matplotlib.pyplot as plt
+        import matplotlib.colors as mcolors
+        import matplotlib.patches as mpatches
+        from matplotlib.ticker import MultipleLocator
+        import os
+
+        merged_nodes = {
+            **self.mobile_fog_nodes,
+            **self.user_nodes,
+            **self.fixed_fog_nodes,
+            self.cloud_node.id: self.cloud_node,
+        }
+
+        node = merged_nodes.get(target_node_id)
+        if not node:
+            print(red_bg(f"Node {target_node_id} not found for Gantt chart."))
+            return
+
+        if not hasattr(node, 'execution_log') or not node.execution_log:
+            print(yellow_bg(f"No execution history found for {target_node_id}."))
+            return
+
+        fig, ax = plt.subplots(figsize=(30, 10))
+
+        base_colors = list(mcolors.TABLEAU_COLORS.values())
+        period_colors = {}
+        color_idx = 0
+
+        relevant_logs = [
+            log for log in node.execution_log
+            if log['start'] + log['duration'] > window_start and log['start'] < window_end
+        ]
+
+        if not relevant_logs:
+            print(yellow_bg(f"No tasks executed for {target_node_id} between {window_start} and {window_end}."))
+            return
+
+        for log in relevant_logs:
+            core = log['core']
+            task_id = log['task_id']
+
+            start = max(log['start'], window_start)
+            end = min(log['start'] + log['duration'], window_end)
+            duration = end - start
+
+            if duration <= 0:
+                continue
+
+            parts = task_id.split("_")
+
+            if "_S_" in task_id:
+                color = "black"
+                if len(parts) >= 3:
+                    label = f"S{parts[2]}"
+                else:
+                    label = "S"
+            elif "_H_" in task_id and len(parts) >= 5:
+                period = parts[-1]
+                if period not in period_colors:
+                    period_colors[period] = base_colors[color_idx % len(base_colors)]
+                    color_idx += 1
+                color = period_colors[period]
+                label = f"P{period}"
+            else:
+                color = "gray"
+                label = "?"
+
+            # Highlight specific task if provided
+            edgecolor = 'black'
+            linewidth = 0.8
+            label_color = 'white'
+
+            if highlight_task_id and task_id == highlight_task_id:
+                color = "red"
+                edgecolor = "yellow"
+                linewidth = 2.5
+                label = f"MISS: {label}"
+                label_color = "yellow"
+
+            ax.broken_barh(
+                [(start, duration)],
+                (core - 0.4, 0.8),
+                facecolors=color,
+                edgecolor=edgecolor,
+                linewidth=linewidth
+            )
+
+            if duration > (window_end - window_start) * 0.01:
+                ax.text(
+                    start + duration / 2,
+                    core,
+                    label,
+                    ha='center',
+                    va='center',
+                    color=label_color,
+                    fontsize=9,
+                    weight='bold'
+                )
+
+        ax.set_ylim(-1, node.num_cores)
+        ax.set_yticks(range(node.num_cores))
+        ax.set_yticklabels([f"Core {i}" for i in range(node.num_cores)])
+
+        ax.set_xlim(window_start, window_end)
+        ax.xaxis.set_major_locator(MultipleLocator(1))
+
+        ax.set_xlabel('Simulation Time (Seconds)', fontsize=12, weight='bold')
+        ax.set_ylabel('CPU Cores', fontsize=12, weight='bold')
+
+        ax.set_title(
+            f'Scheduling Gantt Chart for {target_node_id} (Time {window_start} to {window_end})',
+            fontsize=14,
+            weight='bold'
+        )
+
+        ax.grid(True, axis='x', linestyle='--', alpha=0.6)
+
+        legend_patches = [
+            mpatches.Patch(color=color, label=f"Hard - Period {period}")
+            for period, color in period_colors.items()
+        ]
+
+        legend_patches.append(mpatches.Patch(color="black", label="Soft Tasks"))
+
+        ax.legend(
+            handles=legend_patches,
+            loc='center left',
+            bbox_to_anchor=(1.02, 0.5)
+        )
+
+        plt.tight_layout()
+
+        output_dir = "Gantt"
+        if not os.path.exists(output_dir):
+            os.makedirs(output_dir)
+
+        filepath = os.path.join(
+            output_dir,
+            f"gantt_{target_node_id}_t{int(window_start)}_to_{int(window_end)}.png"
+        )
+
+        plt.savefig(filepath, dpi=400, bbox_inches='tight')
+        plt.close()
+
+        print(green_bg(f"✅ Gantt chart saved successfully at: {filepath}"))

@@ -24,9 +24,9 @@ class Config:
         DEADLINE_MIN_FREE_TIME: float = 3.0  # Less deadline flexibility # note : next time make it a little bit more
         DEADLINE_MAX_FREE_TIME: float = 15.0
         MIN_CYCLE_PER_BIT: float = 1  # *10^3
-        MAX_CYCLE_PER_BIT: float = 1.5
-        MIN_DATASIZE: float = 0.5  # *10^6
-        MAX_DATASIZE: float = 0.8
+        MAX_CYCLE_PER_BIT: float = 2
+        MIN_DATASIZE: float = 0.25  # *10^6
+        MAX_DATASIZE: float = 1.5
 
     class VehicleConfig:
         TASK_GENERATION_RATE: float = 0.35  # More frequent task generation
@@ -127,10 +127,10 @@ class Config:
                     "cycles_max": spec["cycles_max"],
                     "lambda": spec["lambda"],
                     "core": spec["core"],
+                    "utilization": spec.get("utilization", 0.0),
+                    "wcet": spec.get("wcet", 0.0)
                 })
             return tuple(tasks)
-
-        TASKS: tuple = ()
 
 
 @dataclass
@@ -253,9 +253,9 @@ class Generator:
                 v_elem.set('frequency', f"{vehicle.frequency:.2f}")
                 v_elem.set('weather', f"{vehicle.weather}")
 
-        xml_str = minidom.parseString(Et.tostring(root)).toprettyxml(indent="    ")
-        with open(f"./data/vehicles/chunk_{self.current_chunk}.xml", 'w', encoding='utf-8') as f:
-            f.write(xml_str)
+        Et.indent(root, space="    ", level=0)
+        tree = Et.ElementTree(root)
+        tree.write(f"./data/vehicles/chunk_{self.current_chunk}.xml", encoding='utf-8', xml_declaration=True)
 
     def _save_tasks_chunk(self):
         root = Et.Element('fcd-export')
@@ -274,9 +274,9 @@ class Generator:
                 t_elem.set('cycles_per_bit', f"{task.cycles_per_bit:.2f}")
                 t_elem.set('dataSize', f"{task.dataSize:.2f}")
 
-        xml_str = minidom.parseString(Et.tostring(root)).toprettyxml(indent="    ")
-        with open(f"./data/tasks/chunk_{self.current_chunk}.xml", 'w', encoding='utf-8') as f:
-            f.write(xml_str)
+        Et.indent(root, space="    ", level=0)
+        tree = Et.ElementTree(root)
+        tree.write(f"./data/tasks/chunk_{self.current_chunk}.xml", encoding='utf-8', xml_declaration=True)
 
     def _save_hard_tasks_chunk(self):
         root = Et.Element('fcd-export')
@@ -297,9 +297,9 @@ class Generator:
                 t_elem.set('core', str(task.core))
                 t_elem.set('type_index', str(task.type_index))
 
-        xml_str = minidom.parseString(Et.tostring(root)).toprettyxml(indent="    ")
-        with open(f"./data/hard_tasks/chunk_{self.current_chunk}.xml", 'w', encoding='utf-8') as f:
-            f.write(xml_str)
+        Et.indent(root, space="    ", level=0)
+        tree = Et.ElementTree(root)
+        tree.write(f"./data/hard_tasks/chunk_{self.current_chunk}.xml", encoding='utf-8', xml_declaration=True)
 
     @staticmethod
     def _environment_scaling(traffic_level: int, weather_level: int) -> float:
@@ -537,9 +537,19 @@ class Generator:
         with open(path, 'rb') as f:
             root = Et.parse(f).getroot()
         seen_ids_power = {}
-        for time in root.findall('.//timestep'):
+        timesteps = root.findall('.//timestep')
+        total_steps = len(timesteps)
+
+        print(f"Starting data generation for {total_steps} timesteps...")
+
+        for idx, time in enumerate(timesteps):
             step = round(float(time.get('time')))
             seen_ids_power = self.generate_one_step(step, time, seen_ids_power)
+
+            # Print progress every 100 steps or at the final step
+            if step % 100 == 0 or idx == total_steps - 1:
+                progress_percent = (idx + 1) / total_steps * 100
+                print(f"[Progress] Successfully generated up to timestep: {step} ({progress_percent:.1f}%)")
 
         # Save the last chunk if there's any data left.
         if self.current_vehicles or self.current_tasks or self.current_hard_tasks:

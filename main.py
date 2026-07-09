@@ -14,7 +14,7 @@ from controllers.Simulator.simulator_greedy import SimulatorGreedy
 
 
 def run_one(params):
-    algorithm, method, threshold, traffic_noise_profile, attenuationLevel, city, local_cores = params
+    algorithm, method, threshold, traffic_noise_profile, attenuationLevel, city, local_cores, enable_hard_tasks, baseline_parallel_freq = params
     Config.ZoneManagerConfig.DEFAULT_ALGORITHM = algorithm
     Config.NoiseMethod.DEFAULT_METHOD = method
     Config.NoiseConfig.DEFAULT_THRESHOLD = threshold
@@ -22,6 +22,8 @@ def run_one(params):
     Config.TrafficNoise.DEFAULT_TrafficNoiseLevel = traffic_noise_profile
     Config.City.DEFAULT_CITY = city
     Config.UserNodeConfig.NUM_CORE = local_cores
+    Config.SimulatorConfig.ENABLE_HARD_TASKS = enable_hard_tasks
+    Config.SimulatorConfig.BASELINE_PARALLEL_FREQUENCY = baseline_parallel_freq
     print(f"=====================================================")
     print(f"=== Start of : {algorithm} ===")
     print(f"=====================================================")
@@ -77,7 +79,7 @@ def run_one(params):
         remaining_power=Config.CloudConfig.DEFAULT_COMPUTATION_POWER,
         radius=Config.CloudConfig.DEFAULT_RADIUS,
     )
-    
+
     if Config.ZoneManagerConfig.DEFAULT_ALGORITHM == Config.ZoneManagerConfig.ALGORITHM_MADDPG:
         simulator = SimulatorMADDPG(loader, Clock(), cloud)
     elif Config.ZoneManagerConfig.DEFAULT_ALGORITHM == Config.ZoneManagerConfig.ALGORITHM_DDPG:
@@ -107,16 +109,16 @@ def run_one(params):
 if __name__ == "__main__":
     algorithms = [
         Config.ZoneManagerConfig.ALGORITHM_RANDOM,
-        # Config.ZoneManagerConfig.ALGORITHM_HEURISTIC,
-        # Config.ZoneManagerConfig.ALGORITHM_ONLY_CLOUD,
-        # Config.ZoneManagerConfig.ALGORITHM_ONLY_FOG,
-        # Config.ZoneManagerConfig.ALGORITHM_ONLY_LOCAL,
-        # Config.ZoneManagerConfig.ALGORITHM_DEEP_RL,
+        Config.ZoneManagerConfig.ALGORITHM_HEURISTIC,
+        Config.ZoneManagerConfig.ALGORITHM_ONLY_CLOUD,
+        Config.ZoneManagerConfig.ALGORITHM_ONLY_FOG,
+        Config.ZoneManagerConfig.ALGORITHM_ONLY_LOCAL,
+        Config.ZoneManagerConfig.ALGORITHM_DEEP_RL,
         # Config.ZoneManagerConfig.ALGORITHM_DDPG,
         # Config.ZoneManagerConfig.ALGORITHM_PPO,
         # Config.ZoneManagerConfig.ALGORITHM_SAC,
         # Config.ZoneManagerConfig.ALGORITHM_MADDPG,
-        Config.ZoneManagerConfig.ALGORITHM_GREEDY,
+        # Config.ZoneManagerConfig.ALGORITHM_GREEDY,
     ]
 
     methods = [
@@ -149,44 +151,67 @@ if __name__ == "__main__":
         # Config.City.HAMBURG,
     ]
 
+    # add just for ablation study
+    enable_hard_tasks_options = [
+        True,  # Normal execution
+        # False
+    ]
+
+    baseline_parallel_freq_options = [
+        False,   # Normal DRL execution
+        # True,  # Baseline: Splitting frequency between hard and soft tasks
+    ]
+
     all_results = []
-    # for algorithm in algorithms:
-    #     print(f"=====================================================")
-    #     print(f"=== Start of : {algorithm} ===")
-    #     print(f"=====================================================")
-    #
-    #     tasks_for_current_algo = [(algorithm, m, t, n, at) for m in methods for t in thresholds for n in traffic_noise_profiles for at in attenuationLevels]
-    #
-    #     with ProcessPoolExecutor() as executor:
-    #         futures = {executor.submit(run_one, t): t for t in tasks_for_current_algo}
-    #         for fut in as_completed(futures):
-    #             res = fut.result()
-    #             print(red_bg(f"Finished {res['algorithm']} / {res['method']}"))
-    #             print("SCENARIO\tALGORITHM\tMETHOD\tTOTAL\tCOMPLETED\tMISSED\tMIGRATIONS\tCLOUD")
-    #             print(
-    #                 f"Rainy\t{res['algorithm']}\t{res['method']}\t"
-    #                 f"{res['total']}\t{res['completed']}\t{res['missed']}\t"
-    #                 f"{res['migrations']}\t{res['cloud']}"
-    #             )
-    #             all_results.append(res)
-    #
-    #     print(f"--- End of simulations for : {algorithm} ---")
-    #
-    #
+    for algorithm in algorithms:
+        # print(f"=====================================================")
+        # print(f"=== Start of : {algorithm} ===")
+        # print(f"=====================================================")
 
-    tasks_for_current_algo = [(algorithm, m, t, n, at, city, lc) for algorithm in algorithms for m in methods for t in
-                              thresholds for n in
-                              traffic_noise_profiles for at in attenuationLevels for city in cities for lc in local_cores]
+        tasks_for_current_algo = [(algorithm, m, t, n, at, city, lc, eht, bsf) for m in
+                                  methods
+                                  for t in thresholds for n in
+                                  traffic_noise_profiles for at in attenuationLevels for city in cities for lc in
+                                  local_cores
+                                  for eht in enable_hard_tasks_options
+                                  for bsf in baseline_parallel_freq_options
+                                  ]
+        with ProcessPoolExecutor() as executor:
+            futures = {executor.submit(run_one, t): t for t in tasks_for_current_algo}
+            for fut in as_completed(futures):
+                res = fut.result()
+                print(red_bg(f"Finished {res['algorithm']} / {res['method']}"))
+                print("SCENARIO\tALGORITHM\tMETHOD\tTOTAL\tCOMPLETED\tMISSED\tMIGRATIONS\tCLOUD")
+                print(
+                    f"Rainy\t{res['algorithm']}\t{res['method']}\t"
+                    f"{res['total']}\t{res['completed']}\t{res['missed']}\t"
+                    f"{res['migrations']}\t{res['cloud']}"
+                )
+                all_results.append(res)
 
-    with ProcessPoolExecutor() as executor:
-        futures = {executor.submit(run_one, t): t for t in tasks_for_current_algo}
-        for fut in as_completed(futures):
-            res = fut.result()
-            print(red_bg(f"Finished {res['algorithm']} / {res['method']}"))
-            print("SCENARIO\tALGORITHM\tMETHOD\tTOTAL\tCOMPLETED\tMISSED\tMIGRATIONS\tCLOUD")
-            print(
-                f"Rainy\t{res['algorithm']}\t{res['method']}\t"
-                f"{res['total']}\t{res['completed']}\t{res['missed']}\t"
-                f"{res['migrations']}\t{res['cloud']}"
-            )
-            all_results.append(res)
+        print(f"--- End of simulations for : {algorithm} ---")
+
+
+
+    # tasks_for_current_algo = [(algorithm, m, t, n, at, city, lc, eht, bsf) for algorithm in algorithms for m in methods
+    #                           for t
+    #                           in
+    #                           thresholds for n in
+    #                           traffic_noise_profiles for at in attenuationLevels for city in cities for lc in
+    #                           local_cores
+    #                           for eht in enable_hard_tasks_options
+    #                           for bsf in baseline_parallel_freq_options
+    #                           ]
+    #
+    # with ProcessPoolExecutor() as executor:
+    #     futures = {executor.submit(run_one, t): t for t in tasks_for_current_algo}
+    #     for fut in as_completed(futures):
+    #         res = fut.result()
+    #         print(red_bg(f"Finished {res['algorithm']} / {res['method']}"))
+    #         print("SCENARIO\tALGORITHM\tMETHOD\tTOTAL\tCOMPLETED\tMISSED\tMIGRATIONS\tCLOUD")
+    #         print(
+    #             f"Rainy\t{res['algorithm']}\t{res['method']}\t"
+    #             f"{res['total']}\t{res['completed']}\t{res['missed']}\t"
+    #             f"{res['migrations']}\t{res['cloud']}"
+    #         )
+    #         all_results.append(res)

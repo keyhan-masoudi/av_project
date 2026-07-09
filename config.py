@@ -57,6 +57,9 @@ class Config:
         TIMEOUT_TIME = 1
         # todo: should change this variable
         BANDWIDTH = 3
+        ENABLE_HARD_TASKS = True
+        BASELINE_PARALLEL_FREQUENCY = False  # Flag for the parallel frequency baseline
+        HARD_TASKS_FREQ_RATIO = 0.6
 
     class CloudConfig:
         DEFAULT_X = 6000

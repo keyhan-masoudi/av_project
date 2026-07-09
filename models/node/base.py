@@ -24,6 +24,7 @@ def blue_bg(text):
 def green_bg(text):
     return f"\033[42m{text}\033[0m"
 
+
 def findExecTimeInEachKindOfNode(task, executor=None):
     from models.node.user import UserNode
     from models.node.cloud import CloudNode
@@ -308,6 +309,7 @@ class NodeABC(ModelBaseABC, abc.ABC):
         """The number of processing cores available in this node."""
         raise NotImplementedError
 
+
 @dataclass
 class MobileNodeABC(NodeABC, abc.ABC):
     """
@@ -323,8 +325,11 @@ class MobileNodeABC(NodeABC, abc.ABC):
     core_Us: List[float] = field(init=False)
     last_tbs_deadline: List[float] = field(init=False)
     periodic_allocation: List[List[dict]] = field(init=False)
-    local_hard_tasks = []
+    local_hard_tasks: list = field(init=False, default_factory=list)
     registered_hard_task_types: set = field(init=False, default_factory=set)
+
+    hard_cores: List[List[tuple]] = field(init=False)
+    soft_cores: List[List[tuple]] = field(init=False)
 
     def __post_init__(self):
         super().__post_init__()
@@ -333,7 +338,34 @@ class MobileNodeABC(NodeABC, abc.ABC):
         self.last_tbs_deadline = [0.0] * self.num_cores
         self.periodic_allocation = [[] for _ in range(self.num_cores)]
 
-    # todo: fix WFD
+        self.hard_cores = [[] for _ in range(self.num_cores)]
+        self.soft_cores = [[] for _ in range(self.num_cores)]
+
+        import json
+        import os
+
+        # Load utilization parameters directly from the JSON file
+        json_path = os.path.join(Config.VehiclesTraffic.PROJECT_ROOT, "data", "hard_task_parameters_uunifast.json")
+        if not os.path.exists(json_path):
+            json_path = "hard_tasks.json"
+
+        if os.path.exists(json_path):
+            try:
+                with open(json_path, "r", encoding="utf-8") as f:
+                    data = json.load(f)
+                for spec in data.get("tasks", []):
+                    core_idx = spec.get("core", -1)
+                    if 0 <= core_idx < self.num_cores:
+                        self.core_Up[core_idx] += spec.get("utilization", 0.0)
+            except Exception as e:
+                print(blue_bg(f"Warning: Failed to load JSON: {e}"))
+        else:
+            print(blue_bg(f"Warning: WFD JSON not found at {json_path}. TBS will use default bandwidth."))
+
+        # Calculate final Us for TBS based on the offline worst-case parameters
+        for i in range(self.num_cores):
+            self.core_Us[i] = max(0.01, 1.0 - self.core_Up[i])
+
     def assign_local_hard_task(self, task, current_time: float) -> None:
         """Register a hard task on its offline WFD-assigned core (from task.core)."""
         if task.core is None:
@@ -351,43 +383,42 @@ class MobileNodeABC(NodeABC, abc.ABC):
         task.release_time = current_time
 
         exec_time_calculated = findExecTimeInEachKindOfNode(task)
-        task.total_exec_time = exec_time_calculated if exec_time_calculated > 0 else task.exec_time
-        task.remaining_time = task.total_exec_time
-        task.start_time = current_time
+        base_exec_time = exec_time_calculated if exec_time_calculated > 0 else task.exec_time
         task.is_hard = True
         self.local_hard_tasks.append(task)
 
-        period = task.deadline - task.release_time
-        task_utilization = task.total_exec_time / period if period > 0 else task.total_exec_time
-
-        if task.type_index is not None and task.type_index not in self.registered_hard_task_types:
-            self.core_Up[core_idx] += task_utilization
-            self.core_Us[core_idx] = max(0.01, 1.0 - self.core_Up[core_idx])
-            self.registered_hard_task_types.add(task.type_index)
-
-        self.core_loads[core_idx] += task.total_exec_time
-
-        heapq.heappush(self.cores[core_idx], (task.deadline, task.release_time, task))
+        if Config.SimulatorConfig.BASELINE_PARALLEL_FREQUENCY:
+            # Scale execution time up to simulate frequency reduction for hard tasks
+            task.total_exec_time = base_exec_time / Config.SimulatorConfig.HARD_TASKS_FREQ_RATIO
+            task.remaining_time = task.total_exec_time
+            task.start_time = current_time
+            self.core_loads[core_idx] += task.total_exec_time
+            heapq.heappush(self.hard_cores[core_idx], (task.deadline, task.release_time, task))
+        else:
+            # Standard dynamic allocation mode
+            task.total_exec_time = base_exec_time
+            task.remaining_time = task.total_exec_time
+            task.start_time = current_time
+            self.core_loads[core_idx] += task.total_exec_time
+            heapq.heappush(self.cores[core_idx], (task.deadline, task.release_time, task))
 
     def assign_task(self, task, current_time: float, fixed_fog_nodes=None) -> None:
+        """Assign soft task using TBS logic."""
         self.tasks.append(task)
         task.executor = self
-        task.total_exec_time = findExecTimeInEachKindOfNode(task)
-        task.remaining_time = task.total_exec_time
+        base_exec_time = findExecTimeInEachKindOfNode(task)
 
         delay = self.get_transmission_time(task, fixed_fog_nodes)
-
         task.start_time = current_time + delay
         rk = task.start_time
 
         best_core_idx = 0
         min_prospective_deadline = float('inf')
 
-        # todo: check this part
         for i in range(self.num_cores):
             Us = self.core_Us[i]
             last_dl = self.last_tbs_deadline[i]
-            Ck = task.total_exec_time
+            Ck = base_exec_time
 
             prospective_dk = max(rk, last_dl) + (Ck / Us)
 
@@ -397,9 +428,18 @@ class MobileNodeABC(NodeABC, abc.ABC):
 
         self.last_tbs_deadline[best_core_idx] = min_prospective_deadline
 
-        self.core_loads[best_core_idx] += task.total_exec_time
-
-        heapq.heappush(self.cores[best_core_idx], (min_prospective_deadline, task.release_time, task))
+        if Config.SimulatorConfig.BASELINE_PARALLEL_FREQUENCY:
+            # Scale execution time up to simulate frequency reduction for soft tasks
+            task.total_exec_time = base_exec_time / (1 - Config.SimulatorConfig.HARD_TASKS_FREQ_RATIO)
+            task.remaining_time = task.total_exec_time
+            self.core_loads[best_core_idx] += task.total_exec_time
+            heapq.heappush(self.soft_cores[best_core_idx], (min_prospective_deadline, task.release_time, task))
+        else:
+            # Standard dynamic allocation mode
+            task.total_exec_time = base_exec_time
+            task.remaining_time = task.total_exec_time
+            self.core_loads[best_core_idx] += task.total_exec_time
+            heapq.heappush(self.cores[best_core_idx], (min_prospective_deadline, task.release_time, task))
 
     def execute_tasks(self, current_time: float, fixed_fog_nodes) -> list:
         """
@@ -414,53 +454,142 @@ class MobileNodeABC(NodeABC, abc.ABC):
         finished_tasks_this_step = []
         WORK_PER_TICK = 1.0
 
+        is_parallel_baseline = Config.SimulatorConfig.BASELINE_PARALLEL_FREQUENCY
+
         for i in range(self.num_cores):
-            remaining_work_this_tick = WORK_PER_TICK
-            core_heap = self.cores[i]
-            temp_unready_tasks = []
+            if is_parallel_baseline:
+                # -------------------------------------------------------------
+                # HARD QUEUE EXECUTION (Runs concurrently with full tick step)
+                # -------------------------------------------------------------
+                remaining_hard_tick = WORK_PER_TICK
+                hard_heap = self.hard_cores[i]
+                temp_unready_hard = []
 
-            while remaining_work_this_tick > 0:
-                if not core_heap:
-                    break
+                while remaining_hard_tick > 0 and hard_heap:
+                    deadline, rel_time, task = heapq.heappop(hard_heap)
 
-                deadline, rel_time, task = heapq.heappop(core_heap)
+                    if task.start_time > current_time:
+                        temp_unready_hard.append((deadline, rel_time, task))
+                        continue
 
-                if task.start_time > current_time:
-                    temp_unready_tasks.append((deadline, rel_time, task))
-                    continue
+                    work_to_do = min(remaining_hard_tick, task.remaining_time)
+                    slice_start = current_time + (WORK_PER_TICK - remaining_hard_tick)
 
-                work_to_do = min(remaining_work_this_tick, task.remaining_time)
+                    self.execution_log.append({
+                        'core': i,
+                        'task_id': task.id,
+                        'start': slice_start,
+                        'duration': work_to_do,
+                        'is_hard': True
+                    })
 
-                slice_start = current_time + (WORK_PER_TICK - remaining_work_this_tick)
-                self.execution_log.append({
-                    'core': i,
-                    'task_id': task.id,
-                    'start': slice_start,
-                    'duration': work_to_do,
-                    'is_hard': getattr(task, 'is_hard', False)
-                })
+                    task.remaining_time -= work_to_do
+                    self.core_loads[i] -= work_to_do
+                    remaining_hard_tick -= work_to_do
 
-                task.remaining_time -= work_to_do
-                self.core_loads[i] -= work_to_do
-                remaining_work_this_tick -= work_to_do
+                    if task.remaining_time <= 0:
+                        task.finish_time = current_time + (WORK_PER_TICK - remaining_hard_tick)
+                        finished_tasks_this_step.append(task)
+                        self.finished_tasks.append(task)
+                        if task in getattr(self, 'local_hard_tasks', []):
+                            self.local_hard_tasks.remove(task)
+                    else:
+                        heapq.heappush(hard_heap, (deadline, rel_time, task))
+                        break
 
-                if task.remaining_time <= 0:
-                    task.finish_time = current_time + (WORK_PER_TICK - remaining_work_this_tick)
-                    finished_tasks_this_step.append(task)
-                    self.finished_tasks.append(task)
+                for item in temp_unready_hard:
+                    heapq.heappush(hard_heap, item)
 
-                    if task in self.tasks:
-                        self.tasks.remove(task)
+                # -------------------------------------------------------------
+                # SOFT QUEUE EXECUTION (Runs concurrently with full tick step)
+                # -------------------------------------------------------------
+                remaining_soft_tick = WORK_PER_TICK
+                soft_heap = self.soft_cores[i]
+                temp_unready_soft = []
 
-                    if task in self.local_hard_tasks:
-                        self.local_hard_tasks.remove(task)
+                while remaining_soft_tick > 0 and soft_heap:
+                    deadline, rel_time, task = heapq.heappop(soft_heap)
 
-                    continue
-                else:
-                    heapq.heappush(core_heap, (deadline, rel_time, task))
-                    break
+                    if task.start_time > current_time:
+                        temp_unready_soft.append((deadline, rel_time, task))
+                        continue
 
-            for item in temp_unready_tasks:
-                heapq.heappush(core_heap, item)
+                    work_to_do = min(remaining_soft_tick, task.remaining_time)
+                    slice_start = current_time + (WORK_PER_TICK - remaining_soft_tick)
+
+                    self.execution_log.append({
+                        'core': i,
+                        'task_id': task.id,
+                        'start': slice_start,
+                        'duration': work_to_do,
+                        'is_hard': False
+                    })
+
+                    task.remaining_time -= work_to_do
+                    self.core_loads[i] -= work_to_do
+                    remaining_soft_tick -= work_to_do
+
+                    if task.remaining_time <= 0:
+                        task.finish_time = current_time + (WORK_PER_TICK - remaining_soft_tick)
+                        finished_tasks_this_step.append(task)
+                        self.finished_tasks.append(task)
+                        if task in getattr(self, 'tasks', []):
+                            self.tasks.remove(task)
+                    else:
+                        heapq.heappush(soft_heap, (deadline, rel_time, task))
+                        break
+
+                for item in temp_unready_soft:
+                    heapq.heappush(soft_heap, item)
+
+            else:
+                # -------------------------------------------------------------
+                # STANDARD MODE: Unified Priority Queue Execution
+                # -------------------------------------------------------------
+                remaining_work_this_tick = WORK_PER_TICK
+                core_heap = self.cores[i]
+                temp_unready_tasks = []
+
+                while remaining_work_this_tick > 0:
+                    if not core_heap:
+                        break
+
+                    deadline, rel_time, task = heapq.heappop(core_heap)
+
+                    if task.start_time > current_time:
+                        temp_unready_tasks.append((deadline, rel_time, task))
+                        continue
+
+                    work_to_do = min(remaining_work_this_tick, task.remaining_time)
+
+                    slice_start = current_time + (WORK_PER_TICK - remaining_work_this_tick)
+                    self.execution_log.append({
+                        'core': i,
+                        'task_id': task.id,
+                        'start': slice_start,
+                        'duration': work_to_do,
+                        'is_hard': getattr(task, 'is_hard', False)
+                    })
+
+                    task.remaining_time -= work_to_do
+                    self.core_loads[i] -= work_to_do
+                    remaining_work_this_tick -= work_to_do
+
+                    if task.remaining_time <= 0:
+                        task.finish_time = current_time + (WORK_PER_TICK - remaining_work_this_tick)
+                        finished_tasks_this_step.append(task)
+                        self.finished_tasks.append(task)
+
+                        if task in getattr(self, 'tasks', []):
+                            self.tasks.remove(task)
+
+                        if getattr(task, 'is_hard', False) and task in getattr(self, 'local_hard_tasks', []):
+                            self.local_hard_tasks.remove(task)
+                    else:
+                        heapq.heappush(core_heap, (deadline, rel_time, task))
+                        break
+
+                for item in temp_unready_tasks:
+                    heapq.heappush(core_heap, item)
 
         return finished_tasks_this_step

@@ -149,8 +149,15 @@ class DeepRLEnvironment(gym.Env):
 
     def _get_k_nearest_fogs(self, vehicle, k=3):
         all_fogs = list(self.simulator.fixed_fog_nodes.values()) + list(self.simulator.mobile_fog_nodes.values())
-        all_fogs.sort(key=lambda fog: np.sqrt((fog.x - vehicle.x) ** 2 + (fog.y - vehicle.y) ** 2))
-        return all_fogs[:k]
+
+        coords = np.array([[fog.x, fog.y] for fog in all_fogs])
+        vehicle_coord = np.array([vehicle.x, vehicle.y])
+
+        distances = np.linalg.norm(coords - vehicle_coord, axis=1)
+
+        nearest_indices = np.argsort(distances)[:k]
+
+        return [all_fogs[i] for i in nearest_indices]
 
     def _get_state(self, task=None, current_time=None):
         if task is None:
