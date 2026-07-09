@@ -60,35 +60,40 @@ class SimulatorGreedy(Simulator):
                     continue
                     
                 # ==========================================================
-                # ALGORITHM 2: Demand-Supply Analysis (SBF >= DBF)
+                # ALGORITHM 2: Exact Response Time Analysis (RTA)
                 # ==========================================================
-                # If Alg 1 failed, we immediately try the rigorous math.
-                # Paper Rule: Sort cores by current utilization (emptiest first).
                 core_utils = [(i, creator.core_Up[i]) for i in range(creator.num_cores)]
                 sorted_cores = sorted(core_utils, key=lambda x: x[1])
                 
-                # Demand-Bound Function (DBF) is the absolute execution time needed
-                dbf = task.exec_time 
-                
-                for core_idx, core_util in sorted_cores:
-                    # Supply-Bound Function (SBF) is the free time left on this core
-                    sbf_utilization_available = 1.0 - core_util
-                    sbf_time_available = sbf_utilization_available * period
+                for core_idx, _ in sorted_cores:
+                    w = task.exec_time
+                    is_schedulable = True
                     
-                    if sbf_time_available >= dbf:
-                        # Success: Assign via Alg 2
+                    while True:
+                        interference = 0
+                        for existing_task in creator.periodic_allocation[core_idx]:
+                            if existing_task.is_hard:
+                                ext_period = max(existing_task.deadline - existing_task.release_time, 0.001)
+                                if ext_period <= period:
+                                    import math
+                                    interference += math.ceil(w / ext_period) * existing_task.exec_time
+                                    
+                        w_next = task.exec_time + interference
+                        if w_next > period:  
+                            is_schedulable = False
+                            break
+                        if w_next == w:  
+                            break
+                        w = w_next
+                        
+                    if is_schedulable:
                         self._assign_hard_task_locally(task, creator, current_time, core_idx)
-                        # self.metrics.inc_total_tasks()
                         loaded_count += 1
                         assigned = True
-                        break # Stop checking cores
+                        break
                 
-                # ==========================================================
-                # SAFETY CHECK: Task cannot be scheduled
-                # ==========================================================
                 if not assigned:
                     print(f"[CRITICAL FAILURE] Hard task {task.id} failed both Alg 1 and Alg 2 on {creator.id}.")
-                    # Task is discarded. In a real vehicle, this means the ECU is overloaded.
 
         return loaded_count
 
