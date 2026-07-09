@@ -32,6 +32,12 @@ class SimulatorGreedy(Simulator):
             )
             
             for task in new_tasks:
+                if task.core is not None:
+                    self._assign_hard_task_locally(task, creator, current_time, int(task.core))
+                    self.metrics.inc_total_tasks()
+                    loaded_count += 1
+                    continue
+
                 # todo : use task.frequency instead of calculating it if added to the Task model
                 period = max(task.deadline - task.release_time, 0.001)
                 task_utilization = task.exec_time / period
