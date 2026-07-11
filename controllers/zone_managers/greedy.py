@@ -16,13 +16,13 @@ class GreedyZoneManager(ZoneManagerABC):
         Calculates the estimated turnaround time if the task is sent to this node.
         Finish Time = Release Time + Network Delay + Real Execution Time
         """
-        delay = 0.0
-        if target_node != task.creator:
-            delay = getattr(target_node, 'get_transmission_time', lambda t, f: 0.0)(task, self.fixed_fog_nodes)
-
         # Temporarily assign executor to calculate precise hardware execution time
         original_executor = getattr(task, 'executor', None)
         task.executor = target_node
+        
+        delay = 0.0
+        if target_node != task.creator:
+            delay = getattr(target_node, 'get_transmission_time', lambda t, f: 0.0)(task, self.fixed_fog_nodes)
         
         exec_time = findExecTimeInEachKindOfNode(task)
         if exec_time <= 0:
@@ -43,10 +43,32 @@ class GreedyZoneManager(ZoneManagerABC):
         # ==========================================================
         # PRIORITY 1: USER NODE (Local Vehicle)
         # ==========================================================
-        local_finish = self._estimate_finish_time(task, task.creator)
-        if local_finish <= task.deadline:
-            self.__target_node = task.creator
-            self._lock_task_parameters(task, self.__target_node)
+        local_node = task.creator
+        task_window = max(task.deadline - task.release_time, 0.001)
+        
+        # Isolate executor temporarily to fetch precise frequency scaling
+        original_executor = getattr(task, 'executor', None)
+        task.executor = local_node
+        exec_time = findExecTimeInEachKindOfNode(task)
+        if exec_time <= 0:
+            exec_time = getattr(task, 'total_exec_time', task.exec_time)
+        task.executor = original_executor
+            
+        soft_utilization = exec_time / task_window
+        has_local_slack = False
+        
+        for core_idx in range(local_node.num_cores):
+            # Check against real-time utilization. 0.95 acts as an interference safety buffer.
+            if local_node.core_Up[core_idx] + soft_utilization <= 0.95: 
+                self.__target_node = local_node
+                self._lock_task_parameters(task, self.__target_node)
+                
+                # Lock the capacity so concurrent offloading attempts register the load
+                local_node.core_Up[core_idx] += soft_utilization
+                has_local_slack = True
+                break
+                
+        if has_local_slack:
             return True
 
         # ==========================================================
@@ -88,7 +110,7 @@ class GreedyZoneManager(ZoneManagerABC):
         # PRIORITY 4: CLOUD NODE
         # ==========================================================
         # Fetch the cloud node directly from the simulator reference
-        if self.simulator and getattr(self.simulator, 'cloud_node', None):
+        if hasattr(self, 'simulator') and getattr(self.simulator, 'cloud_node', None):
             cloud_node = self.simulator.cloud_node
             cloud_finish = self._estimate_finish_time(task, cloud_node)
             
