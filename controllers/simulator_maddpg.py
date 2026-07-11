@@ -203,11 +203,13 @@ class SimulatorMADDPG(Simulator):
                     else:  # status == "NO_PROPOSALS"
                         self.schedule_retransmission(task, current_time + 1)
 
-            # Update Graph (Reusing Parent Logic)
-            self.update_graph()
 
             # End Step (Reusing Parent Logic)
             self.execute_tasks_for_one_step()
+
+            # Update Graph (Reusing Parent Logic)
+            self.update_graph()
+
             self.metrics.flush()
             self.metrics.add_data(current_time)
 
