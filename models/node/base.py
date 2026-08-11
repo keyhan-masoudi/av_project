@@ -327,6 +327,8 @@ class MobileNodeABC(NodeABC, abc.ABC):
     periodic_allocation: List[List[dict]] = field(init=False)
     local_hard_tasks: list = field(init=False, default_factory=list)
     registered_hard_task_types: set = field(init=False, default_factory=set)
+    hard_task_specs: List[List[dict]] = field(init=False)
+    hard_task_phases: Dict[int, float] = field(init=False, default_factory=dict)
 
     hard_cores: List[List[tuple]] = field(init=False)
     soft_cores: List[List[tuple]] = field(init=False)
@@ -337,6 +339,7 @@ class MobileNodeABC(NodeABC, abc.ABC):
         self.core_Us = [1.0] * self.num_cores
         self.last_tbs_deadline = [0.0] * self.num_cores
         self.periodic_allocation = [[] for _ in range(self.num_cores)]
+        self.hard_task_specs = [[] for _ in range(self.num_cores)]
 
         self.hard_cores = [[] for _ in range(self.num_cores)]
         self.soft_cores = [[] for _ in range(self.num_cores)]
@@ -349,20 +352,26 @@ class MobileNodeABC(NodeABC, abc.ABC):
         if not os.path.exists(json_path):
             json_path = "hard_tasks.json"
 
-        if os.path.exists(json_path):
+
+        if json_path is not None:
             try:
                 with open(json_path, "r", encoding="utf-8") as f:
                     data = json.load(f)
-                for spec in data.get("tasks", []):
+                for type_index, spec in enumerate(data.get("tasks", [])):
                     core_idx = spec.get("core", -1)
                     if 0 <= core_idx < self.num_cores:
                         self.core_Up[core_idx] += spec.get("utilization", 0.0)
+                        self.hard_task_specs[core_idx].append({
+                            "type_index": type_index,
+                            "period": float(spec["period"]),
+                            "wcet": float(spec.get("wcet", 0.0)),
+                        })
             except Exception as e:
                 print(blue_bg(f"Warning: Failed to load JSON: {e}"))
         else:
-            print(blue_bg(f"Warning: WFD JSON not found at {json_path}. TBS will use default bandwidth."))
+            print(blue_bg("Warning: WFD JSON not found. ITBS will use default bandwidth."))
 
-        # Calculate final Us for TBS based on the offline worst-case parameters
+        # Calculate the per-core server bandwidth from offline worst-case load.
         for i in range(self.num_cores):
             self.core_Us[i] = max(0.01, 1.0 - self.core_Up[i])
 
@@ -387,6 +396,14 @@ class MobileNodeABC(NodeABC, abc.ABC):
         task.is_hard = True
         self.local_hard_tasks.append(task)
 
+        # All instances of a generated hard-task type share this first-release
+        # phase.  ITBS uses it with the offline period/WCET to include future
+        # periodic releases in its EDF finishing-time calculation.
+        if task.type_index is not None and task.type_index not in self.registered_hard_task_types:
+            type_index = int(task.type_index)
+            self.registered_hard_task_types.add(type_index)
+            self.hard_task_phases[type_index] = current_time
+
         if Config.SimulatorConfig.BASELINE_PARALLEL_FREQUENCY:
             # Scale execution time up to simulate frequency reduction for hard tasks
             task.total_exec_time = base_exec_time / Config.SimulatorConfig.HARD_TASKS_FREQ_RATIO
@@ -402,8 +419,116 @@ class MobileNodeABC(NodeABC, abc.ABC):
             self.core_loads[core_idx] += task.total_exec_time
             heapq.heappush(self.cores[core_idx], (task.deadline, task.release_time, task))
 
+    def _itbs_jobs_for_core(
+            self,
+            core_idx: int,
+            current_time: float,
+            horizon: float,
+    ) -> list[tuple[float, float, float, bool]]:
+        """Snapshot queued jobs and future periodic WCET jobs for ITBS."""
+        jobs: list[tuple[float, float, float, bool]] = []
+
+        for deadline, _, queued_task in self.cores[core_idx]:
+            remaining = max(0.0, float(queued_task.remaining_time))
+            if remaining <= 0.0:
+                continue
+            release = max(current_time, float(queued_task.start_time))
+            jobs.append((release, float(deadline), remaining, False))
+
+        epsilon = 1e-9
+        for spec in self.hard_task_specs[core_idx]:
+            phase = self.hard_task_phases.get(spec["type_index"])
+            period = spec["period"]
+            wcet = spec["wcet"]
+            if phase is None or period <= 0.0 or wcet <= 0.0:
+                continue
+
+            # The release at current_time, if any, is already in the live heap.
+            releases_elapsed = math.floor((current_time - phase) / period) + 1
+            next_release = phase + max(0, releases_elapsed) * period
+            while next_release < horizon - epsilon:
+                jobs.append((next_release, next_release + period, wcet, False))
+                next_release += period
+
+        return jobs
+
+    @staticmethod
+    def _edf_finish_time(
+            jobs: list[tuple[float, float, float, bool]],
+            current_time: float,
+    ) -> float:
+        """Return the candidate job's finish time in a preemptive EDF schedule."""
+        future_jobs = sorted(jobs, key=lambda job: (job[0], job[1], job[3]))
+        ready_jobs: list[tuple[float, float, int, int, float, bool]] = []
+        next_job = 0
+        sequence = 0
+        now = current_time
+        epsilon = 1e-9
+
+        while next_job < len(future_jobs) or ready_jobs:
+            while next_job < len(future_jobs) and future_jobs[next_job][0] <= now + epsilon:
+                release, deadline, remaining, is_candidate = future_jobs[next_job]
+                # Match the live heap's deadline/release ordering. Existing
+                # work wins only an otherwise exact deadline/release tie.
+                candidate_tie_break = 1 if is_candidate else 0
+                heapq.heappush(
+                    ready_jobs,
+                    (deadline, release, candidate_tie_break, sequence, remaining, is_candidate),
+                )
+                sequence += 1
+                next_job += 1
+
+            if not ready_jobs:
+                now = future_jobs[next_job][0]
+                continue
+
+            deadline, release, tie_break, job_sequence, remaining, is_candidate = heapq.heappop(ready_jobs)
+            next_release = future_jobs[next_job][0] if next_job < len(future_jobs) else float("inf")
+            executed = min(remaining, next_release - now)
+            now += executed
+            remaining -= executed
+
+            if remaining <= epsilon:
+                if is_candidate:
+                    return now
+            else:
+                heapq.heappush(
+                    ready_jobs,
+                    (deadline, release, tie_break, job_sequence, remaining, is_candidate),
+                )
+
+        raise RuntimeError("ITBS candidate was missing from the EDF schedule")
+
+    def _improve_tbs_deadline(
+            self,
+            core_idx: int,
+            current_time: float,
+            release_time: float,
+            execution_time: float,
+            tbs_deadline: float,
+    ) -> float:
+        """Apply TB* deadline shortening until its EDF finish-time fixed point."""
+        base_jobs = self._itbs_jobs_for_core(core_idx, current_time, tbs_deadline)
+        deadline = tbs_deadline
+        seen_deadlines = set()
+        epsilon = 1e-9
+
+        while True:
+            rounded_deadline = round(deadline, 12)
+            if rounded_deadline in seen_deadlines:
+                return deadline
+            seen_deadlines.add(rounded_deadline)
+
+            candidate_job = (release_time, deadline, execution_time, True)
+            finish_time = self._edf_finish_time(base_jobs + [candidate_job], current_time)
+            improved_deadline = min(deadline, finish_time)
+
+            if deadline - improved_deadline <= epsilon:
+                return deadline
+            deadline = improved_deadline
+
     def assign_task(self, task, current_time: float, fixed_fog_nodes=None) -> None:
-        """Assign soft task using TBS logic."""
+        """Assign a soft task using Improved Total Bandwidth Server (ITBS/TB*)."""
         self.tasks.append(task)
         task.executor = self
         base_exec_time = findExecTimeInEachKindOfNode(task)
@@ -420,13 +545,28 @@ class MobileNodeABC(NodeABC, abc.ABC):
             last_dl = self.last_tbs_deadline[i]
             Ck = base_exec_time
 
-            prospective_dk = max(rk, last_dl) + (Ck / Us)
+            tbs_deadline = max(rk, last_dl) + (Ck / Us)
+            # The parallel-frequency baseline models hard and soft work on
+            # separate processor shares, not on the unified EDF queue assumed
+            # by ITBS. Thus original TBS deadline is kept so baseline comparisons
+            # remain semantically unchanged.
+            if Config.SimulatorConfig.BASELINE_PARALLEL_FREQUENCY:
+                prospective_dk = tbs_deadline
+            else:
+                prospective_dk = self._improve_tbs_deadline(
+                    core_idx=i,
+                    current_time=current_time,
+                    release_time=rk,
+                    execution_time=Ck,
+                    tbs_deadline=tbs_deadline,
+                )
 
             if prospective_dk < min_prospective_deadline:
                 min_prospective_deadline = prospective_dk
                 best_core_idx = i
 
         self.last_tbs_deadline[best_core_idx] = min_prospective_deadline
+        task.server_deadline = min_prospective_deadline
 
         if Config.SimulatorConfig.BASELINE_PARALLEL_FREQUENCY:
             # Scale execution time up to simulate frequency reduction for soft tasks
