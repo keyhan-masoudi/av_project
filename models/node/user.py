@@ -4,7 +4,7 @@ from utils.enums import Layer
 
 
 class UserNode(MobileNodeABC):
-    """User vehicle with one local multicore processor (TBS + EDF for hard and soft)."""
+    """User vehicle with one local multicore processor (ITBS + EDF for hard and soft)."""
 
     def __post_init__(self):
         super().__post_init__()

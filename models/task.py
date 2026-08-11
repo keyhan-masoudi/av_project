@@ -34,6 +34,9 @@ class Task(ModelBaseABC):
     is_hard: bool = False
     core: Optional[int] = None
     type_index: Optional[int] = None
+    # Virtual deadline assigned by TBS/ITBS for EDF priority.  The original
+    # application deadline above remains unchanged for success/miss metrics.
+    server_deadline: Optional[float] = None
 
     rl_state = None
     rl_action = None
