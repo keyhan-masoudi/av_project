@@ -158,8 +158,8 @@ if __name__ == "__main__":
     ]
 
     baseline_parallel_freq_options = [
-        # False,   # Normal DRL execution
-        True,  # Baseline: Splitting frequency between hard and soft tasks
+        False,  # Unified EDF + Improving TBS (normal execution)
+        # True,  # Baseline: split frequency; 0.60 hard share is below current max Up (~0.626)
     ]
 
     all_results = []
