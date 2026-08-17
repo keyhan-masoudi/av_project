@@ -324,6 +324,7 @@ class MobileNodeABC(NodeABC, abc.ABC):
     core_Up: List[float] = field(init=False)
     core_Us: List[float] = field(init=False)
     last_tbs_deadline: List[float] = field(init=False)
+    last_itbs_deadline: List[float] = field(init=False)
     periodic_allocation: List[List[dict]] = field(init=False)
     local_hard_tasks: list = field(init=False, default_factory=list)
     registered_hard_task_types: set = field(init=False, default_factory=set)
@@ -338,6 +339,7 @@ class MobileNodeABC(NodeABC, abc.ABC):
         self.core_Up = [0.0] * self.num_cores
         self.core_Us = [1.0] * self.num_cores
         self.last_tbs_deadline = [0.0] * self.num_cores
+        self.last_itbs_deadline = [0.0] * self.num_cores
         self.periodic_allocation = [[] for _ in range(self.num_cores)]
         self.hard_task_specs = [[] for _ in range(self.num_cores)]
 
@@ -347,11 +349,17 @@ class MobileNodeABC(NodeABC, abc.ABC):
         import json
         import os
 
-        # Load utilization parameters directly from the JSON file
-        json_path = os.path.join(Config.VehiclesTraffic.PROJECT_ROOT, "data", "hard_task_parameters_uunifast.json")
-        if not os.path.exists(json_path):
-            json_path = "hard_tasks.json"
-
+        # The configured project root still points to the original Windows
+        # checkout in some experiments. Resolve the generated parameters from
+        # the repository itself before using the legacy fallback.
+        repository_root = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
+        json_candidates = [
+            os.path.join(Config.VehiclesTraffic.PROJECT_ROOT, "data", "hard_task_parameters_uunifast.json"),
+            os.path.join(repository_root, "data", "hard_task_parameters_uunifast.json"),
+            os.path.join("data", "hard_task_parameters_uunifast.json"),
+            "hard_tasks.json",
+        ]
+        json_path = next((path for path in json_candidates if os.path.isfile(path)), None)
 
         if json_path is not None:
             try:
@@ -419,23 +427,60 @@ class MobileNodeABC(NodeABC, abc.ABC):
             self.core_loads[core_idx] += task.total_exec_time
             heapq.heappush(self.cores[core_idx], (task.deadline, task.release_time, task))
 
-    def _itbs_jobs_for_core(
+    @staticmethod
+    def _next_periodic_release(phase: float, period: float, time: float) -> float:
+        """Return the first release of a periodic task strictly after time."""
+        releases_elapsed = math.floor((time - phase) / period) + 1
+        return phase + max(0, releases_elapsed) * period
+
+    def _active_periodic_interference(
             self,
             core_idx: int,
-            current_time: float,
-            horizon: float,
-    ) -> list[tuple[float, float, float, bool]]:
-        """Snapshot queued jobs and future periodic WCET jobs for ITBS."""
-        jobs: list[tuple[float, float, float, bool]] = []
-
-        for deadline, _, queued_task in self.cores[core_idx]:
-            remaining = max(0.0, float(queued_task.remaining_time))
-            if remaining <= 0.0:
-                continue
-            release = max(current_time, float(queued_task.start_time))
-            jobs.append((release, float(deadline), remaining, False))
-
+            observation_time: float,
+            bound_start: float,
+            deadline: float,
+    ) -> float:
+        """Compute I_a(t, d): carry-in periodic work with deadline < d."""
         epsilon = 1e-9
+
+        if abs(bound_start - observation_time) <= epsilon:
+            return sum(
+                max(0.0, float(task.remaining_time))
+                for queued_deadline, _, task in self.cores[core_idx]
+                if getattr(task, "is_hard", False)
+                and task.start_time <= bound_start + epsilon
+                and queued_deadline < deadline - epsilon
+            )
+
+        # If the preceding aperiodic request has not completed yet, bound_start
+        # is its conservative completion bound in the future. At most one job
+        # of each feasible implicit-deadline periodic type can carry into that
+        # instant; charging its full WCET is safe and intentionally pessimistic.
+        interference = 0.0
+        for spec in self.hard_task_specs[core_idx]:
+            phase = self.hard_task_phases.get(spec["type_index"])
+            period = spec["period"]
+            if phase is None or period <= 0.0 or bound_start < phase:
+                continue
+            release = phase + math.floor((bound_start - phase) / period) * period
+            absolute_deadline = release + period
+            if (
+                    absolute_deadline > bound_start + epsilon
+                    and absolute_deadline < deadline - epsilon
+            ):
+                interference += spec["wcet"]
+        return interference
+
+    def _future_periodic_interference(
+            self,
+            core_idx: int,
+            bound_start: float,
+            deadline: float,
+    ) -> float:
+        """Compute I_f(t, d) from the slide's closed-form release count."""
+        interference = 0.0
+        epsilon = 1e-9
+
         for spec in self.hard_task_specs[core_idx]:
             phase = self.hard_task_phases.get(spec["type_index"])
             period = spec["period"]
@@ -443,89 +488,51 @@ class MobileNodeABC(NodeABC, abc.ABC):
             if phase is None or period <= 0.0 or wcet <= 0.0:
                 continue
 
-            # The release at current_time, if any, is already in the live heap.
-            releases_elapsed = math.floor((current_time - phase) / period) + 1
-            next_release = phase + max(0, releases_elapsed) * period
-            while next_release < horizon - epsilon:
-                jobs.append((next_release, next_release + period, wcet, False))
-                next_release += period
+            next_release = self._next_periodic_release(phase, period, bound_start)
+            # Number of releases after t whose implicit absolute deadline is
+            # strictly before d:
+            # max(0, ceil((d - next_r_i(t)) / T_i) - 1).
+            count = max(
+                0,
+                math.ceil(((deadline - next_release) / period) - epsilon) - 1,
+            )
+            interference += count * wcet
 
-        return jobs
-
-    @staticmethod
-    def _edf_finish_time(
-            jobs: list[tuple[float, float, float, bool]],
-            current_time: float,
-    ) -> float:
-        """Return the candidate job's finish time in a preemptive EDF schedule."""
-        future_jobs = sorted(jobs, key=lambda job: (job[0], job[1], job[3]))
-        ready_jobs: list[tuple[float, float, int, int, float, bool]] = []
-        next_job = 0
-        sequence = 0
-        now = current_time
-        epsilon = 1e-9
-
-        while next_job < len(future_jobs) or ready_jobs:
-            while next_job < len(future_jobs) and future_jobs[next_job][0] <= now + epsilon:
-                release, deadline, remaining, is_candidate = future_jobs[next_job]
-                # Match the live heap's deadline/release ordering. Existing
-                # work wins only an otherwise exact deadline/release tie.
-                candidate_tie_break = 1 if is_candidate else 0
-                heapq.heappush(
-                    ready_jobs,
-                    (deadline, release, candidate_tie_break, sequence, remaining, is_candidate),
-                )
-                sequence += 1
-                next_job += 1
-
-            if not ready_jobs:
-                now = future_jobs[next_job][0]
-                continue
-
-            deadline, release, tie_break, job_sequence, remaining, is_candidate = heapq.heappop(ready_jobs)
-            next_release = future_jobs[next_job][0] if next_job < len(future_jobs) else float("inf")
-            executed = min(remaining, next_release - now)
-            now += executed
-            remaining -= executed
-
-            if remaining <= epsilon:
-                if is_candidate:
-                    return now
-            else:
-                heapq.heappush(
-                    ready_jobs,
-                    (deadline, release, tie_break, job_sequence, remaining, is_candidate),
-                )
-
-        raise RuntimeError("ITBS candidate was missing from the EDF schedule")
+        return interference
 
     def _improve_tbs_deadline(
             self,
             core_idx: int,
-            current_time: float,
-            release_time: float,
+            observation_time: float,
+            bound_start: float,
             execution_time: float,
             tbs_deadline: float,
     ) -> float:
-        """Apply TB* deadline shortening until its EDF finish-time fixed point."""
-        base_jobs = self._itbs_jobs_for_core(core_idx, current_time, tbs_deadline)
+        """Apply the slide's bounded-interference Improving TBS recurrence."""
         deadline = tbs_deadline
-        seen_deadlines = set()
         epsilon = 1e-9
+        max_steps = max(0, Config.SimulatorConfig.ITBS_MAX_REFINEMENT_STEPS)
 
-        while True:
-            rounded_deadline = round(deadline, 12)
-            if rounded_deadline in seen_deadlines:
-                return deadline
-            seen_deadlines.add(rounded_deadline)
-
-            candidate_job = (release_time, deadline, execution_time, True)
-            finish_time = self._edf_finish_time(base_jobs + [candidate_job], current_time)
-            improved_deadline = min(deadline, finish_time)
+        for _ in range(max_steps):
+            active_interference = self._active_periodic_interference(
+                core_idx, observation_time, bound_start, deadline
+            )
+            future_interference = self._future_periodic_interference(
+                core_idx, bound_start, deadline
+            )
+            finish_bound = (
+                bound_start
+                + execution_time
+                + active_interference
+                + future_interference
+            )
+            improved_deadline = min(deadline, finish_bound)
 
             if deadline - improved_deadline <= epsilon:
                 return deadline
             deadline = improved_deadline
+
+        return deadline
 
     def assign_task(self, task, current_time: float, fixed_fog_nodes=None) -> None:
         """Assign a soft task using Improved Total Bandwidth Server (ITBS/TB*)."""
@@ -539,6 +546,7 @@ class MobileNodeABC(NodeABC, abc.ABC):
 
         best_core_idx = 0
         min_prospective_deadline = float('inf')
+        prospective_tbs_deadlines = [float('inf')] * self.num_cores
 
         for i in range(self.num_cores):
             Us = self.core_Us[i]
@@ -546,6 +554,7 @@ class MobileNodeABC(NodeABC, abc.ABC):
             Ck = base_exec_time
 
             tbs_deadline = max(rk, last_dl) + (Ck / Us)
+            prospective_tbs_deadlines[i] = tbs_deadline
             # The parallel-frequency baseline models hard and soft work on
             # separate processor shares, not on the unified EDF queue assumed
             # by ITBS. Thus original TBS deadline is kept so baseline comparisons
@@ -555,8 +564,8 @@ class MobileNodeABC(NodeABC, abc.ABC):
             else:
                 prospective_dk = self._improve_tbs_deadline(
                     core_idx=i,
-                    current_time=current_time,
-                    release_time=rk,
+                    observation_time=current_time,
+                    bound_start=max(rk, self.last_itbs_deadline[i]),
                     execution_time=Ck,
                     tbs_deadline=tbs_deadline,
                 )
@@ -565,7 +574,11 @@ class MobileNodeABC(NodeABC, abc.ABC):
                 min_prospective_deadline = prospective_dk
                 best_core_idx = i
 
-        self.last_tbs_deadline[best_core_idx] = min_prospective_deadline
+        # Keep the original TBS reservation chain separate from its shortened
+        # deadline. Reusing the improved deadline here would permit subsequent
+        # jobs to consume more than Us and can invalidate the hard-task proof.
+        self.last_tbs_deadline[best_core_idx] = prospective_tbs_deadlines[best_core_idx]
+        self.last_itbs_deadline[best_core_idx] = min_prospective_deadline
         task.server_deadline = min_prospective_deadline
 
         if Config.SimulatorConfig.BASELINE_PARALLEL_FREQUENCY:
