@@ -8,7 +8,7 @@ import numpy as np
 from config import Config
 from controllers.simulator import Simulator, calcAttenuation
 from controllers.zone_managers.DDPG_new.deep_rl_zone_manager_ddpg_new import (
-    DeepRLZoneManager_DDPG,
+    DeepRLZoneManager_DDPG_New,
 )
 from models.node.cloud import CloudNode
 from models.node.fog import FixedFogNode, MobileFogNode
@@ -129,7 +129,7 @@ class SimulatorDDPGnew(Simulator):
         self,
         *,
         task,
-        zone_manager: DeepRLZoneManager_DDPG,
+        zone_manager: DeepRLZoneManager_DDPG_New,
         actor_state: np.ndarray,
         continuous_action: np.ndarray,
         current_time: float,
@@ -217,7 +217,7 @@ class SimulatorDDPGnew(Simulator):
             rl_zm is None
             or not isinstance(
                 rl_zm,
-                DeepRLZoneManager_DDPG,
+                DeepRLZoneManager_DDPG_New,
             )
         ):
             return
@@ -335,7 +335,7 @@ class SimulatorDDPGnew(Simulator):
         for zone_manager in zone_managers:
             if not isinstance(
                 zone_manager,
-                DeepRLZoneManager_DDPG,
+                DeepRLZoneManager_DDPG_New,
             ):
                 continue
 
@@ -382,7 +382,7 @@ class SimulatorDDPGnew(Simulator):
     def _resolve_current_actor_choice(
         self,
         *,
-        zone_manager: DeepRLZoneManager_DDPG,
+        zone_manager: DeepRLZoneManager_DDPG_New,
         task,
         continuous_action,
     ):
@@ -465,7 +465,7 @@ class SimulatorDDPGnew(Simulator):
 
         if not isinstance(
             chosen_zone_manager,
-            DeepRLZoneManager_DDPG,
+            DeepRLZoneManager_DDPG_New,
         ):
             raise TypeError(
                 "SimulatorDDPGnew received a non-DDPG ZoneManager."
