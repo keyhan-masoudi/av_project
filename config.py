@@ -36,13 +36,23 @@ class Config:
         DEFAULT_FN = FN_HAM
 
     class Paths:
-        NoiseConfigsPath = "D:/av_project/NoiseConfigs"
-        pklPath = r"D:\av_project\SumoDividedByTime"
+        # NoiseConfigsPath = "D:/av_project/NoiseConfigs"
+        # pklPath = r"D:\av_project\SumoDividedByTime"
+        
+        # keyhan's path
+        NoiseConfigsPath = r"D:\code\final_av\av_project\NoiseConfigs"
+        pklPath = r"D:\code\final_av\av_project\SumoDividedByTime"
+        
 
     class VehiclesTraffic:
-        PROJECT_ROOT = r"D:\av_project"
-        NOISE_CONFIGS_PATH = r"D:\av_project\NoiseConfigs"
-        PKL_PATH = r"D:\av_project\precalculated_vehicle_traffic.pkl"
+        # PROJECT_ROOT = r"D:\av_project"
+        # NOISE_CONFIGS_PATH = r"D:\av_project\NoiseConfigs"
+        # PKL_PATH = r"D:\av_project\precalculated_vehicle_traffic.pkl"
+        
+        # keyhan's path
+        PROJECT_ROOT = r"D:\code\final_av\av_project"
+        NOISE_CONFIGS_PATH = r"D:\code\final_av\av_project\NoiseConfigs"
+        PKL_PATH = r"D:\code\final_av\av_project\precalculated_vehicle_traffic.pkl"
 
     class TrafficCount:
         GreenTraffic = 5
@@ -117,6 +127,7 @@ class Config:
         ALGORITHM_PPO = "PPO"
         ALGORITHM_SAC = "SAC"
         ALGORITHM_GREEDY = "Greedy"
+        ALGORITHM_DDPG_NEW = "DDPGNew"
 
         DEFAULT_ALGORITHM = ALGORITHM_RANDOM
 
@@ -132,6 +143,23 @@ class Config:
 
     class RandomZoneManagerConfig:
         OFFLOAD_CHANCE: float = 0.5
+        
+    class DDPGNewConfig:        
+        FixedFogNodeCount: int = 3          
+        MobileFogNodeCount: int = 3         
+        DEFAULT_TX_BANDWIDTH_BPS: float = 1e7
+
+        BURDEN_XI: float = 1.5     
+
+        MAX_ACTION: float = 1.0                # Score bounding for the Actor
+        ACTOR_LR: float = 0.001                # Learning rate for Actor network
+        CRITIC_LR: float = 0.002               # Learning rate for Critic network
+        GAMMA: float = 0.99                    # Discount factor for future rewards
+        TAU: float = 0.01                      # Target network soft-update parameter
+        EXPLORATION_NOISE: float = 0.1         # Action noise for continuous discovery
+        
+        REPLAY_BUFFER_SIZE: int = 10000        # Maximum transitions stored in deque
+        BATCH_SIZE: int = 256                  # Samples pulled per gradient update
 
     class AntennaGain:
         TX: float = 27
