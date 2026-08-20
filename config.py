@@ -60,6 +60,9 @@ class Config:
         ENABLE_HARD_TASKS = True
         BASELINE_PARALLEL_FREQUENCY = False  # Flag for the parallel frequency baseline
         HARD_TASKS_FREQ_RATIO = 0.6
+        # Improving TBS (TB*) deadline-refinement limit. The recurrence also
+        # stops earlier as soon as two consecutive deadlines are equal.
+        ITBS_MAX_REFINEMENT_STEPS = 100
 
     class CloudConfig:
         DEFAULT_X = 6000
