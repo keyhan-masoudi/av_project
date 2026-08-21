@@ -152,14 +152,14 @@ class Config:
         BURDEN_XI: float = 1.5     
 
         MAX_ACTION: float = 1.0                # Score bounding for the Actor
-        ACTOR_LR: float = 0.001                # Learning rate for Actor network
-        CRITIC_LR: float = 0.002               # Learning rate for Critic network
-        GAMMA: float = 0.99                    # Discount factor for future rewards
-        TAU: float = 0.01                      # Target network soft-update parameter
-        EXPLORATION_NOISE: float = 0.1         # Action noise for continuous discovery
+        ACTOR_LR: float = 5e-4                # Learning rate for Actor network
+        CRITIC_LR: float = 1e-3               # Learning rate for Critic network
+        GAMMA: float = 0.95                    # Discount factor for future rewards
+        TAU: float = 0.005                    # Target network soft-update parameter
+        EXPLORATION_NOISE: float = 0.05      # Action noise for continuous discovery
         
-        REPLAY_BUFFER_SIZE: int = 10000        # Maximum transitions stored in deque
-        BATCH_SIZE: int = 256                  # Samples pulled per gradient update
+        REPLAY_BUFFER_SIZE: int = 50000        # Maximum transitions stored in deque
+        BATCH_SIZE: int = 128                  # Samples pulled per gradient update
 
     class AntennaGain:
         TX: float = 27
