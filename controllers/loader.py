@@ -1,4 +1,5 @@
 from collections import defaultdict
+import gc
 from typing import Type
 
 from NoiseConfigs.utilsFunctions import UtilsFunc
@@ -12,6 +13,7 @@ from controllers.zone_managers.only_fog import OnlyFogZoneManager
 from controllers.zone_managers.only_local import OnlyLocalZoneManager
 from controllers.zone_managers.deepRL.deep_rl_zone_manager import DeepRLZoneManager
 from controllers.zone_managers.MADDPG.deep_rl_zone_manager_maddpg import DeepRLZoneManagerMADDGP
+from controllers.zone_managers.MAPPO.deep_rl_zone_manager_mappo import DeepRLZoneManagerMAPPO
 from controllers.zone_managers.DDPG.deep_rl_zone_manager_ddpg import DeepRLZoneManager_DDPG
 from controllers.zone_managers.PPO.deep_rl_zone_manager_PPO import DeepRLZoneManagerPPO
 from controllers.zone_managers.SAC.deep_rl_zone_manager_sac import DeepRLZoneManagerSAC
@@ -27,6 +29,7 @@ class Loader:
         Config.ZoneManagerConfig.ALGORITHM_ONLY_FOG: OnlyFogZoneManager,
         Config.ZoneManagerConfig.ALGORITHM_ONLY_LOCAL: OnlyLocalZoneManager,
         Config.ZoneManagerConfig.ALGORITHM_DEEP_RL: DeepRLZoneManager,
+        Config.ZoneManagerConfig.ALGORITHM_MAPPO: DeepRLZoneManagerMAPPO,
         Config.ZoneManagerConfig.ALGORITHM_MADDPG: DeepRLZoneManagerMADDGP,
         Config.ZoneManagerConfig.ALGORITHM_DDPG: DeepRLZoneManager_DDPG,
         Config.ZoneManagerConfig.ALGORITHM_PPO: DeepRLZoneManagerPPO,
@@ -43,34 +46,42 @@ class Loader:
             checkpoint_path: str,
             hard_task_file: str = "./data/hard_tasks",
     ):
-        self.current_chunk = 0
         self.chunk_size = Config.CHUNK_SIZE
+        
+        start_time = Config.SimulatorConfig.SIMULATION_START_TIME
+        self.current_chunk = int(start_time) // self.chunk_size
+        
         self.zone_parser = ZoneSumoXMLParser(zone_file)
         self.fixed_fn_parser = FixedFogNodeSumoXMLParser(fixed_fn_file)
+        
         self.mobile_chunk_path = mobile_file
-        self.mobile_node_parser = MobileNodeSumoXMLParser(mobile_file, 0)
         self.task_chunk_path = task_file
-        self.task_parser = TaskSumoXMLParser(task_file, 0)
         self.hard_task_chunk_path = hard_task_file
-        self.hard_task_parser = (
-            TaskSumoXMLParser(hard_task_file, 0) if hard_task_file else None
-        )
         self.checkpoint_path = checkpoint_path
 
-    def __load_next_chunk(self, time_step: float):
-        if self.get_chunk(time_step - 1) != self.current_chunk and time_step != 0:
-            self.mobile_node_parser = MobileNodeSumoXMLParser(
-                self.mobile_chunk_path, self.get_chunk(time_step)
-            )
-            self.task_parser = TaskSumoXMLParser(
-                self.task_chunk_path, self.get_chunk(time_step)
-            )
-            if self.hard_task_parser is not None:
-                self.hard_task_parser = TaskSumoXMLParser(
-                    self.hard_task_chunk_path, self.get_chunk(time_step)
-                )
-            self.current_chunk = self.get_chunk(time_step)
+        self.mobile_node_parser = MobileNodeSumoXMLParser(mobile_file, self.current_chunk)
+        self.task_parser = TaskSumoXMLParser(task_file, self.current_chunk)
+        self.hard_task_parser = TaskSumoXMLParser(hard_task_file, self.current_chunk) if hard_task_file else None
 
+    def __load_next_chunk(self, time_step: float):
+        target_chunk = self.get_chunk(time_step)
+        
+        if target_chunk != self.current_chunk:
+            if hasattr(self, 'mobile_node_parser') and self.mobile_node_parser:
+                self.mobile_node_parser._data.clear()
+            if hasattr(self, 'task_parser') and self.task_parser:
+                self.task_parser._data.clear()
+            if hasattr(self, 'hard_task_parser') and self.hard_task_parser:
+                self.hard_task_parser._data.clear()
+                
+            gc.collect()
+
+            self.mobile_node_parser = MobileNodeSumoXMLParser(self.mobile_chunk_path, target_chunk)
+            self.task_parser = TaskSumoXMLParser(self.task_chunk_path, target_chunk)
+            if self.hard_task_chunk_path:
+                self.hard_task_parser = TaskSumoXMLParser(self.hard_task_chunk_path, target_chunk)
+                
+            self.current_chunk = target_chunk
     def get_chunk(self, time_step: float) -> int:
         return round(time_step) // self.chunk_size
 

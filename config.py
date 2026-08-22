@@ -1,5 +1,5 @@
 class Config:
-    CHUNK_SIZE = 3600
+    CHUNK_SIZE = 100
     NEGATIVE_REWARD = -10
     HEX_RADIUS = 200
 
@@ -113,6 +113,7 @@ class Config:
         ALGORITHM_ONLY_LOCAL = "Only Local"
         ALGORITHM_DEEP_RL = "DeepRL"
         ALGORITHM_MADDPG = "MADDPG"
+        ALGORITHM_MAPPO = "MAPPO"
         ALGORITHM_DDPG = "DDPG"
         ALGORITHM_PPO = "PPO"
         ALGORITHM_SAC = "SAC"

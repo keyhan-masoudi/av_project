@@ -1,4 +1,5 @@
 import abc
+import os
 from typing import Dict, List, Tuple
 from xml.etree import ElementTree
 from xml.etree.ElementTree import Element
@@ -14,8 +15,11 @@ from config import Config
 class SumoXMLParserABC(abc.ABC):
     def __init__(self, xml_file_path: str) -> None:
         self.xml_file_path = xml_file_path
-        with open(self.xml_file_path, 'rb') as f:
-            self.root: Element = ElementTree.parse(f).getroot()
+        if os.path.exists(self.xml_file_path):
+            with open(self.xml_file_path, 'rb') as f:
+                self.root: Element = ElementTree.parse(f).getroot()
+        else:
+            self.root = None
 
     @abc.abstractmethod
     def parse(self) -> List[ModelBaseABC]:
@@ -129,6 +133,9 @@ class TaskSumoXMLParser(SumoXMLParserABC):
             return self._data
 
         data: Dict[float, List[Task]] = {}
+        if self.root is None:
+            return data
+        
         for time in self.root.findall('.//timestep'):
             step = float(time.get('time'))
 
