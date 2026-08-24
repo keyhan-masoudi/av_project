@@ -6,7 +6,7 @@ from models.task import Task
 class DeepRLZoneManagerMAPPO(ZoneManagerABC):
     def __init__(self, zone):
         super().__init__(zone)
-        self.agent_id = -1  # توسط شبیه‌ساز مقداردهی می‌شود
+        self.agent_id = -1
         self.controller = None
 
     def can_offload_task(self, task: Task) -> bool:
@@ -14,7 +14,7 @@ class DeepRLZoneManagerMAPPO(ZoneManagerABC):
         return any(node.can_offload_task(task) for node in all_fog_nodes)
 
     def assign_task(self, task: Task) -> FogLayerABC:
-        pass # هندلینگ اجرای اکشن در Simulator انجام می‌شود
+        pass
 
     def update(self, **kwargs: Unpack[ZoneManagerUpdate]):
         pass

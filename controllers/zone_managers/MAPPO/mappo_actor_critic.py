@@ -5,7 +5,6 @@ from torch.distributions import Categorical
 class MAPPOActor(nn.Module):
     def __init__(self, local_state_dim, action_dim):
         super(MAPPOActor, self).__init__()
-        # شبکه Actor فقط State محلی (28 بعدی) را می‌بیند
         self.net = nn.Sequential(
             nn.Linear(local_state_dim, 128),
             nn.ReLU(),
@@ -19,7 +18,6 @@ class MAPPOActor(nn.Module):
         logits = self.action_head(x)
         
         if action_mask is not None:
-            # اعمال Mask با منفی بی‌نهایت برای جلوگیری از انتخاب
             logits = logits.masked_fill(action_mask == 0, -1e9)
             
         return Categorical(logits=logits)
@@ -27,7 +25,6 @@ class MAPPOActor(nn.Module):
 class MAPPOCritic(nn.Module):
     def __init__(self, global_state_dim):
         super(MAPPOCritic, self).__init__()
-        # شبکه Critic، استیت‌های ترکیب‌شده (Global State) را می‌بیند
         self.net = nn.Sequential(
             nn.Linear(global_state_dim, 256),
             nn.ReLU(),

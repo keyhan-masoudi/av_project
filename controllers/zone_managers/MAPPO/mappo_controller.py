@@ -14,7 +14,6 @@ class MAPPOController:
 
         self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
-        # استفاده از معماری Parameter Sharing
         self.actor = MAPPOActor(self.local_state_dim, action_dim).to(self.device)
         self.critic = MAPPOCritic(self.global_state_dim).to(self.device)
 
@@ -33,20 +32,17 @@ class MAPPOController:
             actions = dist.sample()
             log_probs = dist.log_prob(actions)
 
-            # ارزش وضعیت سراسری را فقط یک بار محاسبه می‌کنیم
             value = self.critic(global_state_tensor).squeeze()
 
         return actions.cpu().numpy(), log_probs.cpu().numpy(), value.cpu().numpy().item()
 
     def store_experience(self, local_state, global_state, action, log_prob, value, reward):
-        # ذخیره تجربیات برای هر تسک به صورت مستقل
         self.memory.append((local_state, global_state, action, log_prob, value, reward))
 
     def train(self, batch_size=128):
         if len(self.memory) < batch_size:
             return
 
-        # تبدیل لیست مموری به Tensor
         local_states, global_states, actions, old_log_probs, values, rewards = zip(*self.memory)
 
         local_states = torch.FloatTensor(np.array(local_states)).to(self.device)
@@ -56,7 +52,6 @@ class MAPPOController:
         values = torch.FloatTensor(np.array(values)).to(self.device)
         rewards = torch.FloatTensor(np.array(rewards)).to(self.device)
 
-        # چون هر تسک یک اپیزود است، Advantage به سادگی Reward - Value محاسبه می‌شود
         advantages = rewards - values
         advantages = (advantages - advantages.mean()) / (advantages.std() + 1e-8)
 
@@ -74,7 +69,6 @@ class MAPPOController:
             state_values = self.critic(global_states).squeeze()
             critic_loss = torch.nn.MSELoss()(state_values, rewards)
 
-            # تابع زیان نهایی PPO
             loss = actor_loss + 0.5 * critic_loss - 0.01 * entropy
 
             self.actor_optimizer.zero_grad()

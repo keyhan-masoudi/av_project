@@ -313,6 +313,8 @@ class SimulatorMAPPO(Simulator):
 
                     if task.is_hard:
                         self.metrics.inc_hard_deadline_miss()
+                        print(red_bg(
+                            f" HARD TASK MISS DETECTED: {task.id}. Release: {task.release_time}, Deadline: {task.deadline}, Finish: {task.finish_time}, Executor: {task.executor.id}"))
                     else:
                         self.metrics.inc_deadline_miss()
                 else:
