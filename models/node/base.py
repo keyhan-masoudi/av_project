@@ -11,6 +11,7 @@ import xml.etree.ElementTree as ET
 import numpy as np
 
 from config import Config
+from models import task
 from models.base import ModelBaseABC
 from utils.enums import Layer
 from utils.distance import get_distance
@@ -224,7 +225,7 @@ class NodeABC(ModelBaseABC, abc.ABC):
         task.remaining_time = task.total_exec_time
 
         delay = self.get_transmission_time(task, fixed_fog_nodes)
-        task.start_time = current_time + delay
+        task.start_time = math.ceil(current_time + delay)
         # 2. Worst Fit Selection: Find the core with the minimum current load
         least_loaded_core_idx = self.core_loads.index(min(self.core_loads))
         self.core_loads[least_loaded_core_idx] += task.total_exec_time
@@ -541,7 +542,7 @@ class MobileNodeABC(NodeABC, abc.ABC):
         base_exec_time = findExecTimeInEachKindOfNode(task)
 
         delay = self.get_transmission_time(task, fixed_fog_nodes)
-        task.start_time = current_time + delay
+        task.start_time = math.ceil(current_time + delay)
         rk = task.start_time
 
         best_core_idx = 0
