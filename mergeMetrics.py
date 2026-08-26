@@ -91,7 +91,10 @@ def process_metrics():
                     print(f"  ├─ 🟢 Calculating deadline_diff sum from: {success_file_name}")
                     df_success = pd.read_csv(success_file)  # Changed to read_csv
                     if 'deadline_diff' in df_success.columns:
-                        sum_success = df_success['deadline_diff'].sum()
+                        df_success_soft = df_success[
+                        df_success['task_id'].astype(str).str.contains('_S_', na=False)
+                        ]
+                        sum_success = df_success_soft['deadline_diff'].sum()
                 else:
                     print(f"  ├─ ⚠️ File not found (value set to 0): {success_file_name}")
 

@@ -34,8 +34,8 @@ def run_one(params):
         Config.Directory.DEFAULT_FN = Config.Directory.FN_MEL
         Config.CloudConfig.CLOSEST_FOG_X = 2069.28
         Config.CloudConfig.CLOSEST_FOG_Y = 789.39
-        Config.SimulatorConfig.SIMULATION_DURATION = 1300
-        Config.SimulatorConfig.SIMULATION_START_TIME = 300
+        Config.SimulatorConfig.SIMULATION_DURATION = 3600
+        Config.SimulatorConfig.SIMULATION_START_TIME = 2600
     else:
         Config.Directory.DEFAULT_ZON = Config.Directory.ZON_HAM
         Config.Directory.DEFAULT_FN = Config.Directory.FN_HAM
@@ -111,18 +111,18 @@ def run_one(params):
 
 if __name__ == "__main__":
     algorithms = [
-        # Config.ZoneManagerConfig.ALGORITHM_RANDOM,
-        # Config.ZoneManagerConfig.ALGORITHM_HEURISTIC,
-        # Config.ZoneManagerConfig.ALGORITHM_ONLY_CLOUD,
-        # Config.ZoneManagerConfig.ALGORITHM_ONLY_FOG,
+        Config.ZoneManagerConfig.ALGORITHM_RANDOM,
+        Config.ZoneManagerConfig.ALGORITHM_HEURISTIC,
+        Config.ZoneManagerConfig.ALGORITHM_ONLY_CLOUD,
+        Config.ZoneManagerConfig.ALGORITHM_ONLY_FOG,
         Config.ZoneManagerConfig.ALGORITHM_ONLY_LOCAL,
-        # Config.ZoneManagerConfig.ALGORITHM_DEEP_RL,
-        # Config.ZoneManagerConfig.ALGORITHM_DDPG,
-        # Config.ZoneManagerConfig.ALGORITHM_PPO,
-        # Config.ZoneManagerConfig.ALGORITHM_SAC,
-        # Config.ZoneManagerConfig.ALGORITHM_MADDPG,
+        Config.ZoneManagerConfig.ALGORITHM_DEEP_RL,
+        Config.ZoneManagerConfig.ALGORITHM_DDPG,
+        Config.ZoneManagerConfig.ALGORITHM_PPO,
+        Config.ZoneManagerConfig.ALGORITHM_SAC,
+        Config.ZoneManagerConfig.ALGORITHM_MADDPG,
         # Config.ZoneManagerConfig.ALGORITHM_MAPPO,
-        # Config.ZoneManagerConfig.ALGORITHM_GREEDY,
+        Config.ZoneManagerConfig.ALGORITHM_GREEDY,
     ]
 
     methods = [
@@ -158,7 +158,7 @@ if __name__ == "__main__":
     # add just for ablation study
     enable_hard_tasks_options = [
         True,  # Normal execution
-        # False
+        False
     ]
 
     baseline_parallel_freq_options = [
