@@ -563,13 +563,21 @@ class MobileNodeABC(NodeABC, abc.ABC):
             if Config.SimulatorConfig.BASELINE_PARALLEL_FREQUENCY:
                 prospective_dk = tbs_deadline
             else:
-                prospective_dk = self._improve_tbs_deadline(
-                    core_idx=i,
-                    observation_time=current_time,
-                    bound_start=max(rk, self.last_itbs_deadline[i]),
-                    execution_time=Ck,
-                    tbs_deadline=tbs_deadline,
-                )
+                all_phase_known = True
+                for spec in self.hard_task_specs[i]:
+                    if spec["type_index"] not in self.hard_task_phases:
+                        all_phase_known = False
+                        break
+                if not all_phase_known:
+                    prospective_dk = tbs_deadline
+                else:
+                    prospective_dk = self._improve_tbs_deadline(
+                        core_idx=i,
+                        observation_time=current_time,
+                        bound_start=max(rk, self.last_itbs_deadline[i]),
+                        execution_time=Ck,
+                        tbs_deadline=tbs_deadline,
+                    )
 
             if prospective_dk < min_prospective_deadline:
                 min_prospective_deadline = prospective_dk

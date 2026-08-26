@@ -113,15 +113,15 @@ if __name__ == "__main__":
     algorithms = [
         Config.ZoneManagerConfig.ALGORITHM_RANDOM,
         Config.ZoneManagerConfig.ALGORITHM_HEURISTIC,
-        Config.ZoneManagerConfig.ALGORITHM_ONLY_CLOUD,
-        Config.ZoneManagerConfig.ALGORITHM_ONLY_FOG,
+        # Config.ZoneManagerConfig.ALGORITHM_ONLY_CLOUD,
+        # Config.ZoneManagerConfig.ALGORITHM_ONLY_FOG,
         Config.ZoneManagerConfig.ALGORITHM_ONLY_LOCAL,
         Config.ZoneManagerConfig.ALGORITHM_DEEP_RL,
         Config.ZoneManagerConfig.ALGORITHM_DDPG,
         Config.ZoneManagerConfig.ALGORITHM_PPO,
         Config.ZoneManagerConfig.ALGORITHM_SAC,
         Config.ZoneManagerConfig.ALGORITHM_MADDPG,
-        # Config.ZoneManagerConfig.ALGORITHM_MAPPO,
+        Config.ZoneManagerConfig.ALGORITHM_MAPPO,
         Config.ZoneManagerConfig.ALGORITHM_GREEDY,
     ]
 

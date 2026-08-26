@@ -17,7 +17,13 @@ class SumoXMLParserABC(abc.ABC):
         self.xml_file_path = xml_file_path
         if os.path.exists(self.xml_file_path):
             with open(self.xml_file_path, 'rb') as f:
-                self.root: Element = ElementTree.parse(f).getroot()
+                try:
+                    self.root: Element = ElementTree.parse(f).getroot()
+                except Exception as e:
+                    print(f"\n❌ XML PARSE ERROR")
+                    print(f"File: {xml_file_path}")
+                    print(f"Error: {e}")
+                    raise
         else:
             self.root = None
 
