@@ -147,6 +147,10 @@ class SimulatorDDPGnew(Simulator):
 
         even if completion order is different.
         """
+        
+        if task.is_hard:
+            return
+        
         records = self._get_ddpg_transition_records()
 
         actor_state = np.asarray(
@@ -511,8 +515,7 @@ class SimulatorDDPGnew(Simulator):
         # LOCAL SOFT EXECUTION
         # --------------------------------------------------------------
         if (
-            chosen_executor.id
-            == task.creator.id
+            chosen_executor is task.creator
         ):
             # There is no wireless transmission for local execution.
             self.task_zone_managers[
@@ -538,6 +541,12 @@ class SimulatorDDPGnew(Simulator):
                 chosen_zone_manager
             )
 
+            chosen_executor.assign_task(
+                task,
+                current_time,
+                self.fixed_fog_nodes,
+            )
+            
             self._register_successful_ddpg_decision(
                 task=task,
                 zone_manager=chosen_zone_manager,
@@ -546,11 +555,7 @@ class SimulatorDDPGnew(Simulator):
                 current_time=current_time,
             )
 
-            chosen_executor.assign_task(
-                task,
-                current_time,
-                self.fixed_fog_nodes,
-            )
+            
 
             self._clear_ddpg_decision_cache(
                 task
@@ -634,24 +639,6 @@ class SimulatorDDPGnew(Simulator):
             final_continuous_action,
         ) = final_choice
 
-        # With one Actor-selected candidate the noise controller must not
-        # silently change the RL destination.
-        if (
-            final_executor is None
-            or final_executor.id
-            != chosen_executor.id
-        ):
-            self._clear_ddpg_decision_cache(
-                task
-            )
-
-            self.schedule_retransmission(
-                task,
-                current_time
-                + Config.SimulatorConfig.TIMEOUT_TIME,
-            )
-            return
-
         packet_loss_random_number = (
             random.randint(
                 0,
@@ -702,6 +689,12 @@ class SimulatorDDPGnew(Simulator):
             final_zone_manager
         )
 
+        final_executor.assign_task(
+            task,
+            current_time,
+            self.fixed_fog_nodes,
+        )
+        
         self._register_successful_ddpg_decision(
             task=task,
             zone_manager=final_zone_manager,
@@ -710,27 +703,12 @@ class SimulatorDDPGnew(Simulator):
             current_time=current_time,
         )
 
-        final_executor.assign_task(
-            task,
-            current_time,
-            self.fixed_fog_nodes,
-        )
-
         self._clear_ddpg_decision_cache(
             task
         )
-
-    # ==================================================================
-    # Execution + metrics + delayed reward
-    # ==================================================================
+    
     def execute_tasks_for_one_step(self):
-        """
-        Execute one simulator tick and attach the real delay-only reward to
-        completed DDPG soft tasks.
 
-        Hard-task and common executor/deadline metrics are kept compatible
-        with the existing simulator architecture.
-        """
         executed_tasks = []
 
         merged_nodes = {
@@ -740,63 +718,31 @@ class SimulatorDDPGnew(Simulator):
         }
 
         if self.cloud_node is not None:
-            merged_nodes[
-                self.cloud_node.id
-            ] = self.cloud_node
+            merged_nodes[self.cloud_node.id] = self.cloud_node
 
-        for _, node in merged_nodes.items():
+
+        for node_id, node in merged_nodes.items():
+
             tasks = node.execute_tasks(
                 self.clock.get_current_time(),
                 self.fixed_fog_nodes,
             )
 
-            executed_tasks.extend(
-                tasks
-            )
+            executed_tasks.extend(tasks)
 
             for task in tasks:
-                # ------------------------------------------------------
-                # Existing load-difference metric
-                # ------------------------------------------------------
-                zone_manager = (
-                    self.task_zone_managers.get(
-                        task.id
-                    )
-                )
 
-                if zone_manager:
-                    all_fog_nodes = {
-                        **zone_manager.fixed_fog_nodes,
-                        **zone_manager.mobile_fog_nodes,
-                    }
+                # ======================================================
+                # EXECUTOR METRICS
+                # Same behavior as other baselines
+                # ======================================================
 
-                    loads = [
-                        len(fog.tasks)
-                        for fog
-                        in all_fog_nodes.values()
-                        if fog.can_offload_task(task)
-                    ]
+                if task.is_hard:
 
-                    if loads:
-                        self.metrics.inc_task_load_diff(
-                            task.id,
-                            min(loads),
-                            max(loads),
-                        )
-
-                # ------------------------------------------------------
-                # Executor metrics
-                # ------------------------------------------------------
-                if bool(
-                    getattr(
-                        task,
-                        "is_hard",
-                        False,
-                    )
-                ):
                     self.metrics.inc_local_hard_execution()
 
                 else:
+
                     if isinstance(
                         task.executor,
                         (
@@ -804,23 +750,25 @@ class SimulatorDDPGnew(Simulator):
                             MobileFogNode,
                         ),
                     ):
+
                         self.metrics.inc_fog_execution()
 
-                    elif (
-                        task.creator.id
-                        == task.executor.id
-                    ):
+                    elif task.executor is task.creator:
+
                         self.metrics.inc_local_execution()
 
                     elif isinstance(
                         task.executor,
                         CloudNode,
                     ):
+
                         self.metrics.inc_cloud_tasks()
 
-                    # --------------------------------------------------
-                    # Real DDPG reward only after full soft completion.
-                    # --------------------------------------------------
+
+                    # ==================================================
+                    # ONLY DDPG PART
+                    # ==================================================
+
                     if (
                         getattr(
                             task,
@@ -829,14 +777,17 @@ class SimulatorDDPGnew(Simulator):
                         )
                         is not None
                     ):
-                        self._complete_ddpg_reward(
-                            task
-                        )
 
-                # ------------------------------------------------------
-                # Deadline metrics remain evaluation-only.
-                # ------------------------------------------------------
+                        self._complete_ddpg_reward(task)
+
+
+                # ======================================================
+                # DEADLINE EVALUATION
+                # Same as simulator/SAC
+                # ======================================================
+
                 if task.is_deadline_missed:
+
                     missed_info = {
                         "task_id": task.id,
                         "release_time": task.release_time,
@@ -857,10 +808,13 @@ class SimulatorDDPGnew(Simulator):
 
                     if task.is_hard:
                         self.metrics.inc_hard_deadline_miss()
+
                     else:
                         self.metrics.inc_deadline_miss()
 
+
                 else:
+
                     success_task_info = {
                         "task_id": task.id,
                         "release_time": task.release_time,
@@ -881,14 +835,12 @@ class SimulatorDDPGnew(Simulator):
 
                     self.metrics.inc_completed_task()
 
-        # Node.execute_tasks() processes one simulator-time unit per call.
-        # start_simulation() normally runs while current_time < duration, so
-        # finalize on the final executable tick rather than waiting for a time
-        # value that may never enter this method.
+
         if (
             self.clock.get_current_time() + 1.0
             >= Config.SimulatorConfig.SIMULATION_DURATION
         ):
             self.finalize_ddpg_episode()
+
 
         return executed_tasks

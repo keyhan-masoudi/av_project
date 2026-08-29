@@ -254,14 +254,25 @@ class DeepRLZoneManager_DDPG_New(ZoneManagerABC):
             cached is not None
             and float(cached["current_time"]) == float(current_time)
         ):
-            self.__target_node = cached["executor"]
 
-            return (
-                cached["zone_manager"],
-                cached["executor"],
-                cached["continuous_action"].copy(),
-                cached["state"].copy(),
-            )
+            cached_executor = cached["executor"]
+
+            if (
+                cached_executor is not None
+                and cached_executor in self.env.get_candidate_nodes(task)
+            ):
+
+                self.__target_node = cached_executor
+
+                return (
+                    cached["zone_manager"],
+                    cached_executor,
+                    cached["continuous_action"].copy(),
+                    cached["state"].copy(),
+                )
+
+            else:
+                del decision_cache[task.id]
 
         state = self.env._get_state(
             task=task,
@@ -272,9 +283,7 @@ class DeepRLZoneManager_DDPG_New(ZoneManagerABC):
 
         continuous_action = self.agent.select_action(
             state,
-            exploration_noise=float(
-                self._cfg("EXPLORATION_NOISE", 0.1)
-            ),
+            exploration_noise=0.0
         )
 
         executor, action_index = self.select_executor_from_action(

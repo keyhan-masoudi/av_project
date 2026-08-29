@@ -144,17 +144,33 @@ class DeepRLEnvironmentDDPG:
 
     @staticmethod
     def _effective_soft_capacity(node: Optional[NodeABC]) -> float:
-        """Soft capacity (UserNode uses core_us if available)."""
+        """
+        Effective capacity available to soft tasks.
+
+        Cars reserve CPU capacity for local hard tasks.
+        Fog/cloud resources are fully available for soft tasks.
+        """
         if node is None:
             return DeepRLEnvironmentDDPG.EPS
+
         if isinstance(node, UserNode):
-            core_us = getattr(node, "core_us", None)
-            if core_us is not None and len(core_us) == node.num_cores:
+            core_Us = getattr(node, "core_Us", None)
+
+            if core_Us is not None and len(core_Us) == node.num_cores:
                 return max(
                     DeepRLEnvironmentDDPG.EPS,
-                    float(sum(max(0.0, float(v)) for v in core_us)),
+                    float(
+                        sum(
+                            max(0.0, float(v))
+                            for v in core_Us
+                        )
+                    ),
                 )
-        return max(DeepRLEnvironmentDDPG.EPS, float(node.num_cores))
+
+        return max(
+            DeepRLEnvironmentDDPG.EPS,
+            float(node.num_cores),
+        )
 
     @staticmethod
     def _task_processing_work(task: Task, node: Optional[NodeABC]) -> float:
@@ -176,7 +192,7 @@ class DeepRLEnvironmentDDPG:
         """Local=0; remote=size/bw + distance/c. Feature only."""
         if node is None:
             return 1e6
-        if task.creator is not None and node.id == task.creator.id:
+        if task.creator is not None and node is task.creator:
             return 0.0
         data_size = max(0.0, float(getattr(task, "dataSize", 0.0)))
         tx_time = data_size / self.tx_bandwidth_bps
