@@ -36,23 +36,23 @@ class Config:
         DEFAULT_FN = FN_HAM
 
     class Paths:
-        # NoiseConfigsPath = "D:/av_project/NoiseConfigs"
-        # pklPath = r"D:\av_project\SumoDividedByTime"
+        NoiseConfigsPath = "D:/av_project/NoiseConfigs"
+        pklPath = r"D:\av_project\SumoDividedByTime"
         
         # keyhan's path
-        NoiseConfigsPath = r"D:\code\final_av\av_project\NoiseConfigs"
-        pklPath = r"D:\code\final_av\av_project\SumoDividedByTime"
+        # NoiseConfigsPath = r"D:\code\final_av\av_project\NoiseConfigs"
+        # pklPath = r"D:\code\final_av\av_project\SumoDividedByTime"
         
 
     class VehiclesTraffic:
-        # PROJECT_ROOT = r"D:\av_project"
-        # NOISE_CONFIGS_PATH = r"D:\av_project\NoiseConfigs"
-        # PKL_PATH = r"D:\av_project\precalculated_vehicle_traffic.pkl"
+        PROJECT_ROOT = r"D:\av_project"
+        NOISE_CONFIGS_PATH = r"D:\av_project\NoiseConfigs"
+        PKL_PATH = r"D:\av_project\precalculated_vehicle_traffic.pkl"
         
         # keyhan's path
-        PROJECT_ROOT = r"D:\code\final_av\av_project"
-        NOISE_CONFIGS_PATH = r"D:\code\final_av\av_project\NoiseConfigs"
-        PKL_PATH = r"D:\code\final_av\av_project\precalculated_vehicle_traffic.pkl"
+        # PROJECT_ROOT = r"D:\code\final_av\av_project"
+        # NOISE_CONFIGS_PATH = r"D:\code\final_av\av_project\NoiseConfigs"
+        # PKL_PATH = r"D:\code\final_av\av_project\precalculated_vehicle_traffic.pkl"
 
     class TrafficCount:
         GreenTraffic = 5
