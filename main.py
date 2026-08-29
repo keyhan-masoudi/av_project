@@ -7,6 +7,7 @@ from models.node.cloud import CloudNode
 from utils.clock import Clock
 
 from controllers.simulator_maddpg import SimulatorMADDPG
+from controllers.Simulator.simulator_ddpg_new import SimulatorDDPGnew
 from controllers.Simulator.simulator_mappo import SimulatorMAPPO
 from controllers.Simulator.simulator_ddpg import SimulatorDDPG
 from controllers.Simulator.simulator_ppo import SimulatorPPO
@@ -87,6 +88,8 @@ def run_one(params):
         simulator = SimulatorMAPPO(loader, Clock(), cloud)
     elif Config.ZoneManagerConfig.DEFAULT_ALGORITHM == Config.ZoneManagerConfig.ALGORITHM_DDPG:
         simulator = SimulatorDDPG(loader, Clock(), cloud)
+    elif Config.ZoneManagerConfig.DEFAULT_ALGORITHM == Config.ZoneManagerConfig.ALGORITHM_DDPG_NEW:
+        simulator = SimulatorDDPGnew(loader, Clock(), cloud)
     elif Config.ZoneManagerConfig.DEFAULT_ALGORITHM == Config.ZoneManagerConfig.ALGORITHM_PPO:
         simulator = SimulatorPPO(loader, Clock(), cloud)
     elif Config.ZoneManagerConfig.DEFAULT_ALGORITHM == Config.ZoneManagerConfig.ALGORITHM_SAC:
@@ -115,6 +118,14 @@ if __name__ == "__main__":
         Config.ZoneManagerConfig.ALGORITHM_HEURISTIC,
         # Config.ZoneManagerConfig.ALGORITHM_ONLY_CLOUD,
         # Config.ZoneManagerConfig.ALGORITHM_ONLY_FOG,
+        # Config.ZoneManagerConfig.ALGORITHM_ONLY_LOCAL,
+        # Config.ZoneManagerConfig.ALGORITHM_DEEP_RL,
+        # Config.ZoneManagerConfig.ALGORITHM_DDPG,
+        # Config.ZoneManagerConfig.ALGORITHM_PPO,
+        # Config.ZoneManagerConfig.ALGORITHM_SAC,
+        # Config.ZoneManagerConfig.ALGORITHM_MADDPG,
+        # Config.ZoneManagerConfig.ALGORITHM_GREEDY,
+        Config.ZoneManagerConfig.ALGORITHM_DDPG_NEW,
         Config.ZoneManagerConfig.ALGORITHM_ONLY_LOCAL,
         Config.ZoneManagerConfig.ALGORITHM_DEEP_RL,
         Config.ZoneManagerConfig.ALGORITHM_DDPG,
@@ -123,6 +134,7 @@ if __name__ == "__main__":
         Config.ZoneManagerConfig.ALGORITHM_MADDPG,
         Config.ZoneManagerConfig.ALGORITHM_MAPPO,
         Config.ZoneManagerConfig.ALGORITHM_GREEDY,
+        Config.ZoneManagerConfig.ALGORITHM_DDPG_NEW,
     ]
 
     methods = [
