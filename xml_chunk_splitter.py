@@ -47,3 +47,8 @@ if __name__ == "__main__":
     split_xml_file("D:/av_project/data/vehicles_raw.xml", "D:/av_project/data/vehicles", c_size)
     split_xml_file("D:/av_project/data/tasks_raw.xml", "D:/av_project/data/tasks", c_size)
     split_xml_file("D:/av_project/data/hard_tasks_raw.xml", "D:/av_project/data/hard_tasks", c_size)
+    
+    # keyhan version
+    # split_xml_file(r"D:\code\final_av\av_project\data\vehicles_raw.xml", r"D:\code\final_av\av_project\data\vehicles", c_size)
+    # split_xml_file(r"D:\code\final_av\av_project\data\tasks_raw.xml", r"D:\code\final_av\av_project\data\tasks", c_size)
+    # split_xml_file(r"D:\code\final_av\av_project\data\hard_tasks_raw.xml", r"D:\code\final_av\av_project\data\hard_tasks", c_size)
