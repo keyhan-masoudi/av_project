@@ -9,11 +9,11 @@ import math
 # -----------------------------
 # Config
 # -----------------------------
-# xml_path = "DATA\\Vehicles in Rain\\New100\\vehicles\\chunk_0.xml"  # path to your SUMO XML file
-# xml_path = "DATA\\Vehicles in Rain\\New150\\vehicles\\chunk_0.xml"
-# xml_path = "DATA\\Vehicles in Rain\\New200\\vehicles\\chunk_0.xml"
-# xml_path = "DATA\\Vehicles in Rain\\New250\\vehicles\\chunk_0.xml"
-xml_path = "DATA\\Vehicles in Rain\\New300\\vehicles\\chunk_0.xml"
+# xml_path = "Vehicles in Rain\\New100\\vehicles\\chunk_0.xml"  # path to your SUMO XML file
+# xml_path = "Vehicles in Rain\\New150\\vehicles\\chunk_0.xml"
+# xml_path = "Vehicles in Rain\\New200\\vehicles\\chunk_0.xml"
+# xml_path = "Vehicles in Rain\\New250\\vehicles\\chunk_0.xml"
+xml_path = "Vehicles in Rain\\New300\\vehicles\\chunk_0.xml"
 
 
 # output_csv = "testfile\\final100.csv"

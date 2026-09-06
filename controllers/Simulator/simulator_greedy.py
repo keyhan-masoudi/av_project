@@ -15,6 +15,9 @@ class SimulatorGreedy(Simulator):
         Dynamically loads hard tasks at each clock tick.
         Combines Algorithm 1 (Fast Test) and Algorithm 2 (Deep Test) into a single pipeline.
         """
+        if not Config.SimulatorConfig.ENABLE_HARD_TASKS:
+            return 0
+        
         loaded_count = 0
         new_hard_tasks = self.loader.load_nodes_hard_tasks(current_time)
         
@@ -144,10 +147,41 @@ class SimulatorGreedy(Simulator):
         if task not in creator.local_hard_tasks:
             creator.local_hard_tasks.append(task)
             
-        # 4. Push to the Execution Engine using strict RATE MONOTONIC (RM) Priority!
-        # Because RM always runs the task with the shortest period first, 
-        # we put 'period' as the first item in the heap tuple, NOT deadline.
-        heapq.heappush(creator.cores[core_idx], (period, task.release_time, task))   
+        # 4. Push task into the correct execution queue
+        # Simulator decides execution architecture:
+        # parallel mode -> separate hard queue
+        # non-parallel mode -> unified queue
+
+        if Config.SimulatorConfig.BASELINE_PARALLEL_FREQUENCY:
+
+            task.total_exec_time = (
+                task.exec_time /
+                Config.SimulatorConfig.HARD_TASKS_FREQ_RATIO
+            )
+            task.remaining_time = task.total_exec_time
+
+            heapq.heappush(
+                creator.hard_cores[core_idx],
+                (
+                    task.deadline,
+                    task.release_time,
+                    task
+                )
+            )
+
+        else:
+
+            task.total_exec_time = task.exec_time
+            task.remaining_time = task.total_exec_time
+
+            heapq.heappush(
+                creator.cores[core_idx],
+                (
+                    task.deadline,
+                    task.release_time,
+                    task
+                )
+            )  
     
     def load_soft_tasks(self, current_time: float) -> Dict[str, List[Task]]:
         """
@@ -255,9 +289,37 @@ class SimulatorGreedy(Simulator):
         creator.periodic_allocation[core_idx].append(task)
             
         # 3. Push to Execution Engine
-        # Since aperiodic tasks don't have a repeating period, we push them into the heap
-        # using their absolute deadline so they run in the background safely.
-        heapq.heappush(creator.cores[core_idx], (task.deadline, task.release_time, task))     
+        if Config.SimulatorConfig.BASELINE_PARALLEL_FREQUENCY:
+
+            task.total_exec_time = (
+                task.exec_time /
+                (1 - Config.SimulatorConfig.HARD_TASKS_FREQ_RATIO)
+            )
+
+            task.remaining_time = task.total_exec_time
+
+            heapq.heappush(
+                creator.soft_cores[core_idx],
+                (
+                    task.deadline,
+                    task.release_time,
+                    task
+                )
+            )
+
+        else:
+
+            task.total_exec_time = task.exec_time
+            task.remaining_time = task.total_exec_time
+
+            heapq.heappush(
+                creator.cores[core_idx],
+                (
+                    task.deadline,
+                    task.release_time,
+                    task
+                )
+            )  
         
     def start_simulation(self):
         self.init_simulation()
