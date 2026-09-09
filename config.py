@@ -42,6 +42,10 @@ class Config:
         # Uni's path
         NoiseConfigsPath = "D:/Abbas/python projects/av_project/av_project/NoiseConfigs"
         pklPath = r"D:\Abbas\python projects\av_project\av_project\SumoDividedByTime"
+
+        # Rasoul's Path
+        NoiseConfigsPath = "C:/Users/amras/Desktop/Abbas/av_project/av_project/NoiseConfigs"
+        pklPath = r"C:\Users\amras\Desktop\Abbas\av_project\av_project\SumoDividedByTime"
         
         # keyhan's path
         # NoiseConfigsPath = r"D:\code\final_av\av_project\NoiseConfigs"
@@ -57,6 +61,11 @@ class Config:
         PROJECT_ROOT = r"D:\Abbas\python projects\av_project\av_project"
         NOISE_CONFIGS_PATH = r"D:\Abbas\python projects\av_project\av_project\NoiseConfigs"
         PKL_PATH = r"D:\Abbas\python projects\av_project\av_project\precalculated_vehicle_traffic.pkl"
+
+        # Rasoul's Path 
+        PROJECT_ROOT = r"C:\Users\amras\Desktop\Abbas\av_project\av_project"
+        NOISE_CONFIGS_PATH = r"C:\Users\amras\Desktop\Abbas\av_project\av_project\NoiseConfigs"
+        PKL_PATH = r"C:\Users\amras\Desktop\Abbas\av_project\av_project\precalculated_vehicle_traffic.pkl"
         
         # keyhan's path
         # PROJECT_ROOT = r"D:\code\final_av\av_project"
@@ -119,12 +128,12 @@ class Config:
         LOCAL_OFFLOAD_POWER_OVERHEAD = 1
         LOCAL_EXECUTE_TIME_OVERHEAD = 1
         NUM_CORE = 8
-        HARD_TASK_EXEC_TIME_DIVISOR = 1e6
-        HARD_TASK_SPECS = (
-            {"period": 7, "size_max": 1200, "cycles_max": 1200},
-            {"period": 5, "size_max": 5000, "cycles_max": 1200},
-            {"period": 6, "size_max": 1000, "cycles_max": 1000},
-        )
+        # HARD_TASK_EXEC_TIME_DIVISOR = 1e6
+        # HARD_TASK_SPECS = (
+        #     {"period": 7, "size_max": 1200, "cycles_max": 1200},
+        #     {"period": 5, "size_max": 5000, "cycles_max": 1200},
+        #     {"period": 6, "size_max": 1000, "cycles_max": 1000},
+        # )
 
     class ZoneManagerConfig:
         ALGORITHM_RANDOM = "Random"
