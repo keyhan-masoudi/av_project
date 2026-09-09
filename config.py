@@ -36,8 +36,12 @@ class Config:
         DEFAULT_FN = FN_HAM
 
     class Paths:
-        NoiseConfigsPath = "D:/av_project/NoiseConfigs"
-        pklPath = r"D:\av_project\SumoDividedByTime"
+        # NoiseConfigsPath = "D:/av_project/NoiseConfigs"
+        # pklPath = r"D:\av_project\SumoDividedByTime"
+
+        # Uni's path
+        NoiseConfigsPath = "D:/Abbas/python projects/av_project/av_project/NoiseConfigs"
+        pklPath = r"D:\Abbas\python projects\av_project\av_project\SumoDividedByTime"
         
         # keyhan's path
         # NoiseConfigsPath = r"D:\code\final_av\av_project\NoiseConfigs"
@@ -45,9 +49,14 @@ class Config:
         
 
     class VehiclesTraffic:
-        PROJECT_ROOT = r"D:\av_project"
-        NOISE_CONFIGS_PATH = r"D:\av_project\NoiseConfigs"
-        PKL_PATH = r"D:\av_project\precalculated_vehicle_traffic.pkl"
+        # PROJECT_ROOT = r"D:\av_project"
+        # NOISE_CONFIGS_PATH = r"D:\av_project\NoiseConfigs"
+        # PKL_PATH = r"D:\av_project\precalculated_vehicle_traffic.pkl"
+
+        # Uni's path
+        PROJECT_ROOT = r"D:\Abbas\python projects\av_project\av_project"
+        NOISE_CONFIGS_PATH = r"D:\Abbas\python projects\av_project\av_project\NoiseConfigs"
+        PKL_PATH = r"D:\Abbas\python projects\av_project\av_project\precalculated_vehicle_traffic.pkl"
         
         # keyhan's path
         # PROJECT_ROOT = r"D:\code\final_av\av_project"
